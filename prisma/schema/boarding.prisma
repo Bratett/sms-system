@@ -1,0 +1,187 @@
+model Hostel {
+  id          String @id @default(cuid())
+  schoolId    String
+  name        String
+  gender      Gender
+  capacity    Int    @default(0)
+  wardenId    String? // staffId or userId of hostel warden
+  description String?
+  status      Status @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  dormitories Dormitory[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model Dormitory {
+  id       String @id @default(cuid())
+  hostelId String
+  name     String
+  floor    String?
+  capacity Int    @default(0)
+  status   Status @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  hostel Hostel @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  beds   Bed[]
+
+  @@unique([hostelId, name])
+  @@index([hostelId])
+}
+
+model Bed {
+  id          String    @id @default(cuid())
+  dormitoryId String
+  bedNumber   String
+  status      BedStatus @default(AVAILABLE)
+  createdAt   DateTime  @default(now())
+
+  dormitory   Dormitory      @relation(fields: [dormitoryId], references: [id], onDelete: Cascade)
+  allocations BedAllocation[]
+
+  @@unique([dormitoryId, bedNumber])
+  @@index([dormitoryId])
+  @@index([status])
+}
+
+model BedAllocation {
+  id             String              @id @default(cuid())
+  bedId          String
+  studentId      String
+  termId         String
+  academicYearId String
+  allocatedAt    DateTime            @default(now())
+  allocatedBy    String              // userId
+  status         BedAllocationStatus @default(ACTIVE)
+  vacatedAt      DateTime?
+
+  bed Bed @relation(fields: [bedId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, termId])
+  @@index([bedId])
+  @@index([studentId])
+  @@index([termId])
+  @@index([status])
+  @@index([academicYearId])
+}
+
+model Exeat {
+  id                String      @id @default(cuid())
+  exeatNumber       String      @unique // EXT/YYYY/NNNN
+  studentId         String
+  termId            String
+  reason            String
+  type              ExeatType   @default(NORMAL)
+  departureDate     DateTime
+  departureTime     String?
+  expectedReturnDate DateTime
+  actualReturnDate  DateTime?
+  actualReturnTime  String?
+  guardianName      String?
+  guardianPhone     String?
+  status            ExeatStatus @default(REQUESTED)
+  requestedAt       DateTime    @default(now())
+  requestedBy       String      // userId
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  approvals ExeatApproval[]
+
+  @@index([studentId])
+  @@index([termId])
+  @@index([status])
+}
+
+model ExeatApproval {
+  id           String @id @default(cuid())
+  exeatId      String
+  approverRole String // e.g., "housemaster", "headmaster"
+  approverId   String // userId
+  action       ExeatApprovalAction
+  comments     String?
+  actionAt     DateTime @default(now())
+
+  exeat Exeat @relation(fields: [exeatId], references: [id], onDelete: Cascade)
+
+  @@index([exeatId])
+}
+
+model RollCall {
+  id          String   @id @default(cuid())
+  hostelId    String
+  date        DateTime
+  type        RollCallType @default(EVENING)
+  conductedBy String   // userId
+  conductedAt DateTime @default(now())
+
+  records RollCallRecord[]
+
+  @@unique([hostelId, date, type])
+  @@index([hostelId])
+  @@index([date])
+  @@index([hostelId, date])
+}
+
+model RollCallRecord {
+  id         String         @id @default(cuid())
+  rollCallId String
+  studentId  String
+  status     RollCallStatus @default(PRESENT)
+  notes      String?
+
+  rollCall RollCall @relation(fields: [rollCallId], references: [id], onDelete: Cascade)
+
+  @@unique([rollCallId, studentId])
+  @@index([rollCallId])
+}
+
+enum BedStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+}
+
+enum BedAllocationStatus {
+  ACTIVE
+  VACATED
+}
+
+enum ExeatType {
+  NORMAL
+  EMERGENCY
+  MEDICAL
+  WEEKEND
+  VACATION
+}
+
+enum ExeatStatus {
+  REQUESTED
+  HOUSEMASTER_APPROVED
+  HEADMASTER_APPROVED
+  REJECTED
+  DEPARTED
+  RETURNED
+  OVERDUE
+  CANCELLED
+}
+
+enum ExeatApprovalAction {
+  APPROVED
+  REJECTED
+}
+
+enum RollCallType {
+  MORNING
+  EVENING
+}
+
+enum RollCallStatus {
+  PRESENT
+  ABSENT
+  EXEAT
+  SICK_BAY
+}

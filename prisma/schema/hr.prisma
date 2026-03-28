@@ -1,0 +1,215 @@
+model Staff {
+  id                      String    @id @default(cuid())
+  schoolId                String
+  userId                  String?   @unique
+  staffId                 String    @unique // Auto: STF/YYYY/NNNN
+  firstName               String
+  lastName                String
+  otherNames              String?
+  dateOfBirth             DateTime?
+  gender                  Gender
+  phone                   String
+  email                   String?
+  ghanaCardNumber         String?
+  ssnitNumber             String?
+  tinNumber               String?
+  qualifications          Json?     // Array of {degree, institution, year}
+  specialization          String?
+  dateOfFirstAppointment  DateTime?
+  dateOfPostingToSchool   DateTime?
+  staffType               StaffType @default(TEACHING)
+  photoUrl                String?
+  address                 String?
+  region                  String?
+  status                  StaffStatus @default(ACTIVE)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  employments Employment[]
+  leaveRequests LeaveRequest[]
+
+  @@index([schoolId])
+  @@index([staffId])
+  @@index([staffType])
+  @@index([status])
+}
+
+model Employment {
+  id              String          @id @default(cuid())
+  staffId         String
+  position        String
+  rank            String?
+  departmentId    String?
+  startDate       DateTime
+  endDate         DateTime?
+  appointmentType AppointmentType @default(PERMANENT)
+  salaryGrade     String?
+  status          EmploymentStatus @default(ACTIVE)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@index([departmentId])
+  @@index([status])
+}
+
+model LeaveType {
+  id              String  @id @default(cuid())
+  schoolId        String
+  name            String
+  defaultDays     Int     @default(0)
+  requiresApproval Boolean @default(true)
+  applicableGender String? // null = all, MALE, FEMALE
+  status          Status  @default(ACTIVE)
+  createdAt       DateTime @default(now())
+
+  leaveBalances  LeaveBalance[]
+  leaveRequests  LeaveRequest[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model LeaveBalance {
+  id             String @id @default(cuid())
+  staffId        String
+  leaveTypeId    String
+  academicYearId String
+  totalDays      Int
+  usedDays       Int    @default(0)
+  remainingDays  Int
+
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, leaveTypeId, academicYearId])
+  @@index([staffId])
+  @@index([academicYearId])
+}
+
+model LeaveRequest {
+  id            String      @id @default(cuid())
+  staffId       String
+  leaveTypeId   String
+  startDate     DateTime
+  endDate       DateTime
+  daysRequested Int
+  reason        String?
+  status        LeaveRequestStatus @default(PENDING)
+  appliedAt     DateTime    @default(now())
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  reviewNotes   String?
+
+  staff     Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@index([leaveTypeId])
+  @@index([status])
+  @@index([staffId, status])
+}
+
+model PayrollPeriod {
+  id       String        @id @default(cuid())
+  schoolId String
+  month    Int
+  year     Int
+  status   PayrollStatus @default(DRAFT)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  entries PayrollEntry[]
+
+  @@unique([schoolId, month, year])
+  @@index([schoolId])
+}
+
+model PayrollEntry {
+  id              String @id @default(cuid())
+  payrollPeriodId String
+  staffId         String
+  basicSalary     Float
+  totalAllowances Float  @default(0)
+  totalDeductions Float  @default(0)
+  netPay          Float
+  details         Json?  // Breakdown: {allowances: [{name, amount}], deductions: [{name, amount}]}
+  createdAt       DateTime @default(now())
+
+  payrollPeriod PayrollPeriod @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+
+  @@unique([payrollPeriodId, staffId])
+  @@index([payrollPeriodId])
+  @@index([staffId])
+}
+
+model Allowance {
+  id       String @id @default(cuid())
+  schoolId String
+  name     String
+  type     AllowanceType @default(FIXED)
+  amount   Float
+  status   Status @default(ACTIVE)
+  createdAt DateTime @default(now())
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model Deduction {
+  id          String @id @default(cuid())
+  schoolId    String
+  name        String
+  type        AllowanceType @default(FIXED)
+  amount      Float
+  isStatutory Boolean @default(false)
+  status      Status  @default(ACTIVE)
+  createdAt   DateTime @default(now())
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+enum StaffType {
+  TEACHING
+  NON_TEACHING
+}
+
+enum StaffStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+  RETIRED
+  TRANSFERRED
+}
+
+enum AppointmentType {
+  PERMANENT
+  CONTRACT
+  NATIONAL_SERVICE
+  VOLUNTEER
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  ENDED
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PayrollStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+enum AllowanceType {
+  FIXED
+  PERCENTAGE
+}

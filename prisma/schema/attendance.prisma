@@ -1,0 +1,52 @@
+model AttendanceRegister {
+  id          String               @id @default(cuid())
+  classArmId  String
+  date        DateTime
+  type        AttendanceType       @default(DAILY)
+  periodId    String?
+  takenBy     String               // userId who took attendance
+  status      AttendanceRegisterStatus @default(OPEN)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  records AttendanceRecord[]
+
+  @@unique([classArmId, date, type, periodId])
+  @@index([classArmId])
+  @@index([date])
+  @@index([takenBy])
+  @@index([classArmId, date])
+}
+
+model AttendanceRecord {
+  id         String           @id @default(cuid())
+  registerId String
+  studentId  String
+  status     AttendanceStatus @default(PRESENT)
+  remarks    String?
+  createdAt  DateTime         @default(now())
+
+  register AttendanceRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
+
+  @@unique([registerId, studentId])
+  @@index([registerId])
+  @@index([studentId])
+}
+
+enum AttendanceType {
+  DAILY
+  PERIOD
+}
+
+enum AttendanceRegisterStatus {
+  OPEN
+  CLOSED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+  SICK
+}

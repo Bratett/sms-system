@@ -1,0 +1,201 @@
+model FeeStructure {
+  id             String             @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  termId         String
+  programmeId    String?            // null = all programmes
+  boardingStatus BoardingStatus?    // null = both day and boarding
+  name           String
+  status         FeeStructureStatus @default(DRAFT)
+  approvedBy     String?
+  approvedAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  feeItems FeeItem[]
+  bills    StudentBill[]
+
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([termId])
+  @@index([status])
+}
+
+model FeeItem {
+  id             String  @id @default(cuid())
+  feeStructureId String
+  name           String  // e.g., Tuition, Boarding, Feeding, PTA, Exam Fee
+  code           String?
+  amount         Float
+  isOptional     Boolean @default(false)
+  description    String?
+
+  feeStructure  FeeStructure    @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  billItems     StudentBillItem[]
+
+  @@index([feeStructureId])
+}
+
+model StudentBill {
+  id             String     @id @default(cuid())
+  studentId      String
+  feeStructureId String
+  termId         String
+  academicYearId String
+  totalAmount    Float
+  paidAmount     Float      @default(0)
+  balanceAmount  Float
+  status         BillStatus @default(UNPAID)
+  generatedAt    DateTime   @default(now())
+  dueDate        DateTime?
+  updatedAt      DateTime   @updatedAt
+
+  feeStructure FeeStructure    @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  billItems    StudentBillItem[]
+  payments     Payment[]
+
+  @@unique([studentId, feeStructureId])
+  @@index([studentId])
+  @@index([termId])
+  @@index([academicYearId])
+  @@index([status])
+  @@index([feeStructureId])
+}
+
+model StudentBillItem {
+  id            String @id @default(cuid())
+  studentBillId String
+  feeItemId     String
+  amount        Float
+  waivedAmount  Float  @default(0)
+  paidAmount    Float  @default(0)
+
+  studentBill StudentBill @relation(fields: [studentBillId], references: [id], onDelete: Cascade)
+  feeItem     FeeItem     @relation(fields: [feeItemId], references: [id], onDelete: Cascade)
+
+  @@unique([studentBillId, feeItemId])
+  @@index([studentBillId])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  studentBillId  String
+  studentId      String
+  amount         Float
+  paymentMethod  PaymentMethod
+  referenceNumber String?
+  receivedBy     String        // userId
+  receivedAt     DateTime      @default(now())
+  status         PaymentStatus @default(CONFIRMED)
+  notes          String?
+  createdAt      DateTime      @default(now())
+
+  studentBill StudentBill @relation(fields: [studentBillId], references: [id], onDelete: Cascade)
+  receipt     Receipt?
+  reversal    PaymentReversal?
+
+  @@index([studentBillId])
+  @@index([studentId])
+  @@index([receivedAt])
+  @@index([status])
+  @@index([studentId, receivedAt])
+}
+
+model Receipt {
+  id            String   @id @default(cuid())
+  paymentId     String   @unique
+  receiptNumber String   @unique // RCP/YYYY/T{n}/NNNN
+  generatedAt   DateTime @default(now())
+  fileUrl       String?
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([receiptNumber])
+}
+
+model Scholarship {
+  id             String          @id @default(cuid())
+  schoolId       String
+  name           String
+  type           ScholarshipType
+  value          Float           // percentage or fixed amount
+  criteria       String?
+  academicYearId String?
+  status         Status          @default(ACTIVE)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  studentScholarships StudentScholarship[]
+
+  @@index([schoolId])
+}
+
+model StudentScholarship {
+  id            String @id @default(cuid())
+  studentId     String
+  scholarshipId String
+  appliedAmount Float
+  termId        String
+  createdAt     DateTime @default(now())
+
+  scholarship Scholarship @relation(fields: [scholarshipId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, scholarshipId, termId])
+  @@index([studentId])
+  @@index([scholarshipId])
+  @@index([termId])
+}
+
+model PaymentReversal {
+  id         String   @id @default(cuid())
+  paymentId  String   @unique
+  reason     String
+  reversedBy String   // userId who initiated
+  reversedAt DateTime @default(now())
+  approvedBy String?  // userId who approved
+  approvedAt DateTime?
+  status     ReversalStatus @default(PENDING)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([status])
+}
+
+enum FeeStructureStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum BillStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERPAID
+  WAIVED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CHEQUE
+  OTHER
+}
+
+enum PaymentStatus {
+  CONFIRMED
+  REVERSED
+}
+
+enum ScholarshipType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum ReversalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

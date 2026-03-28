@@ -1,0 +1,88 @@
+model Announcement {
+  id         String   @id @default(cuid())
+  schoolId   String
+  title      String
+  content    String
+  targetType String   @default("all") // all, class, programme, house, specific
+  targetIds  Json?    // array of IDs if targeted
+  priority   String   @default("normal") // low, normal, high, urgent
+  publishedAt DateTime?
+  expiresAt  DateTime?
+  createdBy  String
+  status     String   @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([status])
+}
+
+model SmsLog {
+  id               String   @id @default(cuid())
+  schoolId         String
+  recipientPhone   String
+  recipientName    String?
+  message          String
+  status           String   @default("QUEUED") // QUEUED, SENT, DELIVERED, FAILED
+  provider         String?
+  providerMessageId String?
+  sentAt           DateTime?
+  cost             Float?
+  createdAt        DateTime @default(now())
+
+  @@index([schoolId])
+  @@index([status])
+}
+
+model DisciplinaryIncident {
+  id          String   @id @default(cuid())
+  schoolId    String
+  studentId   String
+  reportedBy  String
+  date        DateTime
+  type        String   // e.g., "Fighting", "Truancy", "Vandalism", "Disobedience"
+  description String
+  severity    String   @default("MINOR") // MINOR, MODERATE, MAJOR, CRITICAL
+  sanction    String?
+  status      String   @default("REPORTED") // REPORTED, INVESTIGATING, RESOLVED, DISMISSED
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([status])
+}
+
+model GraduationBatch {
+  id             String   @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  name           String
+  ceremonyDate   DateTime?
+  status         String   @default("PENDING") // PENDING, COMPLETED
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  records GraduationRecord[]
+
+  @@index([schoolId])
+}
+
+model GraduationRecord {
+  id                String   @id @default(cuid())
+  graduationBatchId String
+  studentId         String
+  certificateNumber String?
+  honours           String?  // First Class, Second Class, Pass
+  status            String   @default("PENDING") // PENDING, CONFIRMED
+  createdAt         DateTime @default(now())
+
+  batch GraduationBatch @relation(fields: [graduationBatchId], references: [id], onDelete: Cascade)
+
+  @@unique([graduationBatchId, studentId])
+  @@index([graduationBatchId])
+  @@index([studentId])
+}

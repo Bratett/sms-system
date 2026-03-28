@@ -1,0 +1,188 @@
+model School {
+  id                      String         @id @default(cuid())
+  name                    String
+  motto                   String?
+  address                 String?
+  region                  String?
+  district                String?
+  town                    String?
+  phone                   String?
+  email                   String?
+  website                 String?
+  logoUrl                 String?
+  type                    SchoolType     @default(DAY_BOARDING)
+  category                SchoolCategory @default(PUBLIC)
+  ghanaEducationServiceCode String?
+  postalAddress           String?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  academicYears AcademicYear[]
+  departments   Department[]
+  programmes    Programme[]
+  houses        House[]
+  gradingScales GradingScale[]
+}
+
+model AcademicYear {
+  id        String             @id @default(cuid())
+  schoolId  String
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  status    AcademicYearStatus @default(UPCOMING)
+  isCurrent Boolean            @default(false)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  terms  Term[]
+
+  @@index([schoolId])
+  @@index([isCurrent])
+  @@index([schoolId, isCurrent])
+}
+
+model Term {
+  id             String     @id @default(cuid())
+  academicYearId String
+  name           String
+  termNumber     Int
+  startDate      DateTime
+  endDate        DateTime
+  status         TermStatus @default(UPCOMING)
+  isCurrent      Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  @@index([academicYearId])
+  @@index([isCurrent])
+  @@index([academicYearId, isCurrent])
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  schoolId    String
+  name        String
+  code        String?
+  description String?
+  status      Status   @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school     School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  programmes Programme[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model Programme {
+  id           String   @id @default(cuid())
+  schoolId     String
+  departmentId String?
+  name         String
+  code         String?
+  description  String?
+  duration     Int      @default(3)
+  status       Status   @default(ACTIVE)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  school     School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model House {
+  id          String   @id @default(cuid())
+  schoolId    String
+  name        String
+  color       String?
+  motto       String?
+  description String?
+  status      Status   @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model GradingScale {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school           School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  gradeDefinitions GradeDefinition[]
+
+  @@index([schoolId])
+  @@index([isDefault])
+}
+
+model GradeDefinition {
+  id             String @id @default(cuid())
+  gradingScaleId String
+  grade          String
+  minScore       Float
+  maxScore       Float
+  interpretation String
+  gradePoint     Float  @default(0)
+
+  gradingScale GradingScale @relation(fields: [gradingScaleId], references: [id], onDelete: Cascade)
+
+  @@index([gradingScaleId])
+}
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  type        String   @default("string")
+  module      String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+  @@index([module])
+}
+
+enum SchoolType {
+  DAY
+  BOARDING
+  DAY_BOARDING
+}
+
+enum SchoolCategory {
+  PUBLIC
+  PRIVATE
+}
+
+enum AcademicYearStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum TermStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+}

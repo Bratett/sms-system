@@ -1,0 +1,249 @@
+model Class {
+  id             String   @id @default(cuid())
+  schoolId       String
+  programmeId    String
+  academicYearId String
+  yearGroup      Int      // 1, 2, or 3 for SHS
+  name           String   // e.g., "SHS 1 Science"
+  code           String?
+  maxCapacity    Int      @default(50)
+  status         Status   @default(ACTIVE)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  classArms ClassArm[]
+
+  @@unique([schoolId, name, academicYearId])
+  @@index([schoolId])
+  @@index([programmeId])
+  @@index([academicYearId])
+  @@index([yearGroup])
+}
+
+model ClassArm {
+  id          String   @id @default(cuid())
+  classId     String
+  name        String   // e.g., "A", "B", "1"
+  capacity    Int      @default(50)
+  classTeacherId String? // Staff ID of the class teacher
+  status      Status   @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  class       Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  enrollments Enrollment[]
+
+  @@unique([classId, name])
+  @@index([classId])
+}
+
+model Enrollment {
+  id               String           @id @default(cuid())
+  studentId        String
+  classArmId       String
+  academicYearId   String
+  termId           String?
+  enrollmentDate   DateTime         @default(now())
+  status           EnrollmentStatus @default(ACTIVE)
+  previousClassArmId String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classArm ClassArm @relation(fields: [classArmId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, academicYearId])
+  @@index([studentId])
+  @@index([classArmId])
+  @@index([academicYearId])
+  @@index([status])
+  @@index([termId])
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  TRANSFERRED
+  WITHDRAWN
+  PROMOTED
+  COMPLETED
+}
+
+// ── Subjects & Assignments ──────────────────────────────
+
+model Subject {
+  id          String      @id @default(cuid())
+  schoolId    String
+  name        String
+  code        String?
+  description String?
+  type        SubjectType @default(CORE)
+  status      Status      @default(ACTIVE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  programmeSubjects        ProgrammeSubject[]
+  teacherSubjectAssignments TeacherSubjectAssignment[]
+  marks                    Mark[]
+  subjectResults           SubjectResult[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model ProgrammeSubject {
+  id          String @id @default(cuid())
+  programmeId String
+  subjectId   String
+  isCore      Boolean @default(true)
+  yearGroup   Int?    // null = all year groups
+
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([programmeId, subjectId])
+  @@index([programmeId])
+  @@index([subjectId])
+}
+
+model TeacherSubjectAssignment {
+  id             String @id @default(cuid())
+  staffId        String // references User or Staff id
+  subjectId      String
+  classArmId     String
+  academicYearId String
+  termId         String?
+  createdAt      DateTime @default(now())
+
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, subjectId, classArmId, academicYearId])
+  @@index([staffId])
+  @@index([subjectId])
+  @@index([classArmId])
+  @@index([academicYearId])
+  @@index([termId])
+}
+
+enum SubjectType {
+  CORE
+  ELECTIVE
+}
+
+// ── Assessments & Marks ─────────────────────────────────
+
+model AssessmentType {
+  id        String             @id @default(cuid())
+  schoolId  String
+  name      String             // e.g., "Class Test 1", "Mid-Term", "End of Term Exam"
+  code      String?
+  weight    Float              @default(0) // percentage weight toward term total
+  maxScore  Float              @default(100)
+  termId    String?
+  category  AssessmentCategory @default(CLASSWORK)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  marks Mark[]
+
+  @@unique([schoolId, name, termId])
+  @@index([schoolId])
+  @@index([termId])
+}
+
+model Mark {
+  id               String     @id @default(cuid())
+  studentId        String
+  subjectId        String
+  assessmentTypeId String
+  classArmId       String
+  termId           String
+  academicYearId   String
+  score            Float
+  maxScore         Float      @default(100)
+  enteredBy        String     // userId
+  enteredAt        DateTime   @default(now())
+  approvedBy       String?
+  approvedAt       DateTime?
+  status           MarkStatus @default(DRAFT)
+
+  subject        Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  assessmentType AssessmentType @relation(fields: [assessmentTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, subjectId, assessmentTypeId, termId])
+  @@index([studentId])
+  @@index([subjectId])
+  @@index([classArmId])
+  @@index([termId])
+  @@index([assessmentTypeId])
+  @@index([status])
+  @@index([academicYearId])
+}
+
+// ── Results & Report Cards ──────────────────────────────
+
+model TerminalResult {
+  id               String   @id @default(cuid())
+  studentId        String
+  classArmId       String
+  termId           String
+  academicYearId   String
+  totalScore       Float?
+  averageScore     Float?
+  classPosition    Int?
+  overallGrade     String?
+  teacherRemarks   String?
+  headmasterRemarks String?
+  promotionStatus  PromotionStatus?
+  computedAt       DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  subjectResults SubjectResult[]
+
+  @@unique([studentId, termId, academicYearId])
+  @@index([studentId])
+  @@index([classArmId])
+  @@index([termId])
+  @@index([academicYearId])
+  @@index([classArmId, academicYearId])
+}
+
+model SubjectResult {
+  id               String @id @default(cuid())
+  terminalResultId String
+  subjectId        String
+  classScore       Float?   // weighted CA total
+  examScore        Float?   // exam score
+  totalScore       Float?   // classScore + examScore
+  grade            String?
+  interpretation   String?
+  position         Int?
+  teacherInitials  String?
+
+  terminalResult TerminalResult @relation(fields: [terminalResultId], references: [id], onDelete: Cascade)
+  subject        Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([terminalResultId, subjectId])
+  @@index([terminalResultId])
+  @@index([subjectId])
+}
+
+enum AssessmentCategory {
+  CLASSWORK
+  HOMEWORK
+  PROJECT
+  MIDTERM
+  END_OF_TERM
+}
+
+enum MarkStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum PromotionStatus {
+  PROMOTED
+  RETAINED
+  GRADUATED
+  PENDING
+}
