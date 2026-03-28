@@ -11,5 +11,5 @@ export default async function ParentResultsPage() {
   const result = await getParentChildrenAction();
   const children = result.data ?? [];
 
-  return <ResultsClient children={children} />;
+  return <ResultsClient students={children} />;
 }

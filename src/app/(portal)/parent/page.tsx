@@ -11,5 +11,5 @@ export default async function ParentPage() {
   const result = await getParentChildrenAction();
   const children = result.data ?? [];
 
-  return <ParentDashboard children={children} userName={session.user.name ?? "Parent"} />;
+  return <ParentDashboard students={children} userName={session.user.name ?? "Parent"} />;
 }

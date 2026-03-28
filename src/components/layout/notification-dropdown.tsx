@@ -25,6 +25,14 @@ export function NotificationDropdown() {
   const [unreadCount, setUnreadCount] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
+  const loadNotifications = async () => {
+    const result = await getNotificationsAction();
+    if ("notifications" in result && result.notifications) {
+      setNotifications(result.notifications as Notification[]);
+      setUnreadCount(result.unreadCount ?? 0);
+    }
+  };
+
   useEffect(() => {
     loadNotifications();
   }, []);
@@ -38,14 +46,6 @@ export function NotificationDropdown() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  async function loadNotifications() {
-    const result = await getNotificationsAction();
-    if ("notifications" in result && result.notifications) {
-      setNotifications(result.notifications as Notification[]);
-      setUnreadCount(result.unreadCount ?? 0);
-    }
-  }
 
   async function handleMarkRead(id: string) {
     await markNotificationReadAction(id);

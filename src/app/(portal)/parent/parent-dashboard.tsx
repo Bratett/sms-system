@@ -24,11 +24,11 @@ interface ChildData {
 }
 
 interface ParentDashboardProps {
-  children: ChildData[];
+  students: ChildData[];
   userName: string;
 }
 
-export function ParentDashboard({ children, userName }: ParentDashboardProps) {
+export function ParentDashboard({ students, userName }: ParentDashboardProps) {
   return (
     <div className="space-y-6">
       <PageHeader
@@ -36,7 +36,7 @@ export function ParentDashboard({ children, userName }: ParentDashboardProps) {
         description="View your children's academic progress, fees, and more."
       />
 
-      {children.length === 0 ? (
+      {students.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 bg-white p-12 text-center">
           <h3 className="text-lg font-medium text-gray-900">No Children Linked</h3>
           <p className="mt-1 text-sm text-gray-500">
@@ -46,7 +46,7 @@ export function ParentDashboard({ children, userName }: ParentDashboardProps) {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {children.map((child) => (
+          {students.map((child) => (
             <div
               key={child.id}
               className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"

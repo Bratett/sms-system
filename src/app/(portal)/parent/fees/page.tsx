@@ -11,5 +11,5 @@ export default async function ParentFeesPage() {
   const result = await getParentChildrenAction();
   const children = result.data ?? [];
 
-  return <FeesClient children={children} />;
+  return <FeesClient students={children} />;
 }

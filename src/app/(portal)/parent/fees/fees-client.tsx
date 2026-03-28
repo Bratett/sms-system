@@ -45,12 +45,12 @@ interface FeesData {
 }
 
 interface FeesClientProps {
-  children: ChildData[];
+  students: ChildData[];
 }
 
-export function FeesClient({ children }: FeesClientProps) {
+export function FeesClient({ students }: FeesClientProps) {
   const searchParams = useSearchParams();
-  const initialStudentId = searchParams.get("studentId") || children[0]?.id || "";
+  const initialStudentId = searchParams.get("studentId") || students[0]?.id || "";
 
   const [selectedStudentId, setSelectedStudentId] = useState(initialStudentId);
   const [feesData, setFeesData] = useState<FeesData | null>(null);
@@ -59,15 +59,21 @@ export function FeesClient({ children }: FeesClientProps) {
 
   useEffect(() => {
     if (!selectedStudentId) return;
-
+    let cancelled = false;
     setLoading(true);
     getChildFeesAction(selectedStudentId)
       .then((result) => {
+        if (cancelled) return;
         if (result.data) {
           setFeesData(result.data as unknown as FeesData);
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedStudentId]);
 
   const formatCurrency = (amount: number) =>
@@ -75,10 +81,13 @@ export function FeesClient({ children }: FeesClientProps) {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Fee Overview" description="View fee bills and payment history for your children." />
+      <PageHeader
+        title="Fee Overview"
+        description="View fee bills and payment history for your children."
+      />
 
       {/* Child Selector */}
-      {children.length > 1 && (
+      {students.length > 1 && (
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <label className="block text-sm font-medium text-gray-700">Select Child</label>
           <select
@@ -86,7 +95,7 @@ export function FeesClient({ children }: FeesClientProps) {
             onChange={(e) => setSelectedStudentId(e.target.value)}
             className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:max-w-xs"
           >
-            {children.map((child) => (
+            {students.map((child) => (
               <option key={child.id} value={child.id}>
                 {child.firstName} {child.lastName} ({child.studentId})
               </option>
@@ -147,9 +156,7 @@ export function FeesClient({ children }: FeesClientProps) {
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium text-gray-900">
-                            {bill.feeStructureName}
-                          </span>
+                          <span className="font-medium text-gray-900">{bill.feeStructureName}</span>
                           <StatusBadge status={bill.status} />
                         </div>
                         <p className="mt-0.5 text-sm text-gray-500">
@@ -222,9 +229,7 @@ export function FeesClient({ children }: FeesClientProps) {
                                       <td className="py-2 pr-4 capitalize">
                                         {payment.paymentMethod.replace(/_/g, " ").toLowerCase()}
                                       </td>
-                                      <td className="py-2">
-                                        {payment.receiptNumber ?? "-"}
-                                      </td>
+                                      <td className="py-2">{payment.receiptNumber ?? "-"}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -240,7 +245,7 @@ export function FeesClient({ children }: FeesClientProps) {
             )}
           </div>
         </>
-      ) : children.length === 0 ? (
+      ) : students.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 bg-white p-12 text-center">
           <h3 className="text-lg font-medium text-gray-900">No Children Linked</h3>
           <p className="mt-1 text-sm text-gray-500">

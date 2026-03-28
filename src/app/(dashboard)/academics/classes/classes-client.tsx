@@ -109,7 +109,7 @@ export function ClassesClient({
   // Filter classes by selected academic year
   useEffect(() => {
     if (!selectedYearId) {
-      setClasses(initialClasses);
+      startTransition(() => setClasses(initialClasses));
       return;
     }
     startTransition(async () => {
@@ -593,11 +593,7 @@ export function ClassesClient({
                   disabled={isPending}
                   className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
-                  {isPending
-                    ? "Saving..."
-                    : editingClass
-                      ? "Update Class"
-                      : "Create Class"}
+                  {isPending ? "Saving..." : editingClass ? "Update Class" : "Create Class"}
                 </button>
               </div>
             </form>
@@ -683,11 +679,7 @@ export function ClassesClient({
                   disabled={isPending}
                   className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
-                  {isPending
-                    ? "Saving..."
-                    : editingArm
-                      ? "Update Arm"
-                      : "Create Arm"}
+                  {isPending ? "Saving..." : editingArm ? "Update Arm" : "Create Arm"}
                 </button>
               </div>
             </form>

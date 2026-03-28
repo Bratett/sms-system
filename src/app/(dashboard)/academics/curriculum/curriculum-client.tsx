@@ -58,16 +58,22 @@ export function CurriculumClient({
   // Load programme subjects when selection changes
   useEffect(() => {
     if (!selectedProgrammeId) {
-      setProgrammeSubjects([]);
+      const reset = () => setProgrammeSubjects([]);
+      reset();
       return;
     }
+    let cancelled = false;
     setLoading(true);
     getProgrammeSubjectsAction(selectedProgrammeId).then((result) => {
+      if (cancelled) return;
       if (result.data) {
         setProgrammeSubjects(result.data);
       }
       setLoading(false);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedProgrammeId]);
 
   // Separate core and elective subjects
@@ -165,9 +171,7 @@ export function CurriculumClient({
             </div>
             <div className="p-4 space-y-2">
               {coreSubjects.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  No core subjects assigned yet.
-                </p>
+                <p className="text-sm text-muted-foreground py-2">No core subjects assigned yet.</p>
               ) : (
                 coreSubjects.map((ps) => (
                   <div

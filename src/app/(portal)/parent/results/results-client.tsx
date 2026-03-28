@@ -50,12 +50,12 @@ interface ResultsResponse {
 }
 
 interface ResultsClientProps {
-  children: ChildData[];
+  students: ChildData[];
 }
 
-export function ResultsClient({ children }: ResultsClientProps) {
+export function ResultsClient({ students }: ResultsClientProps) {
   const searchParams = useSearchParams();
-  const initialStudentId = searchParams.get("studentId") || children[0]?.id || "";
+  const initialStudentId = searchParams.get("studentId") || students[0]?.id || "";
 
   const [selectedStudentId, setSelectedStudentId] = useState(initialStudentId);
   const [selectedTermId, setSelectedTermId] = useState("");
@@ -64,20 +64,24 @@ export function ResultsClient({ children }: ResultsClientProps) {
 
   useEffect(() => {
     if (!selectedStudentId) return;
-
+    let cancelled = false;
     setLoading(true);
     getChildResultsAction(selectedStudentId, selectedTermId || undefined)
       .then((res) => {
+        if (cancelled) return;
         if (res.data) {
           setResultsData(res.data as unknown as ResultsResponse);
-          // Set initial term selection if not set
           if (!selectedTermId && res.data.terms.length > 0) {
-            const currentTerm = res.data.terms[0];
-            setSelectedTermId(currentTerm.id);
+            setSelectedTermId(res.data.terms[0].id);
           }
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedStudentId, selectedTermId]);
 
   const gradeColorClass = (grade: string | null) => {
@@ -117,7 +121,7 @@ export function ResultsClient({ children }: ResultsClientProps) {
 
       {/* Selectors */}
       <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 sm:flex-row">
-        {children.length > 1 && (
+        {students.length > 1 && (
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700">Select Child</label>
             <select
@@ -128,7 +132,7 @@ export function ResultsClient({ children }: ResultsClientProps) {
               }}
               className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
             >
-              {children.map((child) => (
+              {students.map((child) => (
                 <option key={child.id} value={child.id}>
                   {child.firstName} {child.lastName} ({child.studentId})
                 </option>
@@ -282,7 +286,7 @@ export function ResultsClient({ children }: ResultsClientProps) {
         <div className="rounded-lg border border-dashed border-gray-300 bg-white p-12 text-center">
           <h3 className="text-lg font-medium text-gray-900">No Results Available</h3>
           <p className="mt-1 text-sm text-gray-500">
-            {children.length === 0
+            {students.length === 0
               ? "No children are linked to your account."
               : "No results have been published for the selected term."}
           </p>
