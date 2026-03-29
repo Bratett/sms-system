@@ -11,7 +11,8 @@ model Class {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  classArms ClassArm[]
+  classArms     ClassArm[]
+  examSchedules ExamSchedule[]
 
   @@unique([schoolId, name, academicYearId])
   @@index([schoolId])
@@ -30,8 +31,9 @@ model ClassArm {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  class       Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
-  enrollments Enrollment[]
+  class          Class           @relation(fields: [classId], references: [id], onDelete: Cascade)
+  enrollments    Enrollment[]
+  timetableSlots TimetableSlot[]
 
   @@unique([classId, name])
   @@index([classId])
@@ -81,10 +83,12 @@ model Subject {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  programmeSubjects        ProgrammeSubject[]
+  programmeSubjects         ProgrammeSubject[]
   teacherSubjectAssignments TeacherSubjectAssignment[]
-  marks                    Mark[]
-  subjectResults           SubjectResult[]
+  marks                     Mark[]
+  subjectResults            SubjectResult[]
+  timetableSlots            TimetableSlot[]
+  examSchedules             ExamSchedule[]
 
   @@unique([schoolId, name])
   @@index([schoolId])
@@ -246,4 +250,45 @@ enum PromotionStatus {
   RETAINED
   GRADUATED
   PENDING
+}
+
+// ─── Promotion Rules ────────────────────────────────────────────────
+
+model PromotionRule {
+  id             String   @id @default(cuid())
+  schoolId       String
+  academicYearId String?
+  yearGroup      Int?     // null = applies to all year groups
+  passAverage    Float    @default(40)
+  maxFailingSubjects Int  @default(3)
+  requireAttendance Boolean @default(false)
+  minAttendancePercent Float? @default(75)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([academicYearId])
+}
+
+// ─── Transcripts ────────────────────────────────────────────────────
+
+model Transcript {
+  id               String   @id @default(cuid())
+  schoolId         String
+  studentId        String
+  transcriptNumber String   @unique // TRN/YYYY/NNNN
+  generatedBy      String   // User ID
+  generatedAt      DateTime @default(now())
+  coveringFrom     String?  // e.g., "2022/2023"
+  coveringTo       String?  // e.g., "2024/2025"
+  cumulativeGPA    Float?
+  status           String   @default("GENERATED") // GENERATED, VERIFIED, ISSUED
+  verifiedBy       String?
+  verifiedAt       DateTime?
+  notes            String?
+  createdAt        DateTime @default(now())
+
+  @@index([schoolId])
+  @@index([studentId])
 }

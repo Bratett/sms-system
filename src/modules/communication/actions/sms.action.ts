@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { getQueue, QUEUE_NAMES, type SmsJobData } from "@/lib/queue";
 
 // ─── Send Single SMS ────────────────────────────────────────────────
 
@@ -29,6 +30,14 @@ export async function sendSmsAction(data: {
       message: data.message,
       status: "QUEUED",
     },
+  });
+
+  // Dispatch to SMS delivery queue
+  const smsQueue = getQueue<SmsJobData>(QUEUE_NAMES.SMS);
+  await smsQueue.add("sms-send", {
+    smsLogId: smsLog.id,
+    phone: data.recipientPhone,
+    message: data.message,
   });
 
   await audit({
@@ -64,6 +73,8 @@ export async function sendBulkSmsAction(data: {
     return { error: "No recipients provided." };
   }
 
+  const smsQueue = getQueue<SmsJobData>(QUEUE_NAMES.SMS);
+
   const records = data.recipients.map((r) => ({
     schoolId: school.id,
     recipientPhone: r.phone,
@@ -73,6 +84,21 @@ export async function sendBulkSmsAction(data: {
   }));
 
   const result = await db.smsLog.createMany({ data: records });
+
+  // Fetch created records to dispatch to queue
+  const createdLogs = await db.smsLog.findMany({
+    where: { schoolId: school.id, status: "QUEUED", message: data.message },
+    orderBy: { createdAt: "desc" },
+    take: data.recipients.length,
+  });
+
+  for (const log of createdLogs) {
+    await smsQueue.add("sms-send", {
+      smsLogId: log.id,
+      phone: log.recipientPhone,
+      message: log.message,
+    });
+  }
 
   await audit({
     userId: session.user.id!,

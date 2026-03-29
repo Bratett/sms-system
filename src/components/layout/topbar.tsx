@@ -4,6 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { LogOut, User, Menu } from "lucide-react";
 import { useState } from "react";
 import { NotificationDropdown } from "@/components/layout/notification-dropdown";
+import { GlobalSearch } from "@/components/layout/global-search";
 
 export function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
   const { data: session } = useSession();
@@ -21,6 +22,7 @@ export function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
       </div>
 
       <div className="flex items-center gap-3">
+        <GlobalSearch />
         <NotificationDropdown />
 
         <div className="relative">

@@ -6,10 +6,7 @@ import { audit } from "@/lib/audit";
 
 // ─── Get Promotion Candidates ─────────────────────────────────────────
 
-export async function getPromotionCandidatesAction(
-  classArmId: string,
-  academicYearId: string,
-) {
+export async function getPromotionCandidatesAction(classArmId: string, academicYearId: string) {
   const session = await auth();
   if (!session?.user) {
     return { error: "Unauthorized" };
@@ -85,41 +82,47 @@ export async function getPromotionCandidatesAction(
     });
 
     // Calculate cumulative average across all terms
-    const termAverages = termResults
-      .map((tr) => tr.averageScore ?? 0)
-      .filter((a) => a > 0);
+    const termAverages = termResults.map((tr) => tr.averageScore ?? 0).filter((a) => a > 0);
 
     const cumulativeAverage =
       termAverages.length > 0
-        ? Math.round(
-            (termAverages.reduce((sum, a) => sum + a, 0) /
-              termAverages.length) *
-              100,
-          ) / 100
+        ? Math.round((termAverages.reduce((sum, a) => sum + a, 0) / termAverages.length) * 100) /
+          100
         : 0;
 
     // Count F9 subjects from the latest term result
     let f9Count = 0;
     const latestResult = termResults[termResults.length - 1];
     if (latestResult) {
-      f9Count = latestResult.subjectResults.filter(
-        (sr) => sr.grade === failingGrade,
-      ).length;
+      f9Count = latestResult.subjectResults.filter((sr) => sr.grade === failingGrade).length;
     }
 
-    // Determine promotion recommendation
-    // Default criteria: average >= 40 and max 3 F9 subjects
-    const passAverage = 40;
-    const maxFailingSubjects = 3;
-
-    let recommendation: "PROMOTED" | "RETAINED" | "GRADUATED" = "RETAINED";
-    let reason = "";
-
-    // Check if this is SHS 3 (graduating class)
+    // Look up configurable promotion rules from database
     const classArm = await db.classArm.findUnique({
       where: { id: classArmId },
       include: { class: true },
     });
+
+    const promotionRule = await db.promotionRule.findFirst({
+      where: {
+        schoolId: school.id,
+        isActive: true,
+        OR: [
+          { academicYearId, yearGroup: classArm?.class?.yearGroup ?? null },
+          { academicYearId, yearGroup: null },
+          { academicYearId: null, yearGroup: classArm?.class?.yearGroup ?? null },
+          { academicYearId: null, yearGroup: null },
+        ],
+      },
+      orderBy: [{ academicYearId: "desc" }, { yearGroup: "desc" }],
+    });
+
+    const passAverage = promotionRule?.passAverage ?? 40;
+    const maxFailingSubjects = promotionRule?.maxFailingSubjects ?? 3;
+
+    let recommendation: "PROMOTED" | "RETAINED" | "GRADUATED" = "RETAINED";
+    let reason = "";
+
     const isGraduatingClass = classArm?.class?.yearGroup === 3;
 
     if (cumulativeAverage === 0) {
@@ -127,10 +130,7 @@ export async function getPromotionCandidatesAction(
     } else if (isGraduatingClass) {
       recommendation = "GRADUATED";
       reason = "Final year student";
-    } else if (
-      cumulativeAverage >= passAverage &&
-      f9Count <= maxFailingSubjects
-    ) {
+    } else if (cumulativeAverage >= passAverage && f9Count <= maxFailingSubjects) {
       recommendation = "PROMOTED";
       reason = `Average: ${cumulativeAverage}%, F9 count: ${f9Count}`;
     } else {
@@ -225,9 +225,7 @@ export async function processPromotionsAction(data: {
       });
 
       if (!enrollment) {
-        results.errors.push(
-          `No active enrollment found for student ${promotion.studentId}`,
-        );
+        results.errors.push(`No active enrollment found for student ${promotion.studentId}`);
         continue;
       }
 

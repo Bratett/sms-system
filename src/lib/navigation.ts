@@ -221,6 +221,31 @@ export const navigationItems: NavItem[] = [
     ],
   },
   {
+    title: "Timetable",
+    href: "/timetable",
+    icon: "Clock",
+    children: [
+      {
+        title: "Timetable",
+        href: "/timetable",
+        icon: "CalendarDays",
+        permission: PERMISSIONS.TIMETABLE_READ,
+      },
+      {
+        title: "Rooms",
+        href: "/timetable/rooms",
+        icon: "DoorOpen",
+        permission: PERMISSIONS.ROOMS_READ,
+      },
+      {
+        title: "Exam Schedule",
+        href: "/timetable/exam-schedule",
+        icon: "ClipboardList",
+        permission: PERMISSIONS.EXAM_SCHEDULE_READ,
+      },
+    ],
+  },
+  {
     title: "Finance",
     href: "/finance",
     icon: "DollarSign",

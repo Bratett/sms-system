@@ -3,39 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 import { Bell, Check, CheckCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  getNotificationsAction,
-  markNotificationReadAction,
-  markAllNotificationsReadAction,
-} from "@/modules/school/actions/notification.action";
-
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: string;
-  isRead: boolean;
-  link: string | null;
-  createdAt: Date;
-}
+import { useNotificationStream } from "@/hooks/use-notifications";
 
 export function NotificationDropdown() {
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-
-  const loadNotifications = async () => {
-    const result = await getNotificationsAction();
-    if ("notifications" in result && result.notifications) {
-      setNotifications(result.notifications as Notification[]);
-      setUnreadCount(result.unreadCount ?? 0);
-    }
-  };
-
-  useEffect(() => {
-    loadNotifications();
-  }, []);
+  const { notifications, unreadCount, markAsRead, markAllRead } =
+    useNotificationStream();
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -47,18 +21,6 @@ export function NotificationDropdown() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  async function handleMarkRead(id: string) {
-    await markNotificationReadAction(id);
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
-    setUnreadCount((prev) => Math.max(0, prev - 1));
-  }
-
-  async function handleMarkAllRead() {
-    await markAllNotificationsReadAction();
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    setUnreadCount(0);
-  }
-
   const typeColors: Record<string, string> = {
     INFO: "bg-blue-500",
     SUCCESS: "bg-green-500",
@@ -69,10 +31,7 @@ export function NotificationDropdown() {
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={() => {
-          setOpen(!open);
-          if (!open) loadNotifications();
-        }}
+        onClick={() => setOpen(!open)}
         className="relative rounded-md p-2 hover:bg-accent"
         aria-label="Notifications"
       >
@@ -90,7 +49,7 @@ export function NotificationDropdown() {
             <h3 className="text-sm font-semibold">Notifications</h3>
             {unreadCount > 0 && (
               <button
-                onClick={handleMarkAllRead}
+                onClick={markAllRead}
                 className="flex items-center gap-1 text-xs text-primary hover:underline"
               >
                 <CheckCheck className="h-3 w-3" />
@@ -133,7 +92,7 @@ export function NotificationDropdown() {
                   </div>
                   {!notification.isRead && (
                     <button
-                      onClick={() => handleMarkRead(notification.id)}
+                      onClick={() => markAsRead(notification.id)}
                       className="shrink-0 self-start rounded p-1 hover:bg-accent"
                       title="Mark as read"
                     >

@@ -12,9 +12,11 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  userRoles     UserRole[]
-  auditLogs     AuditLog[]
-  notifications Notification[]
+  userRoles              UserRole[]
+  auditLogs              AuditLog[]
+  notifications          Notification[]
+  teacherTimetableSlots  TimetableSlot[]  @relation("TeacherTimetableSlots")
+  invigilatorExamSchedules ExamSchedule[] @relation("InvigilatorExamSchedules")
 
   @@index([email])
   @@index([username])

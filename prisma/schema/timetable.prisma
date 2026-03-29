@@ -1,0 +1,115 @@
+model Room {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String   // e.g., "Science Lab 1", "Room 203"
+  building  String?
+  capacity  Int?
+  type      RoomType @default(CLASSROOM)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  timetableSlots TimetableSlot[]
+  examSchedules  ExamSchedule[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model Period {
+  id        String     @id @default(cuid())
+  schoolId  String
+  name      String     // e.g., "Period 1", "Break"
+  startTime String     // "08:00" format
+  endTime   String     // "08:45" format
+  order     Int        // sort order
+  type      PeriodType @default(LESSON)
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  timetableSlots TimetableSlot[]
+
+  @@unique([schoolId, order])
+  @@index([schoolId])
+}
+
+model TimetableSlot {
+  id             String   @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  termId         String
+  classArmId     String
+  subjectId      String
+  teacherId      String   // references User (the teacher)
+  periodId       String
+  roomId         String?
+  dayOfWeek      Int      // 1=Monday, 5=Friday
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+  classArm     ClassArm     @relation(fields: [classArmId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher      User         @relation("TeacherTimetableSlots", fields: [teacherId], references: [id], onDelete: Cascade)
+  period       Period       @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  room         Room?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  @@unique([classArmId, periodId, dayOfWeek, termId])
+  @@index([teacherId, periodId, dayOfWeek, termId])
+  @@index([roomId, periodId, dayOfWeek, termId])
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([termId])
+}
+
+model ExamSchedule {
+  id             String   @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  termId         String
+  subjectId      String
+  classId        String
+  date           DateTime
+  startTime      String
+  endTime        String
+  roomId         String?
+  invigilatorId  String?  // references User
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  class        Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  room         Room?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  invigilator  User?        @relation("InvigilatorExamSchedules", fields: [invigilatorId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([termId])
+  @@index([classId])
+  @@index([subjectId])
+  @@index([date])
+}
+
+enum RoomType {
+  CLASSROOM
+  LABORATORY
+  HALL
+  FIELD
+  OTHER
+}
+
+enum PeriodType {
+  LESSON
+  BREAK
+  ASSEMBLY
+  FREE
+}

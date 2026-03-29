@@ -1,0 +1,27 @@
+// ─── Document & Records Management ─────────────────────────────────
+
+model Document {
+  id           String   @id @default(cuid())
+  schoolId     String
+  title        String
+  description  String?
+  fileKey      String   // R2 storage key
+  fileName     String
+  fileSize     Int      // bytes
+  contentType  String   // MIME type
+  category     String   // STUDENT, STAFF, ADMISSION, POLICY, REPORT, FORM, OTHER
+  tags         Json?    // string array for flexible tagging
+  entityType   String?  // e.g., "Student", "Staff", "AdmissionApplication"
+  entityId     String?  // ID of linked entity
+  uploadedBy   String   // User ID
+  accessLevel  String   @default("STAFF") // PUBLIC, STAFF, ADMIN, RESTRICTED
+  retentionDate DateTime? // optional retention/expiry date
+  isArchived   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([entityType, entityId])
+  @@index([category])
+  @@index([uploadedBy])
+}

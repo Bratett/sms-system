@@ -27,6 +27,8 @@ model Staff {
 
   employments Employment[]
   leaveRequests LeaveRequest[]
+  disciplinaryRecords StaffDisciplinary[]
+  performanceNotes PerformanceNote[]
 
   @@index([schoolId])
   @@index([staffId])
@@ -212,4 +214,52 @@ enum PayrollStatus {
 enum AllowanceType {
   FIXED
   PERCENTAGE
+}
+
+// ─── Staff Disciplinary & Performance ──────────────────────────────
+
+model StaffDisciplinary {
+  id          String   @id @default(cuid())
+  schoolId    String
+  staffId     String
+  reportedBy  String   // User ID
+  date        DateTime
+  type        String   // MISCONDUCT, NEGLIGENCE, INSUBORDINATION, ABSENTEEISM, OTHER
+  description String
+  severity    String   @default("MINOR") // MINOR, MODERATE, MAJOR, CRITICAL
+  sanction    String?
+  status      String   @default("REPORTED") // REPORTED, INVESTIGATING, RESOLVED, DISMISSED
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([staffId])
+  @@index([status])
+}
+
+model PerformanceNote {
+  id             String   @id @default(cuid())
+  schoolId       String
+  staffId        String
+  reviewerId     String   // User ID of reviewer
+  period         String   // e.g., "Term 1 2024/2025"
+  academicYearId String?
+  rating         Int?     // 1-5 scale
+  strengths      String?
+  areasForImprovement String?
+  goals          String?
+  comments       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([staffId])
+  @@index([academicYearId])
 }

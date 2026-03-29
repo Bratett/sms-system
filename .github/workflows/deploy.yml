@@ -2,6 +2,15 @@ name: Deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - staging
 
 env:
   REGISTRY: ghcr.io
@@ -14,6 +23,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
 
     steps:
       - name: Checkout
@@ -42,3 +53,38 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  health-check:
+    name: Post-Deploy Health Check
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: ${{ inputs.environment == 'production' }}
+    steps:
+      - name: Wait for deployment to propagate
+        run: sleep 30
+
+      - name: Health check
+        run: |
+          HEALTH_URL="${{ secrets.PRODUCTION_URL || 'http://localhost:3000' }}"
+          echo "Checking health at $HEALTH_URL..."
+
+          MAX_RETRIES=5
+          RETRY_DELAY=10
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+            echo "Attempt $i: HTTP $STATUS"
+
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ]; then
+              echo "Health check passed!"
+              exit 0
+            fi
+
+            if [ "$i" -lt "$MAX_RETRIES" ]; then
+              echo "Retrying in ${RETRY_DELAY}s..."
+              sleep $RETRY_DELAY
+            fi
+          done
+
+          echo "Health check failed after $MAX_RETRIES attempts"
+          exit 1

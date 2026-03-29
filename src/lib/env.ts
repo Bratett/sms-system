@@ -21,6 +21,32 @@ const envSchema = z.object({
 
   // Node environment
   NODE_ENV: z.enum(["development", "production", "test"]).optional().default("development"),
+
+  // Redis (optional - required for background jobs)
+  REDIS_URL: z.string().optional(),
+
+  // Cloudflare R2 Storage (optional - required for file uploads)
+  R2_ENDPOINT: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
+
+  // SMS Gateway (optional - required for SMS delivery)
+  SMS_PROVIDER: z.enum(["hubtel", "mock"]).optional().default("mock"),
+  SMS_API_KEY: z.string().optional(),
+  SMS_API_SECRET: z.string().optional(),
+  SMS_SENDER_ID: z.string().optional().default("SMS"),
+
+  // Paystack (optional - required for online payments)
+  PAYSTACK_SECRET_KEY: z.string().optional(),
+  PAYSTACK_PUBLIC_KEY: z.string().optional(),
+
+  // Email SMTP (optional - required for email notifications)
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.string().optional().default("587"),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  EMAIL_FROM: z.string().optional().default("noreply@school.edu.gh"),
 });
 
 export type Env = z.infer<typeof envSchema>;
