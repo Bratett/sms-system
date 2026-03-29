@@ -31,6 +31,8 @@ export function useNotificationStream(): NotificationStreamState {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const connectRef = useRef<() => void>();
+
   const connect = useCallback(() => {
     // Clean up any existing connection
     if (eventSourceRef.current) {
@@ -64,12 +66,13 @@ export function useNotificationStream(): NotificationStreamState {
 
       // Reconnect after 5 seconds
       reconnectTimeoutRef.current = setTimeout(() => {
-        connect();
+        connectRef.current?.();
       }, 5000);
     };
   }, []);
 
   useEffect(() => {
+    connectRef.current = connect;
     connect();
 
     return () => {
@@ -86,9 +89,7 @@ export function useNotificationStream(): NotificationStreamState {
 
   const markAsRead = useCallback(async (id: string) => {
     await markNotificationReadAction(id);
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
-    );
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
     setUnreadCount((prev) => Math.max(0, prev - 1));
   }, []);
 
