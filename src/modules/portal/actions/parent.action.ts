@@ -448,3 +448,38 @@ export async function getChildAttendanceAction(studentId: string, termId?: strin
     },
   };
 }
+
+// ─── Get Announcements for Parent ─────────────────────────────────────
+
+export async function getParentAnnouncementsAction() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" };
+  }
+
+  const school = await db.school.findFirst();
+  if (!school) return { error: "No school configured" };
+
+  const announcements = await db.announcement.findMany({
+    where: {
+      schoolId: school.id,
+      status: "PUBLISHED",
+      targetType: { in: ["all", "specific"] },
+    },
+    orderBy: { publishedAt: "desc" },
+    take: 20,
+    select: {
+      id: true,
+      title: true,
+      content: true,
+      priority: true,
+      publishedAt: true,
+      expiresAt: true,
+    },
+  });
+
+  const now = new Date();
+  const active = announcements.filter((a) => !a.expiresAt || new Date(a.expiresAt) > now);
+
+  return { data: active };
+}

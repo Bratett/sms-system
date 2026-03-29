@@ -17,11 +17,15 @@ model School {
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
 
-  academicYears AcademicYear[]
-  departments   Department[]
-  programmes    Programme[]
-  houses        House[]
-  gradingScales GradingScale[]
+  academicYears  AcademicYear[]
+  departments    Department[]
+  programmes     Programme[]
+  houses         House[]
+  gradingScales  GradingScale[]
+  rooms          Room[]
+  periods        Period[]
+  timetableSlots TimetableSlot[]
+  examSchedules  ExamSchedule[]
 }
 
 model AcademicYear {
@@ -35,8 +39,10 @@ model AcademicYear {
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
-  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  terms  Term[]
+  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  terms          Term[]
+  timetableSlots TimetableSlot[]
+  examSchedules  ExamSchedule[]
 
   @@index([schoolId])
   @@index([isCurrent])
@@ -55,7 +61,9 @@ model Term {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  academicYear   AcademicYear    @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  timetableSlots TimetableSlot[]
+  examSchedules  ExamSchedule[]
 
   @@index([academicYearId])
   @@index([isCurrent])

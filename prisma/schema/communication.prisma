@@ -56,6 +56,65 @@ model DisciplinaryIncident {
   @@index([status])
 }
 
+// ─── Counseling & Welfare ────────────────────────────────────────────
+
+model CounselingRecord {
+  id          String   @id @default(cuid())
+  schoolId    String
+  studentId   String
+  counselorId String   // User ID of guidance counsellor
+  sessionDate DateTime
+  type        String   // ACADEMIC, PERSONAL, CAREER, BEHAVIORAL, FAMILY, OTHER
+  summary     String
+  actionPlan  String?
+  followUpDate DateTime?
+  status      String   @default("OPEN") // OPEN, FOLLOW_UP, CLOSED
+  isConfidential Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([counselorId])
+}
+
+model WelfareNote {
+  id         String   @id @default(cuid())
+  schoolId   String
+  studentId  String
+  createdBy  String   // User ID
+  date       DateTime
+  category   String   // HEALTH, NUTRITION, HOUSING, FINANCIAL, EMOTIONAL, SAFETY, OTHER
+  description String
+  actionTaken String?
+  followUpRequired Boolean @default(false)
+  status     String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([studentId])
+}
+
+model Commendation {
+  id          String   @id @default(cuid())
+  schoolId    String
+  studentId   String
+  awardedBy   String   // User ID
+  date        DateTime
+  type        String   // ACADEMIC_EXCELLENCE, SPORTS, LEADERSHIP, COMMUNITY_SERVICE, BEST_STUDENT, IMPROVEMENT, OTHER
+  title       String
+  description String?
+  termId      String?
+  academicYearId String?
+  createdAt   DateTime @default(now())
+
+  @@index([schoolId])
+  @@index([studentId])
+}
+
+// ─── Graduation ──────────────────────────────────────────────────────
+
 model GraduationBatch {
   id             String   @id @default(cuid())
   schoolId       String
@@ -85,4 +144,28 @@ model GraduationRecord {
   @@unique([graduationBatchId, studentId])
   @@index([graduationBatchId])
   @@index([studentId])
+}
+
+// ─── Alumni Profiles ─────────────────────────────────────────────────
+
+model AlumniProfile {
+  id               String   @id @default(cuid())
+  studentId        String   @unique // link to Student record
+  schoolId         String
+  graduationYear   Int
+  email            String?
+  phone            String?
+  address          String?
+  currentEmployer  String?
+  currentPosition  String?
+  industry         String?
+  highestEducation String?  // e.g., "BSc Computer Science, University of Ghana"
+  linkedinUrl      String?
+  bio              String?
+  isPublic         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([graduationYear])
 }

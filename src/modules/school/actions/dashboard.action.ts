@@ -195,3 +195,183 @@ export async function getDashboardStatsAction() {
     })),
   };
 }
+
+// ─── Role-Specific Dashboard Data ──────────────────────────────────
+
+export async function getRoleDashboardAction() {
+  const session = await auth();
+  if (!session?.user) return { error: "Unauthorized" };
+
+  const roles = (session.user as { roles?: string[] }).roles || [];
+  const primaryRole = roles[0] || "teacher";
+
+  const school = await db.school.findFirst();
+  const currentTerm = await db.term.findFirst({ where: { isCurrent: true } });
+  const currentYear = await db.academicYear.findFirst({ where: { isCurrent: true } });
+
+  switch (primaryRole) {
+    case "finance_officer":
+      return getFinanceDashboard(currentTerm?.id, currentYear?.id);
+    case "teacher":
+    case "class_teacher":
+    case "subject_teacher":
+      return getTeacherDashboard(session.user.id!, currentTerm?.id);
+    case "housemaster":
+      return getHousemasterDashboard(session.user.id!);
+    case "hr_officer":
+      return getHrDashboard();
+    case "store_keeper":
+      return getInventoryDashboard(school?.id);
+    case "admissions_officer":
+      return getAdmissionsDashboard(currentYear?.id);
+    default:
+      // super_admin, headmaster, etc. use the full dashboard
+      return { data: { role: primaryRole, useFullDashboard: true } };
+  }
+}
+
+async function getFinanceDashboard(termId?: string, academicYearId?: string) {
+  const [billStats, todayPayments, pendingReversals] = await Promise.all([
+    termId
+      ? db.studentBill.aggregate({
+          where: { termId },
+          _sum: { totalAmount: true, paidAmount: true, balanceAmount: true },
+          _count: true,
+        })
+      : Promise.resolve({
+          _sum: { totalAmount: null, paidAmount: null, balanceAmount: null },
+          _count: 0,
+        }),
+    db.payment.count({
+      where: {
+        receivedAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+        status: "CONFIRMED",
+      },
+    }),
+    db.paymentReversal.count({ where: { status: "PENDING" } }),
+  ]);
+
+  const totalBilled = billStats._sum.totalAmount ?? 0;
+  const totalCollected = billStats._sum.paidAmount ?? 0;
+
+  return {
+    data: {
+      role: "finance_officer",
+      totalBilled,
+      totalCollected,
+      outstanding: billStats._sum.balanceAmount ?? 0,
+      collectionRate: totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 100) : 0,
+      billCount: billStats._count,
+      todayPayments,
+      pendingReversals,
+    },
+  };
+}
+
+async function getTeacherDashboard(userId: string, termId?: string) {
+  const staff = await db.staff.findUnique({ where: { userId } });
+
+  const [assignmentCount, pendingMarks, todayRegisters] = await Promise.all([
+    termId && staff
+      ? db.teacherSubjectAssignment.count({ where: { staffId: staff.id, termId } })
+      : Promise.resolve(0),
+    db.mark.count({ where: { enteredBy: userId, status: "DRAFT" } }),
+    db.attendanceRegister.count({
+      where: {
+        takenBy: userId,
+        date: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+      },
+    }),
+  ]);
+
+  return {
+    data: {
+      role: "teacher",
+      subjectAssignments: assignmentCount,
+      pendingMarks,
+      todayRegisters,
+    },
+  };
+}
+
+async function getHousemasterDashboard(userId: string) {
+  const [activeExeats, overdueExeats, totalBoarders] = await Promise.all([
+    db.exeat.count({
+      where: { status: { in: ["HOUSEMASTER_APPROVED", "HEADMASTER_APPROVED", "DEPARTED"] } },
+    }),
+    db.exeat.count({ where: { status: "OVERDUE" } }),
+    db.student.count({ where: { status: "ACTIVE", boardingStatus: "BOARDING" } }),
+  ]);
+
+  return {
+    data: {
+      role: "housemaster",
+      totalBoarders,
+      activeExeats,
+      overdueExeats,
+    },
+  };
+}
+
+async function getHrDashboard() {
+  const [totalStaff, pendingLeave, activeLeave] = await Promise.all([
+    db.staff.count({ where: { status: "ACTIVE" } }),
+    db.leaveRequest.count({ where: { status: "PENDING" } }),
+    db.leaveRequest.count({ where: { status: "APPROVED", endDate: { gte: new Date() } } }),
+  ]);
+
+  return {
+    data: {
+      role: "hr_officer",
+      totalStaff,
+      pendingLeave,
+      activeLeave,
+    },
+  };
+}
+
+async function getInventoryDashboard(_schoolId?: string) {
+  const [totalItems, lowStockCount, pendingOrders] = await Promise.all([
+    db.storeItem.count(),
+    db.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*)::bigint as count FROM "StoreItem"
+      WHERE "quantity" <= "reorderLevel"
+    `
+      .then((r) => Number(r[0]?.count ?? 0))
+      .catch(() => 0),
+    db.purchaseRequest.count({ where: { status: "PENDING" } }),
+  ]);
+
+  return {
+    data: {
+      role: "store_keeper",
+      totalItems,
+      lowStockCount,
+      pendingOrders,
+    },
+  };
+}
+
+async function getAdmissionsDashboard(academicYearId?: string) {
+  const where = academicYearId ? { academicYearId } : {};
+
+  const [total, pending, accepted, enrolled] = await Promise.all([
+    db.admissionApplication.count({ where }),
+    db.admissionApplication.count({
+      where: { ...where, status: { in: ["SUBMITTED", "UNDER_REVIEW", "SHORTLISTED"] } },
+    }),
+    db.admissionApplication.count({ where: { ...where, status: "ACCEPTED" } }),
+    db.admissionApplication.count({ where: { ...where, status: "ENROLLED" } }),
+  ]);
+
+  return {
+    data: {
+      role: "admissions_officer",
+      totalApplications: total,
+      pending,
+      accepted,
+      enrolled,
+      conversionRate: total > 0 ? Math.round((enrolled / total) * 100) : 0,
+    },
+  };
+}

@@ -25,6 +25,7 @@ model Student {
   guardians       StudentGuardian[]
   enrollments     Enrollment[]
   houseAssignment StudentHouse?
+  medicalRecords  MedicalRecord[]
 
   @@index([schoolId])
   @@index([studentId])
@@ -127,6 +128,30 @@ model AdmissionDocument {
   application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   @@index([applicationId])
+}
+
+// ─── Medical Records ────────────────────────────────────────────────
+
+model MedicalRecord {
+  id          String   @id @default(cuid())
+  schoolId    String
+  studentId   String
+  recordedBy  String   // User ID (nurse/welfare officer)
+  date        DateTime
+  type        String   // VISIT, CONDITION, ALLERGY, VACCINATION, INJURY, REFERRAL, OTHER
+  title       String
+  description String
+  treatment   String?
+  followUpDate DateTime?
+  isConfidential Boolean @default(true)
+  attachmentKey String? // R2 file key for any medical documents
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([studentId])
 }
 
 enum Gender {

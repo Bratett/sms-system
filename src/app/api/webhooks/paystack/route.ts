@@ -1,0 +1,160 @@
+import { NextRequest, NextResponse } from "next/server";
+import { verifyWebhookSignature, verifyPayment } from "@/lib/payment/paystack";
+import { db } from "@/lib/db";
+
+/**
+ * Paystack Webhook Handler
+ * Receives payment events from Paystack and updates the system accordingly.
+ * Endpoint: POST /api/webhooks/paystack
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.text();
+    const signature = request.headers.get("x-paystack-signature") || "";
+
+    // Verify webhook signature
+    if (!verifyWebhookSignature(body, signature)) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+
+    const event = JSON.parse(body);
+
+    if (event.event === "charge.success") {
+      await handleChargeSuccess(event.data);
+    }
+
+    return NextResponse.json({ received: true });
+  } catch (error) {
+    console.error("[Paystack Webhook] Error:", error);
+    return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
+  }
+}
+
+async function handleChargeSuccess(data: {
+  reference: string;
+  amount: number;
+  currency: string;
+  channel: string;
+  paid_at: string;
+  metadata?: {
+    studentBillId?: string;
+    studentId?: string;
+    schoolId?: string;
+  };
+}) {
+  const { reference, metadata } = data;
+
+  if (!metadata?.studentBillId) {
+    console.warn(`[Paystack Webhook] No studentBillId in metadata for reference ${reference}`);
+    return;
+  }
+
+  // Verify the payment with Paystack to be safe
+  const verified = await verifyPayment(reference);
+  if (!verified.success) {
+    console.error(`[Paystack Webhook] Payment verification failed for ${reference}`);
+    return;
+  }
+
+  const amountGhs = (verified.amount || data.amount) / 100; // Convert pesewas to GHS
+
+  // Check if payment already processed (idempotency)
+  const existingPayment = await db.payment.findFirst({
+    where: { referenceNumber: reference },
+  });
+
+  if (existingPayment) {
+    console.log(`[Paystack Webhook] Payment ${reference} already processed`);
+    return;
+  }
+
+  const bill = await db.studentBill.findUnique({
+    where: { id: metadata.studentBillId },
+  });
+
+  if (!bill) {
+    console.error(`[Paystack Webhook] Bill ${metadata.studentBillId} not found`);
+    return;
+  }
+
+  // Map Paystack channel to our payment method
+  const paymentMethodMap: Record<
+    string,
+    "CASH" | "BANK_TRANSFER" | "MOBILE_MONEY" | "CHEQUE" | "OTHER"
+  > = {
+    card: "BANK_TRANSFER",
+    mobile_money: "MOBILE_MONEY",
+    bank: "BANK_TRANSFER",
+  };
+  const paymentMethod = paymentMethodMap[verified.channel || data.channel] || "OTHER";
+
+  // Process payment in a transaction
+  await db.$transaction(async (tx) => {
+    // Create payment record
+    const payment = await tx.payment.create({
+      data: {
+        studentBillId: bill.id,
+        studentId: bill.studentId,
+        amount: amountGhs,
+        paymentMethod,
+        referenceNumber: reference,
+        receivedBy: "system",
+        status: "CONFIRMED",
+        notes: `Online payment via Paystack (${verified.channel || data.channel})`,
+      },
+    });
+
+    // Update bill
+    const newPaidAmount = bill.paidAmount + amountGhs;
+    const newBalanceAmount = bill.totalAmount - newPaidAmount;
+
+    let newStatus: "UNPAID" | "PARTIAL" | "PAID" | "OVERPAID";
+    if (newBalanceAmount <= 0 && newPaidAmount > bill.totalAmount) {
+      newStatus = "OVERPAID";
+    } else if (newBalanceAmount <= 0) {
+      newStatus = "PAID";
+    } else if (newPaidAmount > 0) {
+      newStatus = "PARTIAL";
+    } else {
+      newStatus = "UNPAID";
+    }
+
+    await tx.studentBill.update({
+      where: { id: bill.id },
+      data: {
+        paidAmount: newPaidAmount,
+        balanceAmount: Math.max(0, newBalanceAmount),
+        status: newStatus,
+      },
+    });
+
+    // Generate receipt
+    const year = new Date().getFullYear();
+    const count = await tx.receipt.count({
+      where: { receiptNumber: { startsWith: `RCP/${year}/` } },
+    });
+    const receiptNumber = `RCP/${year}/ON/${String(count + 1).padStart(4, "0")}`;
+
+    await tx.receipt.create({
+      data: {
+        paymentId: payment.id,
+        receiptNumber,
+      },
+    });
+
+    // Audit
+    await tx.auditLog.create({
+      data: {
+        userId: "system",
+        action: "CREATE",
+        entity: "Payment",
+        entityId: payment.id,
+        module: "finance",
+        description: `Online payment GHS ${amountGhs.toFixed(2)} via Paystack (${reference})`,
+        newData: { paymentId: payment.id, reference, amount: amountGhs },
+      },
+    });
+  });
+
+  console.log(`[Paystack Webhook] Payment processed: ${reference}, GHS ${amountGhs}`);
+}
