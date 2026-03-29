@@ -103,12 +103,12 @@ export function ApplicationsClient({
   }
 
   const statCards = [
-    { label: "Total", value: stats.total, color: "bg-gray-100 text-gray-800" },
-    { label: "Submitted", value: stats.submitted, color: "bg-blue-100 text-blue-800" },
-    { label: "Under Review", value: stats.underReview, color: "bg-yellow-100 text-yellow-800" },
-    { label: "Accepted", value: stats.accepted, color: "bg-green-100 text-green-800" },
-    { label: "Rejected", value: stats.rejected, color: "bg-red-100 text-red-800" },
-    { label: "Enrolled", value: stats.enrolled, color: "bg-purple-100 text-purple-800" },
+    { label: "Total", value: stats.total, color: "bg-muted text-foreground" },
+    { label: "Submitted", value: stats.submitted, color: "bg-blue-50 text-blue-700" },
+    { label: "Under Review", value: stats.underReview, color: "bg-amber-50 text-amber-700" },
+    { label: "Accepted", value: stats.accepted, color: "bg-emerald-50 text-emerald-700" },
+    { label: "Rejected", value: stats.rejected, color: "bg-red-50 text-red-700" },
+    { label: "Enrolled", value: stats.enrolled, color: "bg-purple-50 text-purple-700" },
   ];
 
   return (
@@ -127,13 +127,10 @@ export function ApplicationsClient({
       />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {statCards.map((card) => (
-          <div
-            key={card.label}
-            className="rounded-lg border border-border bg-card p-4 text-center"
-          >
-            <p className="text-2xl font-bold">{card.value}</p>
+          <div key={card.label} className="rounded-xl border border-border bg-card p-4 text-center">
+            <p className="text-2xl font-bold tabular-nums">{card.value}</p>
             <p className="mt-1 text-xs text-muted-foreground">{card.label}</p>
           </div>
         ))}
@@ -164,7 +161,7 @@ export function ApplicationsClient({
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-border">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -199,12 +196,8 @@ export function ApplicationsClient({
                       {app.firstName} {app.lastName}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{app.gender}</td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {app.previousSchool || "-"}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {app.jhsAggregate ?? "-"}
-                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{app.previousSchool || "-"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{app.jhsAggregate ?? "-"}</td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {app.programmePreference1Name || "-"}
                     </td>
@@ -218,19 +211,15 @@ export function ApplicationsClient({
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                          onClick={() =>
-                            router.push(`/admissions/applications/${app.id}`)
-                          }
+                          className="text-xs font-medium text-primary hover:text-primary/80"
+                          onClick={() => router.push(`/admissions/applications/${app.id}`)}
                         >
                           View
                         </button>
                         {(app.status === "SUBMITTED" || app.status === "UNDER_REVIEW") && (
                           <button
                             className="text-xs text-amber-600 hover:text-amber-800 font-medium"
-                            onClick={() =>
-                              router.push(`/admissions/applications/${app.id}`)
-                            }
+                            onClick={() => router.push(`/admissions/applications/${app.id}`)}
                           >
                             Review
                           </button>
@@ -238,9 +227,7 @@ export function ApplicationsClient({
                         {app.status === "ACCEPTED" && (
                           <button
                             className="text-xs text-green-600 hover:text-green-800 font-medium"
-                            onClick={() =>
-                              router.push(`/admissions/applications/${app.id}`)
-                            }
+                            onClick={() => router.push(`/admissions/applications/${app.id}`)}
                           >
                             Enroll
                           </button>
@@ -268,8 +255,8 @@ export function ApplicationsClient({
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Showing {(page - 1) * pageSize + 1} to{" "}
-            {Math.min(page * pageSize, total)} of {total} applications
+            Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, total)} of {total}{" "}
+            applications
           </p>
           <div className="flex items-center gap-2">
             <button
