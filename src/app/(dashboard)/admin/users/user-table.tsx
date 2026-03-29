@@ -1,8 +1,11 @@
 "use client";
 
 import { useTransition, useState } from "react";
+import { type ColumnDef } from "@tanstack/react-table";
 import { deleteUserAction } from "@/modules/auth/actions/user.action";
 import { useRouter } from "next/navigation";
+import { DataTable } from "@/components/shared/data-table";
+import { StatusBadge } from "@/components/shared/status-badge";
 
 interface UserRow {
   id: string;
@@ -17,11 +20,14 @@ interface UserRow {
   roles: { id: string; name: string; displayName: string }[];
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  ACTIVE: "bg-green-100 text-green-800",
-  INACTIVE: "bg-gray-100 text-gray-800",
-  SUSPENDED: "bg-red-100 text-red-800",
-};
+function formatDate(date: Date | null) {
+  if (!date) return "Never";
+  return new Date(date).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 export function UserTable({ users }: { users: UserRow[] }) {
   const router = useRouter();
@@ -43,92 +49,102 @@ export function UserTable({ users }: { users: UserRow[] }) {
     });
   }
 
-  function formatDate(date: Date | null) {
-    if (!date) return "Never";
-    return new Date(date).toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  }
+  const columns: ColumnDef<UserRow, unknown>[] = [
+    {
+      accessorFn: (row) => `${row.firstName} ${row.lastName}`,
+      id: "name",
+      header: "Name",
+      cell: ({ row }) => (
+        <span className="font-medium">
+          {row.original.firstName} {row.original.lastName}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "username",
+      header: "Username",
+      cell: ({ getValue }) => (
+        <span className="text-muted-foreground">{getValue<string>()}</span>
+      ),
+    },
+    {
+      accessorKey: "email",
+      header: "Email",
+      cell: ({ getValue }) => (
+        <span className="text-muted-foreground">{getValue<string>()}</span>
+      ),
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ getValue }) => <StatusBadge status={getValue<string>()} />,
+    },
+    {
+      id: "roles",
+      header: "Roles",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-1">
+          {row.original.roles.map((role) => (
+            <span
+              key={role.id}
+              className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+            >
+              {role.displayName}
+            </span>
+          ))}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "lastLoginAt",
+      header: "Last Login",
+      cell: ({ getValue }) => (
+        <span className="text-muted-foreground">{formatDate(getValue<Date | null>())}</span>
+      ),
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created",
+      cell: ({ getValue }) => (
+        <span className="text-muted-foreground">{formatDate(getValue<Date>())}</span>
+      ),
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      enableHiding: false,
+      cell: ({ row }) => {
+        const user = row.original;
+        return (
+          <div className="flex items-center justify-end gap-2">
+            <button
+              className="text-xs font-medium text-primary hover:text-primary/80"
+              onClick={() => router.push(`/admin/users/${user.id}/edit`)}
+            >
+              Edit
+            </button>
+            <button
+              className="text-xs font-medium text-destructive hover:text-destructive/80 disabled:opacity-50"
+              onClick={() => handleDelete(user.id, user.username)}
+              disabled={isPending && deletingId === user.id}
+            >
+              {isPending && deletingId === user.id ? "..." : "Deactivate"}
+            </button>
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/50">
-              <th className="px-4 py-3 text-left font-medium">Name</th>
-              <th className="px-4 py-3 text-left font-medium">Username</th>
-              <th className="px-4 py-3 text-left font-medium">Email</th>
-              <th className="px-4 py-3 text-left font-medium">Status</th>
-              <th className="px-4 py-3 text-left font-medium">Roles</th>
-              <th className="px-4 py-3 text-left font-medium">Last Login</th>
-              <th className="px-4 py-3 text-left font-medium">Created</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
-                  No users found.
-                </td>
-              </tr>
-            ) : (
-              users.map((user) => (
-                <tr key={user.id} className="border-b border-border last:border-0 hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium">
-                    {user.firstName} {user.lastName}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{user.username}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        STATUS_STYLES[user.status] || "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      {user.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {user.roles.map((role) => (
-                        <span
-                          key={role.id}
-                          className="inline-flex items-center rounded-full bg-blue-100 text-blue-800 px-2 py-0.5 text-xs font-medium"
-                        >
-                          {role.displayName}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{formatDate(user.lastLoginAt)}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{formatDate(user.createdAt)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                        onClick={() => router.push(`/admin/users/${user.id}/edit`)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="text-xs text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
-                        onClick={() => handleDelete(user.id, user.username)}
-                        disabled={isPending && deletingId === user.id}
-                      >
-                        {isPending && deletingId === user.id ? "..." : "Deactivate"}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <DataTable
+      columns={columns}
+      data={users}
+      searchKey="name"
+      searchPlaceholder="Search users..."
+      emptyMessage="No users found."
+    />
   );
 }

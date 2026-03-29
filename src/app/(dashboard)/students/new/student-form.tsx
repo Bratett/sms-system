@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { GHANA_REGIONS } from "@/lib/constants";
 import { createStudentAction } from "@/modules/student/actions/student.action";
+import { FormInput, FormSelect, FormTextarea } from "@/components/shared/form-field";
+import { CheckCircle2 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -17,7 +19,6 @@ interface ClassArmOption {
 }
 
 interface FormData {
-  // Personal
   firstName: string;
   lastName: string;
   otherNames: string;
@@ -27,13 +28,15 @@ interface FormData {
   hometown: string;
   region: string;
   religion: string;
-  // Medical
   bloodGroup: string;
   medicalConditions: string;
   allergies: string;
-  // School
   boardingStatus: string;
   classArmId: string;
+}
+
+interface FieldErrors {
+  [key: string]: string | undefined;
 }
 
 const RELIGIONS = [
@@ -58,6 +61,7 @@ export function StudentForm({
   const [isPending, startTransition] = useTransition();
   const [activeSection, setActiveSection] = useState(0);
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [formData, setFormData] = useState<FormData>({
     firstName: "",
@@ -84,34 +88,33 @@ export function StudentForm({
 
   function updateField(field: keyof FormData, value: string) {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    // Clear field error on change
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+    }
+  }
+
+  function validateSection(section: number): boolean {
+    const errors: FieldErrors = {};
+    if (section === 0) {
+      if (!formData.firstName.trim()) errors.firstName = "First name is required";
+      if (!formData.lastName.trim()) errors.lastName = "Last name is required";
+      if (!formData.dateOfBirth) errors.dateOfBirth = "Date of birth is required";
+      if (!formData.gender) errors.gender = "Gender is required";
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   }
 
   function handleNext() {
-    // Validate current section
-    if (activeSection === 0) {
-      if (!formData.firstName.trim()) {
-        setFormError("First name is required.");
-        return;
-      }
-      if (!formData.lastName.trim()) {
-        setFormError("Last name is required.");
-        return;
-      }
-      if (!formData.dateOfBirth) {
-        setFormError("Date of birth is required.");
-        return;
-      }
-      if (!formData.gender) {
-        setFormError("Gender is required.");
-        return;
-      }
-    }
+    if (!validateSection(activeSection)) return;
     setFormError(null);
     setActiveSection((prev) => Math.min(prev + 1, 2));
   }
 
   function handleBack() {
     setFormError(null);
+    setFieldErrors({});
     setActiveSection((prev) => Math.max(prev - 1, 0));
   }
 
@@ -119,19 +122,7 @@ export function StudentForm({
     e.preventDefault();
     setFormError(null);
 
-    // Final validation
-    if (!formData.firstName.trim() || !formData.lastName.trim()) {
-      setFormError("First name and last name are required.");
-      setActiveSection(0);
-      return;
-    }
-    if (!formData.dateOfBirth) {
-      setFormError("Date of birth is required.");
-      setActiveSection(0);
-      return;
-    }
-    if (!formData.gender) {
-      setFormError("Gender is required.");
+    if (!validateSection(0)) {
       setActiveSection(0);
       return;
     }
@@ -175,207 +166,189 @@ export function StudentForm({
     {} as Record<string, ClassArmOption[]>,
   );
 
+  const classOptions = Object.entries(classGroups).flatMap(([className, arms]) =>
+    arms.map((arm) => ({
+      label: `${arm.label} (${arm.enrollmentCount}/${arm.capacity})`,
+      value: arm.id,
+    })),
+  );
+
   return (
     <div className="max-w-3xl">
-      {/* Section Tabs */}
-      <div className="mb-6 flex items-center gap-1 border-b border-border">
-        {sections.map((section) => (
-          <button
-            key={section.index}
-            type="button"
-            onClick={() => setActiveSection(section.index)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeSection === section.index
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-xs font-semibold">
-              {section.index + 1}
-            </span>
-            {section.title}
-          </button>
+      {/* Step Indicator */}
+      <div className="mb-6 flex items-center">
+        {sections.map((section, i) => (
+          <div key={section.index} className="flex items-center">
+            {i > 0 && (
+              <div className={`h-px w-8 sm:w-16 ${i <= activeSection ? "bg-primary" : "bg-border"}`} />
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (i < activeSection || (i > activeSection && validateSection(activeSection))) {
+                  setActiveSection(i);
+                }
+              }}
+              className="flex items-center gap-2"
+            >
+              <span
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
+                  i < activeSection
+                    ? "bg-primary text-primary-foreground"
+                    : i === activeSection
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {i < activeSection ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  i + 1
+                )}
+              </span>
+              <span
+                className={`hidden text-sm font-medium sm:inline ${
+                  i === activeSection ? "text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {section.title}
+              </span>
+            </button>
+          </div>
         ))}
       </div>
 
       <form onSubmit={handleSubmit}>
         {formError && (
-          <div className="mb-4 rounded-md p-3 text-sm bg-red-50 text-red-800 border border-red-200">
+          <div className="mb-4 rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
             {formError}
           </div>
         )}
 
         {/* Section 1: Personal Information */}
         {activeSection === 0 && (
-          <div className="space-y-4 rounded-lg border border-border bg-card p-6">
+          <div className="space-y-4 rounded-xl border border-border bg-card p-6">
             <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  First Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.firstName}
-                  onChange={(e) => updateField("firstName", e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="e.g. Kwame"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Last Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.lastName}
-                  onChange={(e) => updateField("lastName", e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="e.g. Mensah"
-                  required
-                />
-              </div>
+              <FormInput
+                id="firstName"
+                label="First Name"
+                required
+                value={formData.firstName}
+                onChange={(e) => updateField("firstName", e.target.value)}
+                placeholder="e.g. Kwame"
+                error={fieldErrors.firstName}
+              />
+              <FormInput
+                id="lastName"
+                label="Last Name"
+                required
+                value={formData.lastName}
+                onChange={(e) => updateField("lastName", e.target.value)}
+                placeholder="e.g. Mensah"
+                error={fieldErrors.lastName}
+              />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Other Names</label>
-              <input
-                type="text"
-                value={formData.otherNames}
-                onChange={(e) => updateField("otherNames", e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                placeholder="Middle names"
+            <FormInput
+              id="otherNames"
+              label="Other Names"
+              value={formData.otherNames}
+              onChange={(e) => updateField("otherNames", e.target.value)}
+              placeholder="Middle names"
+            />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormInput
+                id="dateOfBirth"
+                label="Date of Birth"
+                type="date"
+                required
+                value={formData.dateOfBirth}
+                onChange={(e) => updateField("dateOfBirth", e.target.value)}
+                error={fieldErrors.dateOfBirth}
+              />
+              <FormSelect
+                id="gender"
+                label="Gender"
+                required
+                value={formData.gender}
+                onChange={(e) => updateField("gender", e.target.value)}
+                placeholder="Select gender"
+                options={[
+                  { label: "Male", value: "MALE" },
+                  { label: "Female", value: "FEMALE" },
+                ]}
+                error={fieldErrors.gender}
               />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Date of Birth <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => updateField("dateOfBirth", e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Gender <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.gender}
-                  onChange={(e) => updateField("gender", e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  required
-                >
-                  <option value="">Select gender</option>
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
-                </select>
-              </div>
+              <FormInput
+                id="nationality"
+                label="Nationality"
+                value={formData.nationality}
+                onChange={(e) => updateField("nationality", e.target.value)}
+                placeholder="Ghanaian"
+              />
+              <FormInput
+                id="hometown"
+                label="Hometown"
+                value={formData.hometown}
+                onChange={(e) => updateField("hometown", e.target.value)}
+                placeholder="e.g. Kumasi"
+              />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="block text-sm font-medium mb-1">Nationality</label>
-                <input
-                  type="text"
-                  value={formData.nationality}
-                  onChange={(e) => updateField("nationality", e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="Ghanaian"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Hometown</label>
-                <input
-                  type="text"
-                  value={formData.hometown}
-                  onChange={(e) => updateField("hometown", e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="e.g. Kumasi"
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="block text-sm font-medium mb-1">Region</label>
-                <select
-                  value={formData.region}
-                  onChange={(e) => updateField("region", e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">Select region</option>
-                  {GHANA_REGIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Religion</label>
-                <select
-                  value={formData.religion}
-                  onChange={(e) => updateField("religion", e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">Select religion</option>
-                  {RELIGIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <FormSelect
+                id="region"
+                label="Region"
+                value={formData.region}
+                onChange={(e) => updateField("region", e.target.value)}
+                placeholder="Select region"
+                options={GHANA_REGIONS.map((r) => ({ label: r, value: r }))}
+              />
+              <FormSelect
+                id="religion"
+                label="Religion"
+                value={formData.religion}
+                onChange={(e) => updateField("religion", e.target.value)}
+                placeholder="Select religion"
+                options={RELIGIONS.map((r) => ({ label: r, value: r }))}
+              />
             </div>
           </div>
         )}
 
         {/* Section 2: Medical Information */}
         {activeSection === 1 && (
-          <div className="space-y-4 rounded-lg border border-border bg-card p-6">
-            <div>
-              <label className="block text-sm font-medium mb-1">Blood Group</label>
-              <select
-                value={formData.bloodGroup}
-                onChange={(e) => updateField("bloodGroup", e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Select blood group</option>
-                {BLOOD_GROUPS.map((bg) => (
-                  <option key={bg} value={bg}>
-                    {bg}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="space-y-4 rounded-xl border border-border bg-card p-6">
+            <FormSelect
+              id="bloodGroup"
+              label="Blood Group"
+              value={formData.bloodGroup}
+              onChange={(e) => updateField("bloodGroup", e.target.value)}
+              placeholder="Select blood group"
+              options={BLOOD_GROUPS.map((bg) => ({ label: bg, value: bg }))}
+            />
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Medical Conditions</label>
-              <textarea
-                value={formData.medicalConditions}
-                onChange={(e) => updateField("medicalConditions", e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                placeholder="List any known medical conditions (e.g. asthma, sickle cell, epilepsy)"
-                rows={3}
-              />
-            </div>
+            <FormTextarea
+              id="medicalConditions"
+              label="Medical Conditions"
+              value={formData.medicalConditions}
+              onChange={(e) => updateField("medicalConditions", e.target.value)}
+              placeholder="List any known medical conditions (e.g. asthma, sickle cell, epilepsy)"
+              rows={3}
+            />
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Allergies</label>
-              <textarea
-                value={formData.allergies}
-                onChange={(e) => updateField("allergies", e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                placeholder="List any known allergies (e.g. penicillin, peanuts)"
-                rows={3}
-              />
-            </div>
+            <FormTextarea
+              id="allergies"
+              label="Allergies"
+              value={formData.allergies}
+              onChange={(e) => updateField("allergies", e.target.value)}
+              placeholder="List any known allergies (e.g. penicillin, peanuts)"
+              rows={3}
+            />
 
             <p className="text-xs text-muted-foreground">
               Medical information is kept confidential and used only for student welfare purposes.
@@ -385,41 +358,27 @@ export function StudentForm({
 
         {/* Section 3: School Information */}
         {activeSection === 2 && (
-          <div className="space-y-4 rounded-lg border border-border bg-card p-6">
-            <div>
-              <label className="block text-sm font-medium mb-1">Boarding Status</label>
-              <select
-                value={formData.boardingStatus}
-                onChange={(e) => updateField("boardingStatus", e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="DAY">Day Student</option>
-                <option value="BOARDING">Boarding Student</option>
-              </select>
-            </div>
+          <div className="space-y-4 rounded-xl border border-border bg-card p-6">
+            <FormSelect
+              id="boardingStatus"
+              label="Boarding Status"
+              value={formData.boardingStatus}
+              onChange={(e) => updateField("boardingStatus", e.target.value)}
+              options={[
+                { label: "Day Student", value: "DAY" },
+                { label: "Boarding Student", value: "BOARDING" },
+              ]}
+            />
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Class Assignment</label>
-              <select
-                value={formData.classArmId}
-                onChange={(e) => updateField("classArmId", e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Assign later</option>
-                {Object.entries(classGroups).map(([className, arms]) => (
-                  <optgroup key={className} label={className}>
-                    {arms.map((arm) => (
-                      <option key={arm.id} value={arm.id}>
-                        {arm.label} ({arm.enrollmentCount}/{arm.capacity})
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-muted-foreground">
-                You can assign the student to a class now, or do it later from their profile.
-              </p>
-            </div>
+            <FormSelect
+              id="classArmId"
+              label="Class Assignment"
+              value={formData.classArmId}
+              onChange={(e) => updateField("classArmId", e.target.value)}
+              placeholder="Assign later"
+              options={classOptions}
+              description="You can assign the student to a class now, or do it later from their profile."
+            />
           </div>
         )}
 
@@ -430,7 +389,7 @@ export function StudentForm({
               <button
                 type="button"
                 onClick={handleBack}
-                className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted"
+                className="rounded-lg border border-input px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
               >
                 Back
               </button>
@@ -440,7 +399,7 @@ export function StudentForm({
             <button
               type="button"
               onClick={() => router.push("/students")}
-              className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted"
+              className="rounded-lg border border-input px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
             >
               Cancel
             </button>
@@ -448,7 +407,7 @@ export function StudentForm({
               <button
                 type="button"
                 onClick={handleNext}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 Next
               </button>
@@ -456,7 +415,7 @@ export function StudentForm({
               <button
                 type="submit"
                 disabled={isPending}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
                 {isPending ? "Registering..." : "Register Student"}
               </button>

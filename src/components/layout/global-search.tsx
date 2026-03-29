@@ -2,18 +2,86 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search, User, Users, BookOpen, Package, X } from "lucide-react";
+import { Search, User, Users, BookOpen, Package, X, CornerDownLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StatusBadge } from "@/components/shared/status-badge";
 import {
   globalSearchAction,
   type GlobalSearchResult,
 } from "@/modules/search/actions/search.action";
+
+interface FlatResult {
+  id: string;
+  type: "student" | "staff" | "subject" | "item";
+  path: string;
+  name: string;
+  detail: string;
+  status?: string;
+}
+
+function flattenResults(results: GlobalSearchResult): FlatResult[] {
+  const flat: FlatResult[] = [];
+  for (const s of results.students) {
+    flat.push({
+      id: s.id,
+      type: "student",
+      path: `/students/${s.id}`,
+      name: s.name,
+      detail: `${s.studentId}${s.class ? ` · ${s.class}` : ""}`,
+      status: s.status,
+    });
+  }
+  for (const s of results.staff) {
+    flat.push({
+      id: s.id,
+      type: "staff",
+      path: `/hr/staff/${s.id}`,
+      name: s.name,
+      detail: `${s.staffId} · ${s.type.replace(/_/g, " ")}`,
+      status: s.status,
+    });
+  }
+  for (const s of results.subjects) {
+    flat.push({
+      id: s.id,
+      type: "subject",
+      path: "/academics/subjects",
+      name: s.name,
+      detail: s.code || "Subject",
+    });
+  }
+  for (const s of results.items) {
+    flat.push({
+      id: s.id,
+      type: "item",
+      path: "/inventory/items",
+      name: s.name,
+      detail: `${s.category ?? "Uncategorized"} · Qty: ${s.quantity}`,
+    });
+  }
+  return flat;
+}
+
+const typeIcons: Record<string, { icon: React.ReactNode; color: string }> = {
+  student: { icon: <User className="h-4 w-4" />, color: "text-blue-500 bg-blue-50" },
+  staff: { icon: <Users className="h-4 w-4" />, color: "text-purple-500 bg-purple-50" },
+  subject: { icon: <BookOpen className="h-4 w-4" />, color: "text-amber-500 bg-amber-50" },
+  item: { icon: <Package className="h-4 w-4" />, color: "text-emerald-500 bg-emerald-50" },
+};
+
+const typeLabels: Record<string, string> = {
+  student: "Students",
+  staff: "Staff",
+  subject: "Subjects",
+  item: "Store Items",
+};
 
 export function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GlobalSearchResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -41,6 +109,7 @@ export function GlobalSearch() {
     } else {
       setQuery("");
       setResults(null);
+      setActiveIndex(-1);
     }
   }, [open]);
 
@@ -58,65 +127,73 @@ export function GlobalSearch() {
       setResults(result);
     }
     setLoading(false);
+    setActiveIndex(-1);
   }, []);
 
   useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-    debounceRef.current = setTimeout(() => {
-      performSearch(query);
-    }, 300);
-
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => performSearch(query), 300);
     return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [query, performSearch]);
+
+  const flatResults = results ? flattenResults(results) : [];
 
   function handleNavigate(path: string) {
     setOpen(false);
     router.push(path);
   }
 
-  function handleOverlayClick(e: React.MouseEvent) {
-    if (e.target === overlayRef.current) {
-      setOpen(false);
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev < flatResults.length - 1 ? prev + 1 : 0));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev > 0 ? prev - 1 : flatResults.length - 1));
+    } else if (e.key === "Enter" && activeIndex >= 0 && flatResults[activeIndex]) {
+      e.preventDefault();
+      handleNavigate(flatResults[activeIndex].path);
     }
   }
 
-  const hasResults =
-    results &&
-    (results.students.length > 0 ||
-      results.staff.length > 0 ||
-      results.subjects.length > 0 ||
-      results.items.length > 0);
+  function handleOverlayClick(e: React.MouseEvent) {
+    if (e.target === overlayRef.current) setOpen(false);
+  }
 
+  const hasResults = flatResults.length > 0;
   const noResults = results && !hasResults && query.trim().length >= 2;
+
+  // Group flat results by type for section headers
+  const groupedTypes = hasResults
+    ? [...new Set(flatResults.map((r) => r.type))]
+    : [];
 
   if (!open) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent"
+        className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent"
       >
         <Search className="h-4 w-4" />
         <span className="hidden md:inline">Search...</span>
-        <kbd className="hidden rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium md:inline">
+        <kbd className="hidden rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium md:inline">
           Ctrl+K
         </kbd>
       </button>
     );
   }
 
+  let flatIndex = -1;
+
   return (
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[15vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm pt-[15vh]"
     >
-      <div className="w-full max-w-lg rounded-lg border border-border bg-card shadow-2xl">
+      <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl">
         {/* Search input */}
         <div className="flex items-center gap-3 border-b border-border px-4 py-3">
           <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
@@ -125,18 +202,19 @@ export function GlobalSearch() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="Search students, staff, subjects, items..."
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           {query && (
             <button
               onClick={() => setQuery("")}
-              className="shrink-0 rounded p-0.5 hover:bg-accent"
+              className="shrink-0 rounded-md p-0.5 transition-colors hover:bg-accent"
             >
               <X className="h-4 w-4 text-muted-foreground" />
             </button>
           )}
-          <kbd className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+          <kbd className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
             ESC
           </kbd>
         </div>
@@ -150,135 +228,74 @@ export function GlobalSearch() {
           )}
 
           {!loading && noResults && (
-            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-              No results found
+            <div className="px-4 py-8 text-center">
+              <p className="text-sm text-muted-foreground">No results found for &ldquo;{query}&rdquo;</p>
+              <p className="mt-1 text-xs text-muted-foreground/70">Try a different search term</p>
             </div>
           )}
 
           {!loading && hasResults && (
-            <div className="py-2">
-              {/* Students */}
-              {results.students.length > 0 && (
-                <div>
-                  <div className="px-4 py-1.5 text-xs font-semibold uppercase text-muted-foreground">
-                    Students
+            <div className="py-1.5">
+              {groupedTypes.map((type) => {
+                const typeResults = flatResults.filter((r) => r.type === type);
+                const config = typeIcons[type];
+                return (
+                  <div key={type}>
+                    <div className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {typeLabels[type]}
+                    </div>
+                    {typeResults.map((result) => {
+                      flatIndex++;
+                      const idx = flatIndex;
+                      return (
+                        <button
+                          key={result.id}
+                          onClick={() => handleNavigate(result.path)}
+                          onMouseEnter={() => setActiveIndex(idx)}
+                          className={cn(
+                            "flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors",
+                            idx === activeIndex ? "bg-accent" : "hover:bg-accent/50",
+                          )}
+                        >
+                          <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", config.color)}>
+                            {config.icon}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">{result.name}</p>
+                            <p className="truncate text-xs text-muted-foreground">{result.detail}</p>
+                          </div>
+                          {result.status && (
+                            <StatusBadge status={result.status} className="shrink-0" />
+                          )}
+                          {idx === activeIndex && (
+                            <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
-                  {results.students.map((student) => (
-                    <button
-                      key={student.id}
-                      onClick={() => handleNavigate(`/students/${student.id}`)}
-                      className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-accent"
-                    >
-                      <User className="h-4 w-4 shrink-0 text-blue-500" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{student.name}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {student.studentId}
-                          {student.class && ` - ${student.class}`}
-                        </p>
-                      </div>
-                      <span
-                        className={cn(
-                          "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                          student.status === "ACTIVE"
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-                        )}
-                      >
-                        {student.status}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Staff */}
-              {results.staff.length > 0 && (
-                <div>
-                  <div className="px-4 py-1.5 text-xs font-semibold uppercase text-muted-foreground">
-                    Staff
-                  </div>
-                  {results.staff.map((member) => (
-                    <button
-                      key={member.id}
-                      onClick={() => handleNavigate(`/hr/staff/${member.id}`)}
-                      className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-accent"
-                    >
-                      <Users className="h-4 w-4 shrink-0 text-purple-500" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{member.name}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {member.staffId} - {member.type.replace(/_/g, " ")}
-                        </p>
-                      </div>
-                      <span
-                        className={cn(
-                          "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                          member.status === "ACTIVE"
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-                        )}
-                      >
-                        {member.status}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Subjects */}
-              {results.subjects.length > 0 && (
-                <div>
-                  <div className="px-4 py-1.5 text-xs font-semibold uppercase text-muted-foreground">
-                    Subjects
-                  </div>
-                  {results.subjects.map((subject) => (
-                    <button
-                      key={subject.id}
-                      onClick={() => handleNavigate("/academics/subjects")}
-                      className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-accent"
-                    >
-                      <BookOpen className="h-4 w-4 shrink-0 text-amber-500" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{subject.name}</p>
-                        {subject.code && (
-                          <p className="truncate text-xs text-muted-foreground">{subject.code}</p>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Store Items */}
-              {results.items.length > 0 && (
-                <div>
-                  <div className="px-4 py-1.5 text-xs font-semibold uppercase text-muted-foreground">
-                    Store Items
-                  </div>
-                  {results.items.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => handleNavigate("/inventory/items")}
-                      className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-accent"
-                    >
-                      <Package className="h-4 w-4 shrink-0 text-emerald-500" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{item.name}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {item.category ?? "Uncategorized"} - Qty: {item.quantity}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+                );
+              })}
             </div>
           )}
 
           {!loading && !results && query.trim().length === 0 && (
-            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-              Start typing to search...
+            <div className="px-4 py-8 text-center">
+              <p className="text-sm text-muted-foreground">Start typing to search...</p>
+              <p className="mt-2 flex items-center justify-center gap-4 text-xs text-muted-foreground/70">
+                <span className="flex items-center gap-1">
+                  <kbd className="rounded bg-muted px-1 py-0.5 text-[10px] font-medium">↑↓</kbd>
+                  Navigate
+                </span>
+                <span className="flex items-center gap-1">
+                  <kbd className="rounded bg-muted px-1 py-0.5 text-[10px] font-medium">↵</kbd>
+                  Open
+                </span>
+                <span className="flex items-center gap-1">
+                  <kbd className="rounded bg-muted px-1 py-0.5 text-[10px] font-medium">Esc</kbd>
+                  Close
+                </span>
+              </p>
             </div>
           )}
         </div>

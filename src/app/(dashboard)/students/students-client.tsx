@@ -5,6 +5,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStudentsAction } from "@/modules/student/actions/student.action";
+import {
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  X,
+  Filter,
+} from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -70,6 +79,8 @@ export function StudentsClient({
   const [filterBoarding, setFilterBoarding] = useState("");
 
   const totalPages = Math.ceil(total / pageSize);
+  const hasActiveFilters =
+    search || filterClassArm || filterProgramme || filterStatus || filterGender || filterBoarding;
 
   function fetchStudents(newPage: number) {
     startTransition(async () => {
@@ -128,147 +139,167 @@ export function StudentsClient({
     {} as Record<string, ClassArmOption[]>,
   );
 
+  const filterSelectClass =
+    "h-8 rounded-lg border border-input bg-background px-2.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
   return (
     <>
-      {/* Toolbar */}
-      <div className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-1 items-center gap-2">
-            <input
-              type="text"
-              placeholder="Search by name or student ID..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-            <button
-              onClick={handleSearch}
-              disabled={isPending}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-              Search
-            </button>
-          </div>
+      {/* Search Bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search by name or student ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="w-full rounded-lg border border-input bg-background py-2 pl-9 pr-3 text-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSearch}
+            disabled={isPending}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
+            Search
+          </button>
           <Link
             href="/students/new"
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 text-center"
+            className="rounded-lg bg-primary px-4 py-2 text-center text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Add Student
           </Link>
         </div>
+      </div>
 
-        {/* Filter Row */}
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={filterClassArm}
-            onChange={(e) => {
-              setFilterClassArm(e.target.value);
-            }}
-            className="rounded-md border border-input bg-background px-3 py-1.5 text-xs"
-          >
-            <option value="">All Classes</option>
-            {Object.entries(classGroups).map(([className, arms]) => (
-              <optgroup key={className} label={className}>
-                {arms.map((arm) => (
-                  <option key={arm.id} value={arm.id}>
-                    {arm.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+      {/* Filter Row */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+        <select
+          value={filterClassArm}
+          onChange={(e) => setFilterClassArm(e.target.value)}
+          className={filterSelectClass}
+        >
+          <option value="">All Classes</option>
+          {Object.entries(classGroups).map(([className, arms]) => (
+            <optgroup key={className} label={className}>
+              {arms.map((arm) => (
+                <option key={arm.id} value={arm.id}>
+                  {arm.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
 
-          <select
-            value={filterProgramme}
-            onChange={(e) => setFilterProgramme(e.target.value)}
-            className="rounded-md border border-input bg-background px-3 py-1.5 text-xs"
-          >
-            <option value="">All Programmes</option>
-            {programmes.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+        <select
+          value={filterProgramme}
+          onChange={(e) => setFilterProgramme(e.target.value)}
+          className={filterSelectClass}
+        >
+          <option value="">All Programmes</option>
+          {programmes.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
 
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="rounded-md border border-input bg-background px-3 py-1.5 text-xs"
-          >
-            <option value="">All Statuses</option>
-            <option value="ACTIVE">Active</option>
-            <option value="SUSPENDED">Suspended</option>
-            <option value="WITHDRAWN">Withdrawn</option>
-            <option value="TRANSFERRED">Transferred</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="GRADUATED">Graduated</option>
-          </select>
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className={filterSelectClass}
+        >
+          <option value="">All Statuses</option>
+          <option value="ACTIVE">Active</option>
+          <option value="SUSPENDED">Suspended</option>
+          <option value="WITHDRAWN">Withdrawn</option>
+          <option value="TRANSFERRED">Transferred</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="GRADUATED">Graduated</option>
+        </select>
 
-          <select
-            value={filterGender}
-            onChange={(e) => setFilterGender(e.target.value)}
-            className="rounded-md border border-input bg-background px-3 py-1.5 text-xs"
-          >
-            <option value="">All Genders</option>
-            <option value="MALE">Male</option>
-            <option value="FEMALE">Female</option>
-          </select>
+        <select
+          value={filterGender}
+          onChange={(e) => setFilterGender(e.target.value)}
+          className={filterSelectClass}
+        >
+          <option value="">All Genders</option>
+          <option value="MALE">Male</option>
+          <option value="FEMALE">Female</option>
+        </select>
 
-          <select
-            value={filterBoarding}
-            onChange={(e) => setFilterBoarding(e.target.value)}
-            className="rounded-md border border-input bg-background px-3 py-1.5 text-xs"
-          >
-            <option value="">All Boarding</option>
-            <option value="DAY">Day</option>
-            <option value="BOARDING">Boarding</option>
-          </select>
+        <select
+          value={filterBoarding}
+          onChange={(e) => setFilterBoarding(e.target.value)}
+          className={filterSelectClass}
+        >
+          <option value="">Day / Boarding</option>
+          <option value="DAY">Day</option>
+          <option value="BOARDING">Boarding</option>
+        </select>
 
-          <button
-            onClick={handleSearch}
-            disabled={isPending}
-            className="rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20"
-          >
-            Apply Filters
-          </button>
+        <button
+          onClick={handleSearch}
+          disabled={isPending}
+          className="h-8 rounded-lg bg-primary/10 px-3 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+        >
+          Apply
+        </button>
+        {hasActiveFilters && (
           <button
             onClick={handleResetFilters}
-            className="rounded-md border border-input px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted"
+            className="flex h-8 items-center gap-1 rounded-lg border border-input px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
           >
+            <X className="h-3 w-3" />
             Reset
           </button>
-        </div>
+        )}
       </div>
 
       {/* Results Info */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          Showing {students.length} of {total} students
-        </span>
+      <div className="text-sm text-muted-foreground">
+        Showing {students.length} of {total} students
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-border">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
-                <th className="px-4 py-3 text-left font-medium">Student ID</th>
-                <th className="px-4 py-3 text-left font-medium">Name</th>
-                <th className="px-4 py-3 text-center font-medium">Gender</th>
-                <th className="px-4 py-3 text-left font-medium">Class</th>
-                <th className="px-4 py-3 text-left font-medium">Programme</th>
-                <th className="px-4 py-3 text-center font-medium">Boarding</th>
-                <th className="px-4 py-3 text-center font-medium">Status</th>
-                <th className="px-4 py-3 text-right font-medium">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Student ID
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Name
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Gender
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Class
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Programme
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Boarding
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {students.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
                     No students found. Try adjusting your search or filters.
                   </td>
                 </tr>
@@ -276,12 +307,15 @@ export function StudentsClient({
                 students.map((s) => (
                   <tr
                     key={s.id}
-                    className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer"
+                    className="cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-muted/30"
                     onClick={() => router.push(`/students/${s.id}`)}
                   >
-                    <td className="px-4 py-3 font-mono text-xs">{s.studentId}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                      {s.studentId}
+                    </td>
                     <td className="px-4 py-3 font-medium">
-                      {s.firstName} {s.otherNames ? `${s.otherNames} ` : ""}{s.lastName}
+                      {s.firstName} {s.otherNames ? `${s.otherNames} ` : ""}
+                      {s.lastName}
                     </td>
                     <td className="px-4 py-3 text-center text-muted-foreground">
                       {s.gender === "MALE" ? "M" : "F"}
@@ -297,8 +331,8 @@ export function StudentsClient({
                         status={s.boardingStatus}
                         className={
                           s.boardingStatus === "BOARDING"
-                            ? "bg-purple-100 text-purple-700"
-                            : "bg-sky-100 text-sky-700"
+                            ? "bg-purple-50 text-purple-700"
+                            : "bg-sky-50 text-sky-700"
                         }
                       />
                     </td>
@@ -308,7 +342,7 @@ export function StudentsClient({
                     <td className="px-4 py-3 text-right">
                       <Link
                         href={`/students/${s.id}`}
-                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                        className="text-xs font-medium text-primary hover:text-primary/80"
                         onClick={(e) => e.stopPropagation()}
                       >
                         View
@@ -324,44 +358,62 @@ export function StudentsClient({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <button
-            onClick={() => fetchStudents(page - 1)}
-            disabled={page <= 1 || isPending}
-            className="rounded-md border border-input px-3 py-1.5 text-sm disabled:opacity-50 hover:bg-muted"
-          >
-            Previous
-          </button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1)
-            .filter((p) => {
-              // Show first, last, and pages near current
-              return p === 1 || p === totalPages || Math.abs(p - page) <= 2;
-            })
-            .map((p, idx, arr) => (
-              <span key={p}>
-                {idx > 0 && arr[idx - 1] !== p - 1 && (
-                  <span className="px-1 text-muted-foreground">...</span>
-                )}
-                <button
-                  onClick={() => fetchStudents(p)}
-                  disabled={isPending}
-                  className={`rounded-md px-3 py-1.5 text-sm ${
-                    p === page
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-input hover:bg-muted"
-                  }`}
-                >
-                  {p}
-                </button>
-              </span>
-            ))}
-          <button
-            onClick={() => fetchStudents(page + 1)}
-            disabled={page >= totalPages || isPending}
-            className="rounded-md border border-input px-3 py-1.5 text-sm disabled:opacity-50 hover:bg-muted"
-          >
-            Next
-          </button>
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span className="text-xs">
+            Page {page} of {totalPages}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => fetchStudents(1)}
+              disabled={page <= 1 || isPending}
+              className="rounded-md p-1.5 transition-colors hover:bg-accent disabled:opacity-30"
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => fetchStudents(page - 1)}
+              disabled={page <= 1 || isPending}
+              className="rounded-md p-1.5 transition-colors hover:bg-accent disabled:opacity-30"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .map((p, idx, arr) => (
+                <span key={p} className="flex items-center">
+                  {idx > 0 && arr[idx - 1] !== p - 1 && (
+                    <span className="px-1 text-muted-foreground/50">...</span>
+                  )}
+                  <button
+                    onClick={() => fetchStudents(p)}
+                    disabled={isPending}
+                    className={`min-w-[32px] rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                      p === page
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-accent"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                </span>
+              ))}
+
+            <button
+              onClick={() => fetchStudents(page + 1)}
+              disabled={page >= totalPages || isPending}
+              className="rounded-md p-1.5 transition-colors hover:bg-accent disabled:opacity-30"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => fetchStudents(totalPages)}
+              disabled={page >= totalPages || isPending}
+              className="rounded-md p-1.5 transition-colors hover:bg-accent disabled:opacity-30"
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
     </>

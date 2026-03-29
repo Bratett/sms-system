@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
+import { StatusBadge } from "@/components/shared/status-badge";
 import {
   recordPaymentAction,
   getPaymentsAction,
@@ -14,8 +14,17 @@ import {
 } from "@/modules/finance/actions/payment.action";
 import {
   getBillsAction,
-  getStudentBillAction,
 } from "@/modules/finance/actions/billing.action";
+import {
+  Filter,
+  CreditCard,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Search,
+  X,
+} from "lucide-react";
 
 interface Term {
   id: string;
@@ -54,11 +63,11 @@ function formatCurrency(amount: number): string {
 }
 
 const methodColors: Record<string, string> = {
-  CASH: "bg-green-100 text-green-700",
-  BANK_TRANSFER: "bg-blue-100 text-blue-700",
-  MOBILE_MONEY: "bg-purple-100 text-purple-700",
-  CHEQUE: "bg-orange-100 text-orange-700",
-  OTHER: "bg-gray-100 text-gray-700",
+  CASH: "bg-emerald-50 text-emerald-700",
+  BANK_TRANSFER: "bg-blue-50 text-blue-700",
+  MOBILE_MONEY: "bg-purple-50 text-purple-700",
+  CHEQUE: "bg-orange-50 text-orange-700",
+  OTHER: "bg-gray-100 text-gray-600",
 };
 
 const methodLabels: Record<string, string> = {
@@ -130,7 +139,6 @@ export function PaymentsClient({
 
     startTransition(async () => {
       setSearchingStudent(true);
-      // Search bills to find students with outstanding balances
       const result = await getBillsAction({ page: 1, pageSize: 10 });
       if (result.error) {
         toast.error(result.error);
@@ -264,6 +272,11 @@ export function PaymentsClient({
     });
   }
 
+  const filterSelectClass =
+    "h-9 rounded-lg border border-input bg-background px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  const inputClass =
+    "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1";
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -272,7 +285,7 @@ export function PaymentsClient({
         actions={
           <button
             onClick={handleOpenPaymentModal}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Record Payment
           </button>
@@ -280,100 +293,96 @@ export function PaymentsClient({
       />
 
       {/* Filters */}
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-foreground">Term:</label>
-          <select
-            value={filterTermId}
-            onChange={(e) => {
-              setFilterTermId(e.target.value);
-              handleFilterChange(e.target.value, filterMethod);
-            }}
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            <option value="all">All Terms</option>
-            {terms.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name} ({t.academicYear.name})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-foreground">Method:</label>
-          <select
-            value={filterMethod}
-            onChange={(e) => {
-              setFilterMethod(e.target.value);
-              handleFilterChange(filterTermId, e.target.value);
-            }}
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            <option value="all">All Methods</option>
-            <option value="CASH">Cash</option>
-            <option value="BANK_TRANSFER">Bank Transfer</option>
-            <option value="MOBILE_MONEY">Mobile Money</option>
-            <option value="CHEQUE">Cheque</option>
-            <option value="OTHER">Other</option>
-          </select>
-        </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+        <select
+          value={filterTermId}
+          onChange={(e) => {
+            setFilterTermId(e.target.value);
+            handleFilterChange(e.target.value, filterMethod);
+          }}
+          className={filterSelectClass}
+        >
+          <option value="all">All Terms</option>
+          {terms.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name} ({t.academicYear.name})
+            </option>
+          ))}
+        </select>
+        <select
+          value={filterMethod}
+          onChange={(e) => {
+            setFilterMethod(e.target.value);
+            handleFilterChange(filterTermId, e.target.value);
+          }}
+          className={filterSelectClass}
+        >
+          <option value="all">All Methods</option>
+          <option value="CASH">Cash</option>
+          <option value="BANK_TRANSFER">Bank Transfer</option>
+          <option value="MOBILE_MONEY">Mobile Money</option>
+          <option value="CHEQUE">Cheque</option>
+          <option value="OTHER">Other</option>
+        </select>
       </div>
 
       {/* Payments Table */}
       {payments.length === 0 ? (
         <EmptyState
+          icon={<CreditCard className="h-6 w-6" />}
           title="No payments found"
           description="Record payments to track student fee collections."
           action={
             <button
               onClick={handleOpenPaymentModal}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Record Payment
             </button>
           }
         />
       ) : (
-        <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-border">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  <th className="px-4 py-3 text-left font-medium">Receipt #</th>
-                  <th className="px-4 py-3 text-left font-medium">Student</th>
-                  <th className="px-4 py-3 text-right font-medium">Amount</th>
-                  <th className="px-4 py-3 text-center font-medium">Method</th>
-                  <th className="px-4 py-3 text-left font-medium">Reference</th>
-                  <th className="px-4 py-3 text-left font-medium">Received By</th>
-                  <th className="px-4 py-3 text-left font-medium">Date</th>
-                  <th className="px-4 py-3 text-center font-medium">Status</th>
-                  <th className="px-4 py-3 text-right font-medium">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Receipt #</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Amount</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Method</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reference</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Received By</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
                 {payments.map((payment) => (
                   <tr
                     key={payment.id}
-                    className="border-b border-border last:border-0 hover:bg-muted/30"
+                    className="border-b border-border transition-colors last:border-0 hover:bg-muted/30"
                   >
-                    <td className="px-4 py-3 font-mono text-xs">
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                       {payment.receiptNumber ?? "---"}
                     </td>
                     <td className="px-4 py-3">
                       <div>
                         <span className="font-medium">{payment.studentName}</span>
-                        <span className="text-xs text-muted-foreground ml-2">
+                        <span className="ml-2 text-xs text-muted-foreground">
                           {payment.studentIdNumber}
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right font-medium">
+                    <td className="px-4 py-3 text-right font-medium tabular-nums">
                       {formatCurrency(payment.amount)}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          methodColors[payment.paymentMethod] ?? "bg-gray-100 text-gray-700"
+                          methodColors[payment.paymentMethod] ?? "bg-gray-100 text-gray-600"
                         }`}
                       >
                         {methodLabels[payment.paymentMethod] ?? payment.paymentMethod}
@@ -389,22 +398,14 @@ export function PaymentsClient({
                       {format(new Date(payment.receivedAt), "dd MMM yyyy HH:mm")}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      {payment.status === "CONFIRMED" ? (
-                        <span className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-2.5 py-0.5 text-xs font-medium">
-                          Confirmed
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full bg-red-100 text-red-700 px-2.5 py-0.5 text-xs font-medium">
-                          Reversed
-                        </span>
-                      )}
+                      <StatusBadge status={payment.status} />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         {payment.receiptNumber && (
                           <a
                             href={`/finance/receipts?receipt=${payment.receiptNumber}`}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                            className="text-xs font-medium text-primary hover:text-primary/80"
                           >
                             Receipt
                           </a>
@@ -412,7 +413,7 @@ export function PaymentsClient({
                         {payment.status === "CONFIRMED" && (
                           <button
                             onClick={() => handleInitiateReversal(payment.id)}
-                            className="text-xs text-red-600 hover:text-red-800 font-medium"
+                            className="text-xs font-medium text-destructive hover:text-destructive/80"
                           >
                             Reverse
                           </button>
@@ -427,29 +428,43 @@ export function PaymentsClient({
 
           {/* Pagination */}
           {pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-              <p className="text-sm text-muted-foreground">
+            <div className="flex items-center justify-between border-t border-border px-4 py-3">
+              <p className="text-xs text-muted-foreground">
                 Showing {(pagination.page - 1) * pagination.pageSize + 1} to{" "}
                 {Math.min(pagination.page * pagination.pageSize, pagination.total)} of{" "}
-                {pagination.total} payments
+                {pagination.total}
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handlePageChange(1)}
+                  disabled={pagination.page <= 1 || isPending}
+                  className="rounded-md p-1.5 transition-colors hover:bg-accent disabled:opacity-30"
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </button>
                 <button
                   onClick={() => handlePageChange(pagination.page - 1)}
                   disabled={pagination.page <= 1 || isPending}
-                  className="rounded-md border border-border px-3 py-1 text-sm hover:bg-accent disabled:opacity-50"
+                  className="rounded-md p-1.5 transition-colors hover:bg-accent disabled:opacity-30"
                 >
-                  Previous
+                  <ChevronLeft className="h-4 w-4" />
                 </button>
-                <span className="text-sm text-muted-foreground">
+                <span className="px-2 text-xs text-muted-foreground">
                   Page {pagination.page} of {pagination.totalPages}
                 </span>
                 <button
                   onClick={() => handlePageChange(pagination.page + 1)}
                   disabled={pagination.page >= pagination.totalPages || isPending}
-                  className="rounded-md border border-border px-3 py-1 text-sm hover:bg-accent disabled:opacity-50"
+                  className="rounded-md p-1.5 transition-colors hover:bg-accent disabled:opacity-30"
                 >
-                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handlePageChange(pagination.totalPages)}
+                  disabled={pagination.page >= pagination.totalPages || isPending}
+                  className="rounded-md p-1.5 transition-colors hover:bg-accent disabled:opacity-30"
+                >
+                  <ChevronsRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -459,32 +474,43 @@ export function PaymentsClient({
 
       {/* Record Payment Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-card p-6 shadow-lg">
-            <h3 className="text-lg font-semibold">Record Payment</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Record Payment</h3>
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
             {/* Student Search */}
             {!selectedBill ? (
-              <div className="mt-4 space-y-4">
+              <div className="mt-5 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">
                     Search Student (by name or ID)
                   </label>
                   <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Enter student name or ID..."
-                      value={studentSearch}
-                      onChange={(e) => setStudentSearch(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleSearchStudent()}
-                      className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        type="text"
+                        placeholder="Enter student name or ID..."
+                        value={studentSearch}
+                        onChange={(e) => setStudentSearch(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSearchStudent()}
+                        className={`${inputClass} pl-9`}
+                      />
+                    </div>
                     <button
                       onClick={handleSearchStudent}
                       disabled={isPending || searchingStudent}
-                      className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                      className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                     >
-                      {searchingStudent ? "Searching..." : "Search"}
+                      {searchingStudent ? "..." : "Search"}
                     </button>
                   </div>
                 </div>
@@ -498,78 +524,63 @@ export function PaymentsClient({
                       <button
                         key={bill.id}
                         onClick={() => handleSelectBill(bill)}
-                        className="w-full text-left rounded-md border border-border p-3 hover:bg-muted/30 transition-colors"
+                        className="w-full rounded-xl border border-border p-3 text-left transition-colors hover:border-primary/30 hover:bg-muted/30"
                       >
                         <div className="flex items-center justify-between">
                           <div>
                             <span className="font-medium">{bill.studentName}</span>
-                            <span className="text-xs text-muted-foreground ml-2">
+                            <span className="ml-2 text-xs text-muted-foreground">
                               {bill.studentIdNumber}
                             </span>
-                            <span className="text-xs text-muted-foreground ml-2">
+                            <span className="ml-2 text-xs text-muted-foreground">
                               {bill.className}
                             </span>
                           </div>
-                          <span
-                            className={`text-xs rounded-full px-2 py-0.5 font-medium ${
-                              bill.status === "PAID"
-                                ? "bg-green-100 text-green-700"
-                                : bill.status === "PARTIAL"
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {bill.status}
-                          </span>
+                          <StatusBadge status={bill.status} />
                         </div>
-                        <div className="mt-1 text-sm text-muted-foreground">
-                          Total: {formatCurrency(bill.totalAmount)} | Paid:{" "}
-                          {formatCurrency(bill.paidAmount)} | Balance:{" "}
-                          {formatCurrency(bill.balanceAmount)}
+                        <div className="mt-1.5 flex gap-3 text-xs text-muted-foreground tabular-nums">
+                          <span>Total: {formatCurrency(bill.totalAmount)}</span>
+                          <span>Paid: {formatCurrency(bill.paidAmount)}</span>
+                          <span className="font-medium text-foreground">
+                            Balance: {formatCurrency(bill.balanceAmount)}
+                          </span>
                         </div>
                       </button>
                     ))}
                   </div>
                 )}
-
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => setShowPaymentModal(false)}
-                    className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
-                  >
-                    Cancel
-                  </button>
-                </div>
               </div>
             ) : (
-              <form onSubmit={handleRecordPayment} className="mt-4 space-y-4">
+              <form onSubmit={handleRecordPayment} className="mt-5 space-y-4">
                 {/* Selected Bill Summary */}
-                <div className="rounded-md border border-border bg-muted/30 p-3">
+                <div className="rounded-xl border border-border bg-muted/30 p-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="font-medium">{selectedBill.studentName}</span>
-                      <span className="text-xs text-muted-foreground ml-2">
+                      <span className="ml-2 text-xs text-muted-foreground">
                         {selectedBill.studentIdNumber}
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => setSelectedBill(null)}
-                      className="text-xs text-primary hover:text-primary/80"
+                      className="text-xs font-medium text-primary hover:text-primary/80"
                     >
                       Change
                     </button>
                   </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Total: {formatCurrency(selectedBill.totalAmount)} | Paid:{" "}
-                    {formatCurrency(selectedBill.paidAmount)} | Balance:{" "}
-                    {formatCurrency(selectedBill.balanceAmount)}
+                  <div className="mt-1.5 flex gap-3 text-xs text-muted-foreground tabular-nums">
+                    <span>Total: {formatCurrency(selectedBill.totalAmount)}</span>
+                    <span>Paid: {formatCurrency(selectedBill.paidAmount)}</span>
+                    <span className="font-medium text-foreground">
+                      Balance: {formatCurrency(selectedBill.balanceAmount)}
+                    </span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground">
-                    Amount (GHS)
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">
+                    Amount (GHS) <span className="text-destructive">*</span>
                   </label>
                   <input
                     type="number"
@@ -579,14 +590,14 @@ export function PaymentsClient({
                     onChange={(e) =>
                       setPaymentForm((prev) => ({ ...prev, amount: e.target.value }))
                     }
-                    className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className={inputClass}
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground">
-                    Payment Method
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">
+                    Payment Method <span className="text-destructive">*</span>
                   </label>
                   <select
                     value={paymentForm.paymentMethod}
@@ -596,7 +607,7 @@ export function PaymentsClient({
                         paymentMethod: e.target.value,
                       }))
                     }
-                    className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className={inputClass}
                     required
                   >
                     <option value="CASH">Cash</option>
@@ -609,8 +620,8 @@ export function PaymentsClient({
 
                 {paymentForm.paymentMethod !== "CASH" && (
                   <div>
-                    <label className="block text-sm font-medium text-foreground">
-                      Reference Number
+                    <label className="mb-1.5 block text-sm font-medium text-foreground">
+                      Reference Number <span className="text-destructive">*</span>
                     </label>
                     <input
                       type="text"
@@ -622,14 +633,14 @@ export function PaymentsClient({
                           referenceNumber: e.target.value,
                         }))
                       }
-                      className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      className={inputClass}
                       required
                     />
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground">
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">
                     Notes (optional)
                   </label>
                   <textarea
@@ -637,16 +648,16 @@ export function PaymentsClient({
                     onChange={(e) =>
                       setPaymentForm((prev) => ({ ...prev, notes: e.target.value }))
                     }
-                    className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className={inputClass}
                     rows={2}
                   />
                 </div>
 
-                <div className="flex justify-end gap-3 pt-2">
+                <div className="flex justify-end gap-2.5 pt-2">
                   <button
                     type="button"
                     onClick={() => setShowPaymentModal(false)}
-                    className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
+                    className="rounded-lg border border-border px-4 py-2 text-sm transition-colors hover:bg-accent"
                     disabled={isPending}
                   >
                     Cancel
@@ -654,7 +665,7 @@ export function PaymentsClient({
                   <button
                     type="submit"
                     disabled={isPending}
-                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                   >
                     {isPending ? "Processing..." : "Record Payment"}
                   </button>
@@ -667,31 +678,39 @@ export function PaymentsClient({
 
       {/* Reversal Modal */}
       {showReversalModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-lg bg-card p-6 shadow-lg">
-            <h3 className="text-lg font-semibold">Reverse Payment</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Reverse Payment</h3>
+              <button
+                onClick={() => setShowReversalModal(false)}
+                className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
             <p className="mt-1 text-sm text-muted-foreground">
               This will submit a reversal request that needs to be approved.
             </p>
             <form onSubmit={handleSubmitReversal} className="mt-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground">
-                  Reason for Reversal
+                <label className="mb-1.5 block text-sm font-medium text-foreground">
+                  Reason for Reversal <span className="text-destructive">*</span>
                 </label>
                 <textarea
                   value={reversalReason}
                   onChange={(e) => setReversalReason(e.target.value)}
                   placeholder="Explain why this payment needs to be reversed..."
-                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className={inputClass}
                   rows={3}
                   required
                 />
               </div>
-              <div className="flex justify-end gap-3">
+              <div className="flex justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowReversalModal(false)}
-                  className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
+                  className="rounded-lg border border-border px-4 py-2 text-sm transition-colors hover:bg-accent"
                   disabled={isPending}
                 >
                   Cancel
@@ -699,7 +718,7 @@ export function PaymentsClient({
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="rounded-md bg-destructive px-4 py-2 text-sm font-medium text-white hover:bg-destructive/90 disabled:opacity-50"
+                  className="rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-destructive/90 disabled:opacity-50"
                 >
                   {isPending ? "Submitting..." : "Submit Reversal"}
                 </button>
