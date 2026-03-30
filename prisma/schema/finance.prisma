@@ -60,6 +60,8 @@ model StudentBill {
   @@index([academicYearId])
   @@index([status])
   @@index([feeStructureId])
+  @@index([studentId, status])
+  @@index([termId, status])
 }
 
 model StudentBillItem {

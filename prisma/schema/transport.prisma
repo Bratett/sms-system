@@ -1,0 +1,95 @@
+model Vehicle {
+  id                 String        @id @default(cuid())
+  schoolId           String
+  registrationNumber String
+  type               VehicleType
+  capacity           Int
+  driverName         String?
+  driverPhone        String?
+  status             VehicleStatus @default(ACTIVE)
+  insuranceExpiry    DateTime?
+  lastServiceDate    DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  routes Route[]
+
+  @@unique([schoolId, registrationNumber])
+  @@index([schoolId])
+  @@index([status])
+}
+
+model Route {
+  id                String      @id @default(cuid())
+  schoolId          String
+  name              String
+  description       String?
+  vehicleId         String?
+  startPoint        String?
+  endPoint          String?
+  distance          Float?
+  estimatedDuration Int?
+  fee               Float?
+  status            RouteStatus @default(ACTIVE)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  vehicle     Vehicle?           @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  stops       RouteStop[]
+  assignments StudentTransport[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@index([vehicleId])
+  @@index([status])
+}
+
+model RouteStop {
+  id          String  @id @default(cuid())
+  routeId     String
+  name        String
+  orderIndex  Int
+  pickupTime  String?
+  dropoffTime String?
+
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId])
+  @@index([routeId, orderIndex])
+}
+
+model StudentTransport {
+  id             String   @id @default(cuid())
+  studentId      String
+  routeId        String
+  stopId         String?
+  academicYearId String
+  pickupPoint    String?
+  dropoffPoint   String?
+  assignedAt     DateTime @default(now())
+
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, academicYearId])
+  @@index([routeId])
+  @@index([studentId])
+  @@index([academicYearId])
+}
+
+enum VehicleType {
+  BUS
+  MINIBUS
+  VAN
+  CAR
+}
+
+enum VehicleStatus {
+  ACTIVE
+  MAINTENANCE
+  RETIRED
+}
+
+enum RouteStatus {
+  ACTIVE
+  INACTIVE
+}

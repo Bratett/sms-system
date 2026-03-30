@@ -15,6 +15,7 @@ model User {
   userRoles              UserRole[]
   auditLogs              AuditLog[]
   notifications          Notification[]
+  userSchools            UserSchool[]
   teacherTimetableSlots  TimetableSlot[]  @relation("TeacherTimetableSlots")
   invigilatorExamSchedules ExamSchedule[] @relation("InvigilatorExamSchedules")
 
@@ -74,6 +75,40 @@ model UserRole {
   role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, roleId])
+}
+
+model UserSchool {
+  id        String   @id @default(cuid())
+  userId    String
+  schoolId  String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, schoolId])
+  @@index([userId])
+  @@index([schoolId])
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  schoolId    String
+  name        String
+  keyHash     String    @unique
+  prefix      String
+  permissions String[]
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([prefix])
+  @@index([schoolId])
+  @@index([isActive])
 }
 
 enum UserStatus {

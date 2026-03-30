@@ -26,6 +26,7 @@ model School {
   periods        Period[]
   timetableSlots TimetableSlot[]
   examSchedules  ExamSchedule[]
+  userSchools    UserSchool[]
 }
 
 model AcademicYear {

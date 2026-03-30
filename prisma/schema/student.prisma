@@ -31,6 +31,9 @@ model Student {
   @@index([studentId])
   @@index([status])
   @@index([firstName, lastName])
+  @@index([schoolId, status])
+  @@index([schoolId, gender, status])
+  @@index([schoolId, boardingStatus, status])
 }
 
 model Guardian {

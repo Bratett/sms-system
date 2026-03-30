@@ -3,7 +3,8 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { initializePayment, verifyPayment } from "@/lib/payment/paystack";
+import { getPaymentProvider, getProviderForCurrency } from "@/lib/payment/registry";
+import { CURRENCIES } from "@/lib/payment/types";
 
 // ─── Initiate Online Payment ───────────────────────────────────────
 
@@ -11,6 +12,8 @@ export async function initiateOnlinePaymentAction(data: {
   studentBillId: string;
   amount: number;
   email: string;
+  currency?: string;
+  provider?: string;
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
@@ -31,30 +34,40 @@ export async function initiateOnlinePaymentAction(data: {
   }
 
   if (data.amount > bill.balanceAmount) {
-    return { error: `Amount exceeds outstanding balance of GHS ${bill.balanceAmount.toFixed(2)}` };
+    return { error: `Amount exceeds outstanding balance of ${bill.balanceAmount.toFixed(2)}` };
+  }
+
+  // Resolve payment provider
+  const currency = data.currency || "GHS";
+  const currencyConfig = CURRENCIES[currency];
+  if (!currencyConfig) return { error: `Unsupported currency: ${currency}` };
+
+  const provider = data.provider
+    ? getPaymentProvider(data.provider)
+    : getProviderForCurrency(currency);
+
+  if (!provider) return { error: `Payment provider not found: ${data.provider}` };
+
+  if (!provider.supportedCurrencies.includes(currency)) {
+    return { error: `${provider.displayName} does not support ${currency}` };
   }
 
   // Generate unique reference
   const reference = `PAY-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const baseUrl = process.env.NEXTAUTH_URL || process.env.AUTH_URL || "http://localhost:3000";
 
-  const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-
-  const result = await initializePayment({
+  const result = await provider.initializePayment({
     email: data.email,
-    amount: Math.round(data.amount * 100), // Convert GHS to pesewas
-    currency: "GHS",
+    amount: provider.toSmallestUnit(data.amount),
+    currency,
     reference,
     callbackUrl: `${baseUrl}/parent/fees?payment=success&ref=${reference}`,
     metadata: {
       studentBillId: bill.id,
       studentId: bill.studentId,
       schoolId: school.id,
-      custom_fields: [
-        { display_name: "School", variable_name: "school", value: school.name },
-        { display_name: "Bill ID", variable_name: "bill_id", value: bill.id },
-      ],
+      provider: provider.name,
     },
-    channels: ["mobile_money", "card"],
   });
 
   if (!result.success) {
@@ -66,8 +79,8 @@ export async function initiateOnlinePaymentAction(data: {
     action: "CREATE",
     entity: "Payment",
     module: "finance",
-    description: `Initiated online payment of GHS ${data.amount.toFixed(2)} via Paystack. Ref: ${reference}`,
-    metadata: { reference, amount: data.amount, studentBillId: bill.id },
+    description: `Initiated online payment of ${currencyConfig.symbol} ${data.amount.toFixed(currencyConfig.decimals)} via ${provider.displayName}. Ref: ${reference}`,
+    metadata: { reference, amount: data.amount, currency, provider: provider.name, studentBillId: bill.id },
   });
 
   return {
@@ -75,26 +88,36 @@ export async function initiateOnlinePaymentAction(data: {
       authorizationUrl: result.authorizationUrl,
       accessCode: result.accessCode,
       reference: result.reference,
+      provider: provider.name,
     },
   };
 }
 
 // ─── Verify Online Payment (callback handler) ──────────────────────
 
-export async function verifyOnlinePaymentAction(reference: string) {
+export async function verifyOnlinePaymentAction(reference: string, providerName?: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
 
-  const result = await verifyPayment(reference);
+  // Try to determine provider from reference or use specified one
+  const provider = providerName
+    ? getPaymentProvider(providerName)
+    : getProviderForCurrency("GHS"); // Default fallback
+
+  if (!provider) return { error: "Payment provider not found" };
+
+  const result = await provider.verifyPayment(reference);
 
   if (result.success) {
     return {
       data: {
         status: "success",
-        amount: (result.amount || 0) / 100, // Convert pesewas to GHS
+        amount: provider.fromSmallestUnit(result.amount || 0),
+        currency: result.currency,
         reference: result.reference,
         channel: result.channel,
         paidAt: result.paidAt,
+        provider: provider.name,
       },
     };
   }

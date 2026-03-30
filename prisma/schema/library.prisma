@@ -1,0 +1,93 @@
+model Book {
+  id              String     @id @default(cuid())
+  schoolId        String
+  isbn            String?
+  title           String
+  author          String
+  publisher       String?
+  publicationYear Int?
+  category        String?
+  shelfLocation   String?
+  totalCopies     Int        @default(1)
+  availableCopies Int        @default(1)
+  coverImageUrl   String?
+  status          BookStatus @default(AVAILABLE)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  issues BookIssue[]
+
+  @@index([schoolId])
+  @@index([isbn])
+  @@index([title])
+  @@index([author])
+  @@index([category])
+  @@index([status])
+}
+
+model BookIssue {
+  id           String       @id @default(cuid())
+  bookId       String
+  borrowerId   String
+  borrowerType BorrowerType
+  issuedBy     String
+  issuedAt     DateTime     @default(now())
+  dueDate      DateTime
+  returnedAt   DateTime?
+  returnedTo   String?
+  status       IssueStatus  @default(ISSUED)
+  fineAmount   Float?
+  notes        String?
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([bookId])
+  @@index([borrowerId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([borrowerId, status])
+}
+
+model DigitalResource {
+  id          String       @id @default(cuid())
+  schoolId    String
+  title       String
+  description String?
+  type        ResourceType @default(DOCUMENT)
+  fileUrl     String
+  category    String?
+  uploadedBy  String
+  accessLevel String       @default("ALL")
+  createdAt   DateTime     @default(now())
+
+  @@index([schoolId])
+  @@index([category])
+  @@index([type])
+}
+
+enum BookStatus {
+  AVAILABLE
+  LOW_STOCK
+  OUT_OF_STOCK
+  ARCHIVED
+}
+
+enum BorrowerType {
+  STUDENT
+  STAFF
+}
+
+enum IssueStatus {
+  ISSUED
+  RETURNED
+  OVERDUE
+  LOST
+}
+
+enum ResourceType {
+  DOCUMENT
+  VIDEO
+  AUDIO
+  EBOOK
+  LINK
+}

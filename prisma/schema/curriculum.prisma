@@ -1,0 +1,89 @@
+model CurriculumFramework {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g., "GHANA_WAEC", "CAMBRIDGE_IGCSE", "IB_DP", "US_COMMON_CORE"
+  name        String
+  description String?
+  country     String?
+  organization String? // e.g., "WAEC", "Cambridge Assessment", "IBO"
+  gradeLevels Json?    // Array of grade level names
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  standards    CurriculumStandard[]
+  schoolCurricula SchoolCurriculum[]
+
+  @@index([code])
+  @@index([isActive])
+}
+
+model CurriculumStandard {
+  id           String @id @default(cuid())
+  frameworkId  String
+  code         String   // e.g., "MATH.SHS1.ALG.1"
+  subject      String
+  gradeLevel   String
+  strand       String?  // e.g., "Algebra", "Number and Operations"
+  subStrand    String?
+  description  String
+  learningOutcome String?
+
+  framework    CurriculumFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+
+  @@unique([frameworkId, code])
+  @@index([frameworkId])
+  @@index([subject])
+  @@index([gradeLevel])
+  @@index([frameworkId, subject, gradeLevel])
+}
+
+model SchoolCurriculum {
+  id           String   @id @default(cuid())
+  schoolId     String
+  frameworkId  String
+  isPrimary    Boolean  @default(false)
+  customConfig Json?    // School-specific overrides (grading rules, term structure, etc.)
+  activatedAt  DateTime @default(now())
+
+  framework    CurriculumFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, frameworkId])
+  @@index([schoolId])
+  @@index([frameworkId])
+}
+
+model GradingTemplate {
+  id           String   @id @default(cuid())
+  frameworkId  String
+  name         String
+  assessmentWeights Json // e.g., {"classwork": 10, "homework": 10, "midterm": 20, "exam": 60}
+  gradeScale   Json     // e.g., [{"grade": "A1", "min": 80, "max": 100, "gpa": 4.0}]
+  passThreshold Float   @default(50)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([frameworkId])
+}
+
+model ReportTemplate {
+  id           String   @id @default(cuid())
+  frameworkId  String
+  name         String
+  type         ReportTemplateType @default(TERMINAL)
+  layout       Json     // Report card layout configuration
+  sections     Json     // Sections to include (academics, attendance, conduct, etc.)
+  headerConfig Json?    // School header, crest, motto placement
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([frameworkId])
+  @@index([type])
+}
+
+enum ReportTemplateType {
+  TERMINAL
+  ANNUAL
+  TRANSCRIPT
+  PROGRESS
+}
