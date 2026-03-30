@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyWebhookSignature, verifyPayment } from "@/lib/payment/paystack";
+import { getPaymentProvider } from "@/lib/payment/registry";
 import { db } from "@/lib/db";
 
 /**
@@ -11,9 +11,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.text();
     const signature = request.headers.get("x-paystack-signature") || "";
+    const provider = getPaymentProvider("paystack")!;
 
-    // Verify webhook signature
-    if (!verifyWebhookSignature(body, signature)) {
+    if (!provider.verifyWebhookSignature(body, signature)) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
@@ -40,25 +40,27 @@ async function handleChargeSuccess(data: {
     studentBillId?: string;
     studentId?: string;
     schoolId?: string;
+    provider?: string;
   };
 }) {
   const { reference, metadata } = data;
+  const provider = getPaymentProvider("paystack")!;
 
   if (!metadata?.studentBillId) {
     console.warn(`[Paystack Webhook] No studentBillId in metadata for reference ${reference}`);
     return;
   }
 
-  // Verify the payment with Paystack to be safe
-  const verified = await verifyPayment(reference);
+  // Verify the payment with the provider
+  const verified = await provider.verifyPayment(reference);
   if (!verified.success) {
     console.error(`[Paystack Webhook] Payment verification failed for ${reference}`);
     return;
   }
 
-  const amountGhs = (verified.amount || data.amount) / 100; // Convert pesewas to GHS
+  const amount = provider.fromSmallestUnit(verified.amount || data.amount);
 
-  // Check if payment already processed (idempotency)
+  // Idempotency check
   const existingPayment = await db.payment.findFirst({
     where: { referenceNumber: reference },
   });
@@ -77,35 +79,23 @@ async function handleChargeSuccess(data: {
     return;
   }
 
-  // Map Paystack channel to our payment method
-  const paymentMethodMap: Record<
-    string,
-    "CASH" | "BANK_TRANSFER" | "MOBILE_MONEY" | "CHEQUE" | "OTHER"
-  > = {
-    card: "BANK_TRANSFER",
-    mobile_money: "MOBILE_MONEY",
-    bank: "BANK_TRANSFER",
-  };
-  const paymentMethod = paymentMethodMap[verified.channel || data.channel] || "OTHER";
+  const paymentMethod = provider.mapChannel(verified.channel || data.channel);
 
-  // Process payment in a transaction
   await db.$transaction(async (tx) => {
-    // Create payment record
     const payment = await tx.payment.create({
       data: {
         studentBillId: bill.id,
         studentId: bill.studentId,
-        amount: amountGhs,
+        amount,
         paymentMethod,
         referenceNumber: reference,
         receivedBy: "system",
         status: "CONFIRMED",
-        notes: `Online payment via Paystack (${verified.channel || data.channel})`,
+        notes: `Online payment via ${provider.displayName} (${verified.channel || data.channel})`,
       },
     });
 
-    // Update bill
-    const newPaidAmount = bill.paidAmount + amountGhs;
+    const newPaidAmount = bill.paidAmount + amount;
     const newBalanceAmount = bill.totalAmount - newPaidAmount;
 
     let newStatus: "UNPAID" | "PARTIAL" | "PAID" | "OVERPAID";
@@ -128,7 +118,6 @@ async function handleChargeSuccess(data: {
       },
     });
 
-    // Generate receipt
     const year = new Date().getFullYear();
     const count = await tx.receipt.count({
       where: { receiptNumber: { startsWith: `RCP/${year}/` } },
@@ -142,7 +131,6 @@ async function handleChargeSuccess(data: {
       },
     });
 
-    // Audit
     await tx.auditLog.create({
       data: {
         userId: "system",
@@ -150,11 +138,11 @@ async function handleChargeSuccess(data: {
         entity: "Payment",
         entityId: payment.id,
         module: "finance",
-        description: `Online payment GHS ${amountGhs.toFixed(2)} via Paystack (${reference})`,
-        newData: { paymentId: payment.id, reference, amount: amountGhs },
+        description: `Online payment ${verified.currency || "GHS"} ${amount.toFixed(2)} via ${provider.displayName} (${reference})`,
+        newData: { paymentId: payment.id, reference, amount },
       },
     });
   });
 
-  console.log(`[Paystack Webhook] Payment processed: ${reference}, GHS ${amountGhs}`);
+  console.log(`[Paystack Webhook] Payment processed: ${reference}, ${amount}`);
 }

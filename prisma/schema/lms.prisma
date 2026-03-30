@@ -1,0 +1,166 @@
+model Course {
+  id            String       @id @default(cuid())
+  schoolId      String
+  subjectId     String?
+  classArmId    String?
+  title         String
+  description   String?
+  teacherId     String
+  status        CourseStatus  @default(DRAFT)
+  publishedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  lessons       Lesson[]
+  assignments   LmsAssignment[]
+  enrollments   CourseEnrollment[]
+
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([classArmId])
+  @@index([status])
+}
+
+model Lesson {
+  id          String     @id @default(cuid())
+  courseId     String
+  title       String
+  content     String?    // Rich text / markdown content
+  contentType LessonContentType @default(TEXT)
+  resourceUrl String?    // Link to video, PDF, or external resource
+  orderIndex  Int
+  duration    Int?       // Duration in minutes
+  isPublished Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  course      Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progress    LessonProgress[]
+
+  @@index([courseId])
+  @@index([courseId, orderIndex])
+}
+
+model LmsAssignment {
+  id           String         @id @default(cuid())
+  courseId      String
+  title        String
+  description  String?
+  type         AssignmentType @default(WRITTEN)
+  dueDate      DateTime?
+  maxScore     Float          @default(100)
+  isPublished  Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  course       Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submissions  AssignmentSubmission[]
+  questions    QuizQuestion[]
+
+  @@index([courseId])
+  @@index([dueDate])
+}
+
+model QuizQuestion {
+  id           String @id @default(cuid())
+  assignmentId String
+  question     String
+  type         QuestionType @default(MULTIPLE_CHOICE)
+  options      Json?   // Array of option strings for MCQ
+  correctAnswer String?
+  points       Float   @default(1)
+  orderIndex   Int
+
+  assignment   LmsAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId])
+}
+
+model CourseEnrollment {
+  id         String   @id @default(cuid())
+  courseId    String
+  studentId  String
+  enrolledAt DateTime @default(now())
+  completedAt DateTime?
+  progress   Float    @default(0) // 0-100 percentage
+
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, studentId])
+  @@index([courseId])
+  @@index([studentId])
+}
+
+model LessonProgress {
+  id          String   @id @default(cuid())
+  lessonId    String
+  studentId   String
+  status      ProgressStatus @default(NOT_STARTED)
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, studentId])
+  @@index([studentId])
+}
+
+model AssignmentSubmission {
+  id           String          @id @default(cuid())
+  assignmentId String
+  studentId    String
+  content      String?         // Written answer or file URL
+  answers      Json?           // Quiz answers: { questionId: answer }
+  score        Float?
+  feedback     String?
+  status       SubmissionStatus @default(SUBMITTED)
+  submittedAt  DateTime        @default(now())
+  gradedAt     DateTime?
+  gradedBy     String?
+
+  assignment   LmsAssignment   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+  @@index([assignmentId])
+  @@index([studentId])
+  @@index([status])
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum LessonContentType {
+  TEXT
+  VIDEO
+  PDF
+  LINK
+  MIXED
+}
+
+enum AssignmentType {
+  WRITTEN
+  QUIZ
+  FILE_UPLOAD
+  PROJECT
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  SHORT_ANSWER
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  GRADED
+  RETURNED
+}

@@ -38,6 +38,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 },
               },
             },
+            userSchools: {
+              include: {
+                school: {
+                  select: { id: true, name: true, logoUrl: true },
+                },
+              },
+            },
           },
         });
 
@@ -59,6 +66,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           ),
         ];
 
+        // Determine active school: default school, or first assigned school
+        const schools = user.userSchools.map((us) => ({
+          id: us.school.id,
+          name: us.school.name,
+          logoUrl: us.school.logoUrl,
+          isDefault: us.isDefault,
+        }));
+        const defaultSchool = schools.find((s) => s.isDefault) ?? schools[0] ?? null;
+
         return {
           id: user.id,
           email: user.email,
@@ -66,7 +82,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           image: user.avatarUrl ?? undefined,
           roles,
           permissions,
-        };
+          schoolId: defaultSchool?.id ?? null,
+          schoolName: defaultSchool?.name ?? null,
+          schools,
+        } as unknown as import("next-auth").User;
       },
     }),
   ],
@@ -78,11 +97,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: "/login",
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.roles = (user as unknown as Record<string, unknown>).roles as string[];
         token.permissions = (user as unknown as Record<string, unknown>).permissions as string[];
+        token.schoolId = (user as unknown as Record<string, unknown>).schoolId as string | null;
+        token.schoolName = (user as unknown as Record<string, unknown>).schoolName as string | null;
+        token.schools = (user as unknown as Record<string, unknown>).schools;
+      }
+      // Allow school switching via session update
+      if (trigger === "update" && session?.schoolId) {
+        token.schoolId = session.schoolId;
+        token.schoolName = session.schoolName;
       }
       return token;
     },
@@ -91,6 +118,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = token.id as string;
         (session.user as unknown as Record<string, unknown>).roles = token.roles;
         (session.user as unknown as Record<string, unknown>).permissions = token.permissions;
+        (session.user as unknown as Record<string, unknown>).schoolId = token.schoolId;
+        (session.user as unknown as Record<string, unknown>).schoolName = token.schoolName;
+        (session.user as unknown as Record<string, unknown>).schools = token.schools;
       }
       return session;
     },

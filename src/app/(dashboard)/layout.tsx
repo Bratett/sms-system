@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { Providers } from "@/components/providers";
 import { DashboardShell } from "./dashboard-shell";
+import { OfflineIndicator } from "@/components/shared/offline-indicator";
+import { getLocale, getMessages } from "next-intl/server";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -10,8 +12,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login");
   }
 
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <Providers>
+    <Providers locale={locale} messages={messages as Record<string, unknown>}>
       {/* Skip navigation link for accessibility */}
       <a
         href="#main-content"
@@ -20,6 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         Skip to main content
       </a>
       <DashboardShell>{children}</DashboardShell>
+      <OfflineIndicator />
     </Providers>
   );
 }

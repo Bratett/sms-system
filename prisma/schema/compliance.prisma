@@ -1,0 +1,109 @@
+model ConsentRecord {
+  id          String      @id @default(cuid())
+  userId      String
+  schoolId    String
+  consentType ConsentType
+  granted     Boolean
+  version     String      @default("1.0")
+  ipAddress   String?
+  userAgent   String?
+  grantedAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([userId, schoolId, consentType])
+  @@index([userId])
+  @@index([schoolId])
+  @@index([consentType])
+}
+
+model DataExportRequest {
+  id          String            @id @default(cuid())
+  userId      String
+  schoolId    String
+  status      ExportRequestStatus @default(PENDING)
+  format      String            @default("json") // json, csv
+  fileUrl     String?
+  requestedAt DateTime          @default(now())
+  completedAt DateTime?
+  expiresAt   DateTime?
+
+  @@index([userId])
+  @@index([schoolId])
+  @@index([status])
+}
+
+model DataDeletionRequest {
+  id           String              @id @default(cuid())
+  userId       String
+  schoolId     String
+  entityType   String              // "student", "guardian", "staff"
+  entityId     String
+  reason       String?
+  status       DeletionRequestStatus @default(PENDING)
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  scheduledFor DateTime?
+  executedAt   DateTime?
+  requestedAt  DateTime            @default(now())
+
+  @@index([userId])
+  @@index([schoolId])
+  @@index([status])
+  @@index([entityType, entityId])
+}
+
+model PrivacyPolicy {
+  id          String   @id @default(cuid())
+  schoolId    String
+  version     String
+  title       String
+  content     String   // Rich text / markdown
+  effectiveDate DateTime
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([schoolId])
+  @@index([isActive])
+  @@unique([schoolId, version])
+}
+
+model DataRetentionPolicy {
+  id            String   @id @default(cuid())
+  schoolId      String
+  entityType    String   // "audit_log", "sms_log", "attendance_record", etc.
+  retentionDays Int
+  description   String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([schoolId, entityType])
+  @@index([schoolId])
+}
+
+enum ConsentType {
+  DATA_PROCESSING
+  MARKETING_COMMUNICATIONS
+  PHOTO_VIDEO
+  THIRD_PARTY_SHARING
+  ANALYTICS_TRACKING
+}
+
+enum ExportRequestStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  EXPIRED
+  FAILED
+}
+
+enum DeletionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SCHEDULED
+  EXECUTED
+  CANCELLED
+}

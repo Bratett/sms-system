@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { getSecurityHeaders } from "@/lib/security-headers";
-import { authLimiter, RateLimitError } from "@/lib/rate-limit";
+import { apiLimiter, authLimiter, RateLimitError } from "@/lib/rate-limit";
 
 export default auth((req) => {
   const { nextUrl } = req;
@@ -45,7 +45,42 @@ export default auth((req) => {
       });
   }
 
-  // --- Existing auth redirect logic (unchanged) ---
+  // --- Rate limiting for API routes ---
+  if (nextUrl.pathname.startsWith("/api/") && !nextUrl.pathname.startsWith("/api/auth")) {
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "anonymous";
+
+    return apiLimiter
+      .check(60, ip)
+      .then(() => {
+        const response = NextResponse.next();
+        applySecurityHeaders(response);
+        logRequest(req.method, nextUrl.pathname, 200, startTime);
+        return response;
+      })
+      .catch((error: unknown) => {
+        if (error instanceof RateLimitError) {
+          logRequest(req.method, nextUrl.pathname, 429, startTime);
+          return new NextResponse(
+            JSON.stringify({ error: "Too many requests" }),
+            {
+              status: 429,
+              headers: {
+                "Content-Type": "application/json",
+                "Retry-After": String(Math.ceil(error.retryAfter / 1000)),
+              },
+            },
+          );
+        }
+        const response = NextResponse.next();
+        applySecurityHeaders(response);
+        return response;
+      });
+  }
+
+  // --- Auth redirect logic ---
   const isLoggedIn = !!req.auth;
   const isAuthPage =
     nextUrl.pathname.startsWith("/login") ||
@@ -53,6 +88,8 @@ export default auth((req) => {
     nextUrl.pathname.startsWith("/reset-password");
   const isDashboardPage =
     nextUrl.pathname.startsWith("/dashboard") || nextUrl.pathname.startsWith("/admin");
+  const isPortalPage =
+    nextUrl.pathname.startsWith("/parent") || nextUrl.pathname.startsWith("/student");
 
   if (isAuthPage && isLoggedIn) {
     const response = NextResponse.redirect(new URL("/dashboard", nextUrl));
@@ -61,7 +98,7 @@ export default auth((req) => {
     return response;
   }
 
-  if (isDashboardPage && !isLoggedIn) {
+  if ((isDashboardPage || isPortalPage) && !isLoggedIn) {
     const response = NextResponse.redirect(new URL("/login", nextUrl));
     applySecurityHeaders(response);
     logRequest(req.method, nextUrl.pathname, 302, startTime);
@@ -93,6 +130,6 @@ function logRequest(method: string, path: string, status: number, startTime: num
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|images).*)",
+    "/((?!_next/static|_next/image|favicon.ico|images|icons|sw\\.js|manifest\\.json).*)",
   ],
 };

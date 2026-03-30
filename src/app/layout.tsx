@@ -10,7 +10,19 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "SMS - School Management System",
-  description: "Comprehensive High School Management System for Ghana",
+  description: "Comprehensive School Management System",
+  manifest: "/manifest.json",
+  themeColor: "#2563eb",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "SMS",
+  },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
