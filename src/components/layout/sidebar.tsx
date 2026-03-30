@@ -47,6 +47,12 @@ import {
   PanelLeftClose,
   PanelLeft,
   Clock,
+  Library,
+  Bus,
+  Monitor,
+  ShieldCheck,
+  Brain,
+  FileStack,
   type LucideIcon,
 } from "lucide-react";
 
@@ -87,6 +93,12 @@ const iconMap: Record<string, LucideIcon> = {
   MessageSquare,
   Megaphone,
   Clock,
+  Library,
+  Bus,
+  Monitor,
+  ShieldCheck,
+  Brain,
+  FileStack,
 };
 
 function SidebarItem({
