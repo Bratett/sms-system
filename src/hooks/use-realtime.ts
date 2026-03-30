@@ -12,7 +12,7 @@ interface UseRealtimeOptions {
 export function useRealtime(options: UseRealtimeOptions = {}) {
   const { events, onEvent, enabled = true } = options;
   const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
