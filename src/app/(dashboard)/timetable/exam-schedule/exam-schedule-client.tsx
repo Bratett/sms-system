@@ -8,6 +8,10 @@ import {
   updateExamScheduleAction,
   deleteExamScheduleAction,
 } from "@/modules/timetable/actions/exam-schedule.action";
+import {
+  generateSeatingArrangementAction,
+  getSeatingArrangementAction,
+} from "@/modules/timetable/actions/exam-seating.action";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -210,6 +214,22 @@ export function ExamScheduleClient({
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => {
+                        startTransition(async () => {
+                          const result = await generateSeatingArrangementAction(exam.id, "ALPHABETICAL");
+                          if (result.error) {
+                            toast.error(result.error);
+                          } else {
+                            toast.success(`Generated ${result.data?.created ?? 0} seat assignments across ${result.data?.roomsUsed ?? 0} room(s).`);
+                          }
+                        });
+                      }}
+                      disabled={isPending}
+                      className="text-xs text-teal-600 hover:underline"
+                    >
+                      Seating
+                    </button>
                     <button
                       onClick={() => openForm(exam)}
                       className="text-xs text-primary hover:underline"

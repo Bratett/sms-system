@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { updateStudentAction, enrollStudentAction } from "@/modules/student/actions/student.action";
+import { getStudentPerformanceTrendsAction } from "@/modules/academics/actions/trends.action";
 import {
   createGuardianAction,
   linkGuardianToStudentAction,
@@ -515,6 +516,9 @@ export function StudentProfile({
                 </tbody>
               </table>
             )}
+
+            {/* Performance Trends */}
+            <PerformanceTrendsSection studentId={student.id} />
           </div>
         )}
 
@@ -930,4 +934,108 @@ function InfoItem({ label, value }: { label: string; value: string | null | unde
       <dd className="mt-0.5 text-sm">{value || "---"}</dd>
     </div>
   );
+}
+
+// ─── Performance Trends Section ──────────────────────────────────────
+
+function PerformanceTrendsSection({ studentId }: { studentId: string }) {
+  const [trends, setTrends] = useState<Array<{
+    termName: string;
+    termNumber: number;
+    academicYear: string;
+    averageScore: number | null;
+    position: number | null;
+    overallGrade: string | null;
+  }>>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  function loadTrends() {
+    startTransition(async () => {
+      const result = await getStudentPerformanceTrendsAction(studentId);
+      if (result.data) {
+        setTrends(result.data);
+      }
+      setLoaded(true);
+    });
+  }
+
+  return (
+    <div className="mt-6">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold">Performance Trends</h3>
+        {!loaded && (
+          <button
+            onClick={loadTrends}
+            disabled={isPending}
+            className="rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
+          >
+            {isPending ? "Loading..." : "Load Trends"}
+          </button>
+        )}
+      </div>
+
+      {loaded && trends.length === 0 && (
+        <p className="text-sm text-muted-foreground py-4">No performance data available yet.</p>
+      )}
+
+      {trends.length > 0 && (
+        <div className="space-y-4">
+          {/* Visual bar chart */}
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="space-y-3">
+              {trends.map((t, i) => {
+                const score = t.averageScore ?? 0;
+                const barColor = score >= 70 ? "bg-emerald-500" : score >= 50 ? "bg-blue-500" : score >= 40 ? "bg-amber-500" : "bg-red-500";
+                return (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-32 text-xs text-muted-foreground truncate" title={`${t.academicYear} - ${t.termName}`}>
+                      {t.academicYear} {t.termName}
+                    </div>
+                    <div className="flex-1 h-6 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${barColor} rounded-full transition-all duration-500`}
+                        style={{ width: `${Math.min(score, 100)}%` }}
+                      />
+                    </div>
+                    <div className="w-20 text-right text-sm font-medium">
+                      {score.toFixed(1)}% <span className="text-xs text-muted-foreground">({t.overallGrade ?? "-"})</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Trends table */}
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="px-3 py-2 text-left font-medium">Term</th>
+                <th className="px-3 py-2 text-right font-medium">Average</th>
+                <th className="px-3 py-2 text-right font-medium">Grade</th>
+                <th className="px-3 py-2 text-right font-medium">Position</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trends.map((t, i) => (
+                <tr key={i} className="border-b border-border/50 last:border-0">
+                  <td className="px-3 py-2">{t.academicYear} - {t.termName}</td>
+                  <td className="px-3 py-2 text-right font-medium">{t.averageScore?.toFixed(1) ?? "-"}</td>
+                  <td className="px-3 py-2 text-right">{t.overallGrade ?? "-"}</td>
+                  <td className="px-3 py-2 text-right">{t.position ? `${t.position}${getOrdinal(t.position)}` : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getOrdinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
 }

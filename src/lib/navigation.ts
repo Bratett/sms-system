@@ -25,6 +25,17 @@ export const navigationGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Teacher",
+    items: [
+      {
+        title: "My Class",
+        href: "/teacher/my-class",
+        icon: "Users",
+        permission: PERMISSIONS.CONDUCT_CREATE,
+      },
+    ],
+  },
+  {
     label: "Management",
     items: [
       {
@@ -137,6 +148,60 @@ export const navigationGroups: NavGroup[] = [
             href: "/academics/reports/broadsheet",
             icon: "BarChart3",
             permission: PERMISSIONS.RESULTS_EXPORT,
+          },
+          {
+            title: "Annual Reports",
+            href: "/academics/reports/annual",
+            icon: "FileText",
+            permission: PERMISSIONS.RESULTS_READ,
+          },
+          {
+            title: "Conduct",
+            href: "/academics/conduct",
+            icon: "ClipboardCheck",
+            permission: PERMISSIONS.CONDUCT_READ,
+          },
+          {
+            title: "Elective Selection",
+            href: "/academics/elective-selection",
+            icon: "CheckSquare",
+            permission: PERMISSIONS.ELECTIVE_SELECTION_READ,
+          },
+          {
+            title: "Homework",
+            href: "/academics/homework",
+            icon: "BookOpen",
+            permission: PERMISSIONS.HOMEWORK_READ,
+          },
+          {
+            title: "Interventions",
+            href: "/academics/interventions",
+            icon: "AlertTriangle",
+            permission: PERMISSIONS.INTERVENTIONS_READ,
+          },
+          {
+            title: "Activities",
+            href: "/academics/activities",
+            icon: "Award",
+            permission: PERMISSIONS.COCURRICULAR_READ,
+          },
+          {
+            title: "Awards",
+            href: "/academics/awards",
+            icon: "Award",
+            permission: PERMISSIONS.AWARDS_READ,
+          },
+          {
+            title: "Bulk Operations",
+            href: "/academics/bulk-operations",
+            icon: "FileStack",
+            permission: PERMISSIONS.BULK_OPERATIONS,
+          },
+          {
+            title: "Competency Reports",
+            href: "/academics/reports/competency",
+            icon: "BarChart3",
+            permission: PERMISSIONS.RESULTS_READ,
           },
         ],
       },
@@ -380,6 +445,12 @@ export const navigationGroups: NavGroup[] = [
             icon: "MessageSquare",
             permission: PERMISSIONS.SMS_SEND,
           },
+          {
+            title: "PTC Scheduling",
+            href: "/communication/ptc",
+            icon: "CalendarDays",
+            permission: PERMISSIONS.PTC_READ,
+          },
         ],
       },
       {
@@ -509,6 +580,18 @@ export const navigationGroups: NavGroup[] = [
             href: "/admin/grading-scales",
             icon: "BarChart3",
             permission: PERMISSIONS.SCHOOL_SETTINGS_READ,
+          },
+          {
+            title: "Academic Calendar",
+            href: "/admin/academic-calendar",
+            icon: "CalendarDays",
+            permission: PERMISSIONS.ACADEMIC_EVENTS_READ,
+          },
+          {
+            title: "Report Templates",
+            href: "/admin/report-templates",
+            icon: "FileText",
+            permission: PERMISSIONS.REPORT_TEMPLATES_READ,
           },
           {
             title: "System Settings",

@@ -151,6 +151,7 @@ export async function generateReportCardDataAction(
       grade: sr.grade,
       interpretation: sr.interpretation,
       position: sr.position,
+      caBreakdown: sr.caBreakdown,
     })),
     overall: {
       totalScore: terminalResult.totalScore,
@@ -163,11 +164,37 @@ export async function generateReportCardDataAction(
       teacherRemarks: terminalResult.teacherRemarks ?? "",
       headmasterRemarks: terminalResult.headmasterRemarks ?? "",
     },
-    attendance: {
-      present: 0,
-      absent: 0,
-      late: 0,
-    },
+    attendance: await (async () => {
+      const registers = await db.attendanceRegister.findMany({
+        where: {
+          classArmId: terminalResult.classArmId,
+          date: { gte: term.startDate, lte: term.endDate },
+          type: "DAILY",
+          status: "CLOSED",
+        },
+        select: { id: true },
+      });
+      const registerIds = registers.map((r) => r.id);
+      if (registerIds.length === 0) {
+        return { totalSchoolDays: 0, present: 0, absent: 0, late: 0, excused: 0, sick: 0 };
+      }
+      const records = await db.attendanceRecord.findMany({
+        where: {
+          registerId: { in: registerIds },
+          studentId,
+        },
+        select: { status: true },
+      });
+      const counts = { present: 0, absent: 0, late: 0, excused: 0, sick: 0 };
+      for (const r of records) {
+        if (r.status === "PRESENT") counts.present++;
+        else if (r.status === "ABSENT") counts.absent++;
+        else if (r.status === "LATE") counts.late++;
+        else if (r.status === "EXCUSED") counts.excused++;
+        else if (r.status === "SICK") counts.sick++;
+      }
+      return { totalSchoolDays: registerIds.length, ...counts };
+    })(),
   };
 
   return { data };

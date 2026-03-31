@@ -134,8 +134,8 @@ function SidebarItem({
           <button
             onClick={() => setExpanded(!expanded)}
             className={cn(
-              "flex w-full items-center justify-center rounded-lg p-2.5 transition-colors hover:bg-sidebar-accent",
-              isActive && "bg-primary-soft text-primary",
+              "flex w-full items-center justify-center rounded-lg p-2.5 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              isActive && "bg-primary text-primary-foreground",
             )}
             title={item.title}
           >
@@ -187,9 +187,9 @@ function SidebarItem({
         <Link
           href={item.href}
           className={cn(
-            "flex items-center justify-center rounded-lg p-2.5 transition-colors hover:bg-sidebar-accent",
+            "flex items-center justify-center rounded-lg p-2.5 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
             isExactActive
-              ? "bg-primary-soft text-primary"
+              ? "bg-primary text-primary-foreground"
               : "text-sidebar-foreground",
           )}
           aria-current={isExactActive ? "page" : undefined}
@@ -209,9 +209,9 @@ function SidebarItem({
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-sidebar-accent",
+        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         isExactActive
-          ? "bg-primary-soft font-medium text-primary"
+          ? "bg-primary font-medium text-primary-foreground"
           : "text-sidebar-foreground",
       )}
       style={{ paddingLeft: `${depth * 12 + 12}px` }}
@@ -251,7 +251,7 @@ export function Sidebar({
             <GraduationCap className="h-4.5 w-4.5" />
           </div>
           {!collapsed && (
-            <span className="text-[15px] font-semibold tracking-tight text-foreground">
+            <span className="text-[15px] font-semibold tracking-tight text-sidebar-accent-foreground">
               SMS Ghana
             </span>
           )}
