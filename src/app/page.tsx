@@ -2,6 +2,8 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { MobileNav } from "./mobile-nav";
 
+export const dynamic = "force-dynamic";
+
 export default async function LandingPage() {
   const school = await db.school.findFirst({ select: { name: true } });
   const schoolName = school?.name ?? "School Management System";
