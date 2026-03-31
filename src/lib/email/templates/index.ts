@@ -23,6 +23,18 @@ const templates: Record<string, (data: TemplateData) => string> = {
     <p>Thank you,<br/>${data.schoolName}</p>
   `),
 
+  "admission-submitted": (data) => baseLayout(`
+    <h2>Application Received</h2>
+    <p>Dear ${data.guardianName},</p>
+    <p>We have received the admission application for <strong>${data.applicantName}</strong>.</p>
+    <p>Your application reference number is: <strong style="font-size: 18px; color: #1a56db;">${data.applicationNumber}</strong></p>
+    <p>Please save this reference number. You can use it to check the status of your application
+    at any time by visiting our application status page.</p>
+    <p><strong>Application Type:</strong> ${data.applicationType === "PLACEMENT" ? "CSSPS Placement" : "Standard"}</p>
+    <p>We will notify you once your application has been reviewed.</p>
+    <p>Thank you,<br/>${data.schoolName}</p>
+  `),
+
   "admission-update": (data) => baseLayout(`
     <h2>Admission Application Update</h2>
     <p>Dear ${data.applicantName},</p>

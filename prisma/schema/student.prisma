@@ -103,6 +103,11 @@ model AdmissionApplication {
   guardianAddress       String?
   guardianOccupation    String?
   boardingStatus        BoardingStatus  @default(DAY)
+  applicationType       ApplicationType @default(STANDARD)
+  applicationSource     ApplicationSource @default(STAFF)
+  beceIndexNumber       String?
+  enrollmentCode        String?
+  placementSchoolCode   String?
   status                AdmissionStatus @default(SUBMITTED)
   notes                 String?
   submittedAt           DateTime        @default(now())
@@ -118,6 +123,10 @@ model AdmissionApplication {
   @@index([academicYearId])
   @@index([status])
   @@index([applicationNumber])
+  @@index([applicationType])
+  @@index([beceIndexNumber])
+  @@index([enrollmentCode])
+  @@index([guardianPhone])
 }
 
 model AdmissionDocument {
@@ -186,4 +195,15 @@ enum AdmissionStatus {
   REJECTED
   ENROLLED
   CANCELLED
+}
+
+enum ApplicationType {
+  STANDARD
+  PLACEMENT
+}
+
+enum ApplicationSource {
+  PORTAL
+  STAFF
+  BULK_IMPORT
 }

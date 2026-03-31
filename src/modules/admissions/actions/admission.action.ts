@@ -197,6 +197,8 @@ export async function createApplicationAction(input: CreateApplicationInput) {
       guardianAddress: data.guardianAddress || null,
       guardianOccupation: data.guardianOccupation || null,
       boardingStatus: data.boardingStatus,
+      applicationType: "STANDARD",
+      applicationSource: "STAFF",
       notes: data.notes || null,
       status: "SUBMITTED",
     },

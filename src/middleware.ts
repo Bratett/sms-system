@@ -8,7 +8,12 @@ export default auth((req) => {
   const startTime = Date.now();
 
   // --- Rate limiting for auth API routes ---
-  if (nextUrl.pathname.startsWith("/api/auth")) {
+  // Exclude /api/auth/session from rate limiting — it is polled frequently by
+  // NextAuth's SessionProvider and must not be throttled.
+  if (
+    nextUrl.pathname.startsWith("/api/auth") &&
+    !nextUrl.pathname.endsWith("/session")
+  ) {
     const ip =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       req.headers.get("x-real-ip") ||
@@ -17,7 +22,7 @@ export default auth((req) => {
     // Rate limit check is async, but we need to handle it within this sync callback.
     // We use a synchronous-compatible pattern by returning a promise-based response.
     return authLimiter
-      .check(5, ip)
+      .check(10, ip)
       .then(() => {
         const response = NextResponse.next();
         applySecurityHeaders(response);

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
@@ -8,20 +8,21 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#0d9488",
+};
+
 export const metadata: Metadata = {
   title: "SMS - School Management System",
   description: "Comprehensive School Management System",
   manifest: "/manifest.json",
-  themeColor: "#0d9488",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "SMS",
-  },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
   },
 };
 

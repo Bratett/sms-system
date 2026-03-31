@@ -40,6 +40,11 @@ interface Application {
   guardianAddress: string | null;
   guardianOccupation: string | null;
   boardingStatus: string;
+  applicationType: string;
+  applicationSource: string;
+  beceIndexNumber: string | null;
+  enrollmentCode: string | null;
+  placementSchoolCode: string | null;
   status: string;
   notes: string | null;
   submittedAt: Date;
@@ -128,6 +133,24 @@ export function ApplicationDetail({
                 {application.otherNames ? ` ${application.otherNames}` : ""}
               </h2>
               <StatusBadge status={application.status} />
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                  application.applicationType === "PLACEMENT"
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-blue-100 text-blue-800"
+                }`}
+              >
+                {application.applicationType === "PLACEMENT" ? "Placement" : "Standard"}
+              </span>
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                  application.applicationSource === "PORTAL"
+                    ? "bg-purple-100 text-purple-800"
+                    : "bg-gray-100 text-gray-800"
+                }`}
+              >
+                {application.applicationSource === "PORTAL" ? "Online Portal" : "Staff Entry"}
+              </span>
             </div>
             <p className="mt-1 text-sm text-muted-foreground font-mono">
               {application.applicationNumber}
@@ -189,6 +212,37 @@ export function ApplicationDetail({
               </div>
             </dl>
           </div>
+
+          {/* Placement Details (only shown for placement applications) */}
+          {application.applicationType === "PLACEMENT" && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-6">
+              <h3 className="text-lg font-semibold mb-4 text-amber-900">
+                CSSPS Placement Details
+              </h3>
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <dt className="text-sm text-amber-700">BECE Index Number</dt>
+                  <dd className="mt-0.5 text-sm font-medium font-mono">
+                    {application.beceIndexNumber || "-"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-amber-700">Enrollment Code</dt>
+                  <dd className="mt-0.5 text-sm font-medium font-mono">
+                    {application.enrollmentCode || "-"}
+                  </dd>
+                </div>
+                {application.placementSchoolCode && (
+                  <div>
+                    <dt className="text-sm text-amber-700">Placement School Code</dt>
+                    <dd className="mt-0.5 text-sm font-medium font-mono">
+                      {application.placementSchoolCode}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
 
           {/* Programme Preferences */}
           <div className="rounded-lg border border-border bg-card p-6">

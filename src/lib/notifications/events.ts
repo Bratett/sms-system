@@ -15,6 +15,7 @@ export const NOTIFICATION_EVENTS = {
   PROMOTION_COMPLETED: "promotion_completed",
 
   // Admissions
+  ADMISSION_SUBMITTED: "admission_submitted",
   ADMISSION_STATUS_CHANGED: "admission_status_changed",
   ADMISSION_ACCEPTED: "admission_accepted",
 
@@ -57,6 +58,7 @@ export const EVENT_CHANNELS: Record<NotificationEvent, ("in_app" | "sms" | "emai
   [NOTIFICATION_EVENTS.RESULT_PUBLISHED]: ["in_app", "sms", "email"],
   [NOTIFICATION_EVENTS.MARK_APPROVED]: ["in_app"],
   [NOTIFICATION_EVENTS.PROMOTION_COMPLETED]: ["in_app"],
+  [NOTIFICATION_EVENTS.ADMISSION_SUBMITTED]: ["sms", "email"],
   [NOTIFICATION_EVENTS.ADMISSION_STATUS_CHANGED]: ["in_app", "email"],
   [NOTIFICATION_EVENTS.ADMISSION_ACCEPTED]: ["in_app", "sms", "email"],
   [NOTIFICATION_EVENTS.STUDENT_ABSENT]: ["in_app", "sms"],
