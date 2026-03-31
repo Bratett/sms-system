@@ -20,6 +20,11 @@ interface Application {
   status: string;
 }
 
+interface ClassArmOption {
+  id: string;
+  label: string;
+}
+
 // ─── Component ──────────────────────────────────────────────────────
 
 export function PlacementClient({
@@ -27,11 +32,13 @@ export function PlacementClient({
   total: initialTotal,
   page: initialPage,
   pageSize: initialPageSize,
+  classArmOptions = [],
 }: {
   applications: Application[];
   total: number;
   page: number;
   pageSize: number;
+  classArmOptions: ClassArmOption[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -50,7 +57,7 @@ export function PlacementClient({
   function fetchApplications(newPage: number) {
     startTransition(async () => {
       const result = await getApplicationsAction({
-        status: "APPROVED",
+        status: "ACCEPTED",
         page: newPage,
         pageSize,
       });
@@ -73,13 +80,13 @@ export function PlacementClient({
   }
 
   function handlePlace() {
-    if (!placingApp || !classArmId.trim()) {
-      toast.error("Please enter a class arm ID.");
+    if (!placingApp || !classArmId) {
+      toast.error("Please select a class arm.");
       return;
     }
 
     startTransition(async () => {
-      const result = await enrollApplicationAction(placingApp.id, classArmId.trim());
+      const result = await enrollApplicationAction(placingApp.id, classArmId);
       if (result.error) {
         toast.error(result.error);
       } else {
@@ -173,14 +180,21 @@ export function PlacementClient({
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Class Arm ID</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium mb-1">
+                  Class Arm <span className="text-destructive">*</span>
+                </label>
+                <select
                   value={classArmId}
                   onChange={(e) => setClassArmId(e.target.value)}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="Enter the class arm ID for enrollment"
-                />
+                >
+                  <option value="">Select class arm</option>
+                  {classArmOptions.map((ca) => (
+                    <option key={ca.id} value={ca.id}>
+                      {ca.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             <div className="mt-6 flex items-center justify-end gap-2">

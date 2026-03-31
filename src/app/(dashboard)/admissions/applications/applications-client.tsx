@@ -24,6 +24,8 @@ interface ApplicationRow {
   jhsAggregate: number | null;
   programmePreference1Name: string | null;
   guardianPhone: string;
+  applicationType: string;
+  applicationSource: string;
   status: string;
   submittedAt: Date;
   boardingStatus: string;
@@ -173,6 +175,7 @@ export function ApplicationsClient({
                 <th className="px-4 py-3 text-left font-medium">JHS Agg.</th>
                 <th className="px-4 py-3 text-left font-medium">Programme</th>
                 <th className="px-4 py-3 text-left font-medium">Guardian Phone</th>
+                <th className="px-4 py-3 text-left font-medium">Type</th>
                 <th className="px-4 py-3 text-left font-medium">Status</th>
                 <th className="px-4 py-3 text-left font-medium">Submitted</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
@@ -181,7 +184,7 @@ export function ApplicationsClient({
             <tbody>
               {applications.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">
                     No applications found.
                   </td>
                 </tr>
@@ -202,6 +205,17 @@ export function ApplicationsClient({
                       {app.programmePreference1Name || "-"}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{app.guardianPhone}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                          app.applicationType === "PLACEMENT"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {app.applicationType === "PLACEMENT" ? "Placement" : "Standard"}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={app.status} />
                     </td>

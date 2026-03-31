@@ -20,6 +20,11 @@ export interface ApplicationRow {
   guardianAddress: string | null;
   guardianOccupation: string | null;
   boardingStatus: string;
+  applicationType: string;
+  applicationSource: string;
+  beceIndexNumber: string | null;
+  enrollmentCode: string | null;
+  placementSchoolCode: string | null;
   status: string;
   notes: string | null;
   submittedAt: Date;
@@ -38,6 +43,15 @@ export interface ApplicationDocument {
   fileName: string;
   fileUrl: string;
   uploadedAt: Date;
+}
+
+export interface PublicApplicationStatus {
+  applicationNumber: string;
+  firstName: string;
+  lastName: string;
+  status: string;
+  submittedAt: Date;
+  reviewedAt: Date | null;
 }
 
 export interface AdmissionStats {
