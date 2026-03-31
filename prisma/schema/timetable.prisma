@@ -10,8 +10,9 @@ model Room {
   updatedAt DateTime @updatedAt
 
   school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  timetableSlots TimetableSlot[]
-  examSchedules  ExamSchedule[]
+  timetableSlots      TimetableSlot[]
+  examSchedules       ExamSchedule[]
+  seatingArrangements ExamSeatingArrangement[]
 
   @@unique([schoolId, name])
   @@index([schoolId])
@@ -90,6 +91,7 @@ model ExamSchedule {
   class        Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
   room         Room?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
   invigilator  User?        @relation("InvigilatorExamSchedules", fields: [invigilatorId], references: [id], onDelete: SetNull)
+  seatingArrangements ExamSeatingArrangement[]
 
   @@index([schoolId])
   @@index([academicYearId])

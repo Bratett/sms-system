@@ -7,6 +7,10 @@ import {
   createTimetableSlotAction,
   deleteTimetableSlotAction,
 } from "@/modules/timetable/actions/timetable.action";
+import {
+  autoGenerateTimetableAction,
+  clearTimetableAction,
+} from "@/modules/timetable/actions/auto-generate.action";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -195,7 +199,37 @@ export function TimetableClient({
         >
           Clear
         </button>
-        <div className="ml-auto">
+        <div className="ml-auto flex gap-2">
+          {classArmId && (
+            <button
+              onClick={() => {
+                if (!confirm("This will auto-generate a timetable for the selected class. Existing slots will be kept. Continue?")) return;
+                startTransition(async () => {
+                  const termId = slots[0]?.term?.id;
+                  const academicYearId = slots[0]?.academicYear?.id;
+                  if (!termId || !academicYearId) {
+                    toast.error("Please ensure term and academic year context is available.");
+                    return;
+                  }
+                  const result = await autoGenerateTimetableAction({
+                    academicYearId,
+                    termId,
+                    classArmIds: [classArmId],
+                  });
+                  if (result.error) {
+                    toast.error(result.error);
+                  } else {
+                    toast.success(`Auto-generated ${result.data?.created ?? 0} slots. ${result.data?.conflicts?.length ?? 0} conflict(s).`);
+                    router.refresh();
+                  }
+                });
+              }}
+              disabled={isPending}
+              className="rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20"
+            >
+              Auto Generate
+            </button>
+          )}
           <button
             onClick={openSlotForm}
             disabled={isPending}

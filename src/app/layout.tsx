@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: "SMS - School Management System",
   description: "Comprehensive School Management System",
   manifest: "/manifest.json",
-  themeColor: "#2563eb",
+  themeColor: "#0d9488",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

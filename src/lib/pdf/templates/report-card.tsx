@@ -9,6 +9,14 @@ import {
 
 /* ---------- Types ---------- */
 
+export interface CABreakdownItem {
+  name: string;
+  score: number;
+  maxScore: number;
+  weight: number;
+  weightedScore: number;
+}
+
 export interface SubjectRow {
   name: string;
   classScore: number;
@@ -18,12 +26,32 @@ export interface SubjectRow {
   interpretation: string;
   position: string | number;
   remarks: string;
+  caBreakdown?: CABreakdownItem[] | null;
 }
 
 export interface Attendance {
+  totalSchoolDays: number;
   present: number;
   absent: number;
-  total: number;
+  late: number;
+  excused: number;
+  sick: number;
+}
+
+export interface ConductEntry {
+  trait: string;
+  rating: string;
+}
+
+export interface ActivityEntry {
+  name: string;
+  type: string;
+  role: string;
+}
+
+export interface AwardEntry {
+  title: string;
+  type: string;
 }
 
 export interface ReportCardProps {
@@ -32,6 +60,8 @@ export interface ReportCardProps {
   studentName: string;
   studentId: string;
   className: string;
+  programme: string;
+  house: string;
   termName: string;
   academicYear: string;
   subjects: SubjectRow[];
@@ -43,6 +73,9 @@ export interface ReportCardProps {
   headmasterComment: string;
   promotionStatus: string;
   attendance: Attendance;
+  conduct?: ConductEntry[];
+  activities?: ActivityEntry[];
+  awards?: AwardEntry[];
 }
 
 /* ---------- Styles ---------- */
@@ -54,8 +87,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     color: '#1a1a1a',
   },
-
-  /* Header */
   headerSection: {
     alignItems: 'center',
     marginBottom: 14,
@@ -80,8 +111,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textTransform: 'uppercase',
   },
-
-  /* Student info grid */
   infoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -100,8 +129,6 @@ const styles = StyleSheet.create({
   infoValue: {
     flex: 1,
   },
-
-  /* Table */
   table: {
     marginBottom: 12,
   },
@@ -121,28 +148,26 @@ const styles = StyleSheet.create({
   tableHeaderText: {
     color: '#ffffff',
     fontFamily: 'Helvetica-Bold',
-    fontSize: 8,
+    fontSize: 7,
   },
-  colSubject: { width: '22%', paddingLeft: 6 },
-  colClass: { width: '10%', textAlign: 'center' },
-  colExam: { width: '10%', textAlign: 'center' },
-  colTotal: { width: '10%', textAlign: 'center' },
-  colGrade: { width: '8%', textAlign: 'center' },
-  colInterpretation: { width: '14%', textAlign: 'center' },
-  colPosition: { width: '10%', textAlign: 'center' },
-  colRemarks: { width: '16%', paddingRight: 6, textAlign: 'center' },
+  colSubject: { width: '18%', paddingLeft: 6 },
+  colCA: { width: '8%', textAlign: 'center' },
+  colExam: { width: '9%', textAlign: 'center' },
+  colTotal: { width: '9%', textAlign: 'center' },
+  colGrade: { width: '7%', textAlign: 'center' },
+  colInterpretation: { width: '13%', textAlign: 'center' },
+  colPosition: { width: '8%', textAlign: 'center' },
+  colRemarks: { width: '12%', paddingRight: 4, textAlign: 'center' },
   cellText: {
-    fontSize: 9,
+    fontSize: 8,
   },
   altRow: {
     backgroundColor: '#f5f5f5',
   },
-
-  /* Summary */
   summarySection: {
     flexDirection: 'row',
-    marginBottom: 12,
-    gap: 12,
+    marginBottom: 10,
+    gap: 10,
   },
   summaryBox: {
     flex: 1,
@@ -169,10 +194,14 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontSize: 9,
   },
-
-  /* Comments */
+  sectionTitle: {
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 10,
+    marginBottom: 4,
+    marginTop: 8,
+  },
   commentSection: {
-    marginBottom: 10,
+    marginBottom: 8,
   },
   commentLabel: {
     fontFamily: 'Helvetica-Bold',
@@ -183,29 +212,25 @@ const styles = StyleSheet.create({
     border: '1px solid #ccc',
     padding: 8,
     borderRadius: 3,
-    minHeight: 36,
+    minHeight: 30,
     fontSize: 9,
     lineHeight: 1.4,
   },
-
-  /* Promotion */
   promotionBox: {
     border: '1.5px solid #1a1a1a',
     padding: 8,
     borderRadius: 3,
-    marginBottom: 14,
+    marginBottom: 12,
     alignItems: 'center',
   },
   promotionText: {
     fontFamily: 'Helvetica-Bold',
     fontSize: 11,
   },
-
-  /* Signatures */
   signatureSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    marginTop: 16,
   },
   signatureBlock: {
     width: '30%',
@@ -220,10 +245,8 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: '#444',
   },
-
-  /* Grading key */
   gradingSection: {
-    marginTop: 14,
+    marginTop: 12,
     borderTop: '0.5px solid #ccc',
     paddingTop: 8,
   },
@@ -241,6 +264,48 @@ const styles = StyleSheet.create({
     fontSize: 7,
     color: '#555',
   },
+  conductGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 0,
+    border: '1px solid #ccc',
+    borderRadius: 3,
+    marginBottom: 10,
+  },
+  conductCell: {
+    width: '33.33%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderBottom: '0.5px solid #eee',
+  },
+  conductTrait: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Bold',
+  },
+  conductRating: {
+    fontSize: 8,
+  },
+  activitiesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginBottom: 8,
+  },
+  activityTag: {
+    fontSize: 7,
+    backgroundColor: '#f0f0f0',
+    padding: '2 6',
+    borderRadius: 2,
+  },
+  awardTag: {
+    fontSize: 7,
+    backgroundColor: '#fef3c7',
+    padding: '2 6',
+    borderRadius: 2,
+    color: '#92400e',
+  },
 });
 
 /* ---------- Ghana SHS Grading Key ---------- */
@@ -257,6 +322,12 @@ const GRADING_KEY = [
   { grade: 'F9', range: '0-44', meaning: 'Fail' },
 ];
 
+/* ---------- Helpers ---------- */
+
+function formatRating(rating: string): string {
+  return rating.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
 /* ---------- Component ---------- */
 
 export const ReportCard: React.FC<ReportCardProps> = (props) => {
@@ -266,6 +337,8 @@ export const ReportCard: React.FC<ReportCardProps> = (props) => {
     studentName,
     studentId,
     className,
+    programme,
+    house,
     termName,
     academicYear,
     subjects,
@@ -277,7 +350,22 @@ export const ReportCard: React.FC<ReportCardProps> = (props) => {
     headmasterComment,
     promotionStatus,
     attendance,
+    conduct,
+    activities,
+    awards,
   } = props;
+
+  // Derive CA column headers from the first subject's breakdown
+  const caColumns: string[] = [];
+  if (subjects.length > 0 && subjects[0].caBreakdown) {
+    for (const ca of subjects[0].caBreakdown) {
+      caColumns.push(ca.name);
+    }
+  }
+
+  // Dynamic column widths
+  const hasCA = caColumns.length > 0;
+  const caColWidth = hasCA ? `${Math.floor(16 / caColumns.length)}%` : '0%';
 
   return (
     <Document>
@@ -304,6 +392,10 @@ export const ReportCard: React.FC<ReportCardProps> = (props) => {
             <Text style={styles.infoValue}>{className}</Text>
           </View>
           <View style={styles.infoCell}>
+            <Text style={styles.infoLabel}>Programme:</Text>
+            <Text style={styles.infoValue}>{programme || '---'}</Text>
+          </View>
+          <View style={styles.infoCell}>
             <Text style={styles.infoLabel}>Term:</Text>
             <Text style={styles.infoValue}>{termName}</Text>
           </View>
@@ -311,39 +403,56 @@ export const ReportCard: React.FC<ReportCardProps> = (props) => {
             <Text style={styles.infoLabel}>Academic Year:</Text>
             <Text style={styles.infoValue}>{academicYear}</Text>
           </View>
+          {house && (
+            <View style={styles.infoCell}>
+              <Text style={styles.infoLabel}>House:</Text>
+              <Text style={styles.infoValue}>{house}</Text>
+            </View>
+          )}
         </View>
 
         {/* Subjects Table */}
         <View style={styles.table}>
-          {/* Header */}
           <View style={styles.tableHeader}>
             <View style={styles.colSubject}>
               <Text style={styles.tableHeaderText}>Subject</Text>
             </View>
-            <View style={styles.colClass}>
-              <Text style={styles.tableHeaderText}>Class (30%)</Text>
-            </View>
+            {hasCA ? (
+              <>
+                {caColumns.map((col, i) => (
+                  <View key={i} style={{ width: caColWidth, textAlign: 'center' as const }}>
+                    <Text style={styles.tableHeaderText}>{col}</Text>
+                  </View>
+                ))}
+                <View style={styles.colCA}>
+                  <Text style={styles.tableHeaderText}>CA Total</Text>
+                </View>
+              </>
+            ) : (
+              <View style={styles.colCA}>
+                <Text style={styles.tableHeaderText}>Class</Text>
+              </View>
+            )}
             <View style={styles.colExam}>
-              <Text style={styles.tableHeaderText}>Exam (70%)</Text>
+              <Text style={styles.tableHeaderText}>Exam</Text>
             </View>
             <View style={styles.colTotal}>
-              <Text style={styles.tableHeaderText}>Total (100%)</Text>
+              <Text style={styles.tableHeaderText}>Total</Text>
             </View>
             <View style={styles.colGrade}>
               <Text style={styles.tableHeaderText}>Grade</Text>
             </View>
             <View style={styles.colInterpretation}>
-              <Text style={styles.tableHeaderText}>Interpretation</Text>
+              <Text style={styles.tableHeaderText}>Interp.</Text>
             </View>
             <View style={styles.colPosition}>
-              <Text style={styles.tableHeaderText}>Position</Text>
+              <Text style={styles.tableHeaderText}>Pos.</Text>
             </View>
             <View style={styles.colRemarks}>
               <Text style={styles.tableHeaderText}>Remarks</Text>
             </View>
           </View>
 
-          {/* Rows */}
           {subjects.map((subj, idx) => (
             <View
               key={idx}
@@ -352,9 +461,22 @@ export const ReportCard: React.FC<ReportCardProps> = (props) => {
               <View style={styles.colSubject}>
                 <Text style={styles.cellText}>{subj.name}</Text>
               </View>
-              <View style={styles.colClass}>
-                <Text style={styles.cellText}>{subj.classScore}</Text>
-              </View>
+              {hasCA && subj.caBreakdown ? (
+                <>
+                  {subj.caBreakdown.map((ca, i) => (
+                    <View key={i} style={{ width: caColWidth, textAlign: 'center' as const }}>
+                      <Text style={styles.cellText}>{ca.score}/{ca.maxScore}</Text>
+                    </View>
+                  ))}
+                  <View style={styles.colCA}>
+                    <Text style={styles.cellText}>{subj.classScore}</Text>
+                  </View>
+                </>
+              ) : (
+                <View style={styles.colCA}>
+                  <Text style={styles.cellText}>{subj.classScore}</Text>
+                </View>
+              )}
               <View style={styles.colExam}>
                 <Text style={styles.cellText}>{subj.examScore}</Text>
               </View>
@@ -387,20 +509,20 @@ export const ReportCard: React.FC<ReportCardProps> = (props) => {
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Average Score:</Text>
-              <Text style={styles.summaryValue}>
-                {averageScore.toFixed(2)}
-              </Text>
+              <Text style={styles.summaryValue}>{averageScore.toFixed(2)}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Class Position:</Text>
-              <Text style={styles.summaryValue}>
-                {String(classPosition)} out of {totalStudents}
-              </Text>
+              <Text style={styles.summaryValue}>{String(classPosition)} out of {totalStudents}</Text>
             </View>
           </View>
 
           <View style={styles.summaryBox}>
             <Text style={styles.summaryTitle}>Attendance</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>School Days:</Text>
+              <Text style={styles.summaryValue}>{attendance.totalSchoolDays}</Text>
+            </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Days Present:</Text>
               <Text style={styles.summaryValue}>{attendance.present}</Text>
@@ -410,11 +532,60 @@ export const ReportCard: React.FC<ReportCardProps> = (props) => {
               <Text style={styles.summaryValue}>{attendance.absent}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Total School Days:</Text>
-              <Text style={styles.summaryValue}>{attendance.total}</Text>
+              <Text style={styles.summaryLabel}>Late:</Text>
+              <Text style={styles.summaryValue}>{attendance.late}</Text>
             </View>
+            {(attendance.excused > 0 || attendance.sick > 0) && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Excused/Sick:</Text>
+                <Text style={styles.summaryValue}>{attendance.excused + attendance.sick}</Text>
+              </View>
+            )}
           </View>
         </View>
+
+        {/* Conduct & Behaviour */}
+        {conduct && conduct.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Conduct & Behaviour</Text>
+            <View style={styles.conductGrid}>
+              {conduct.map((c, i) => (
+                <View key={i} style={styles.conductCell}>
+                  <Text style={styles.conductTrait}>{c.trait}:</Text>
+                  <Text style={styles.conductRating}>{formatRating(c.rating)}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
+        {/* Co-Curricular Activities */}
+        {activities && activities.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Co-Curricular Activities</Text>
+            <View style={styles.activitiesRow}>
+              {activities.map((a, i) => (
+                <Text key={i} style={styles.activityTag}>
+                  {a.name} ({a.type}){a.role ? ` - ${a.role}` : ''}
+                </Text>
+              ))}
+            </View>
+          </>
+        )}
+
+        {/* Awards */}
+        {awards && awards.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Awards & Recognition</Text>
+            <View style={styles.activitiesRow}>
+              {awards.map((a, i) => (
+                <Text key={i} style={styles.awardTag}>
+                  {a.title}
+                </Text>
+              ))}
+            </View>
+          </>
+        )}
 
         {/* Comments */}
         <View style={styles.commentSection}>
@@ -433,9 +604,7 @@ export const ReportCard: React.FC<ReportCardProps> = (props) => {
 
         {/* Promotion Status */}
         <View style={styles.promotionBox}>
-          <Text style={styles.promotionText}>
-            Promotion Status: {promotionStatus}
-          </Text>
+          <Text style={styles.promotionText}>Promotion Status: {promotionStatus}</Text>
         </View>
 
         {/* Signatures */}

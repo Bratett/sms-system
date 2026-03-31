@@ -5,21 +5,21 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
 
   /* ── Core Colors ────────────────────────────────── */
-  --color-background: #f8fafc;
-  --color-foreground: #0f172a;
-  --color-muted: #f1f5f9;
-  --color-muted-foreground: #64748b;
-  --color-border: #e2e8f0;
-  --color-input: #e2e8f0;
-  --color-ring: #2563eb;
+  --color-background: #d7d7d9;
+  --color-foreground: #111827;
+  --color-muted: #f3f4f6;
+  --color-muted-foreground: #6b7280;
+  --color-border: #e5e7eb;
+  --color-input: #e5e7eb;
+  --color-ring: #0d9488;
 
-  /* ── Primary (Trust Blue) ───────────────────────── */
-  --color-primary: #2563eb;
+  /* ── Primary (Teal) ─────────────────────────────── */
+  --color-primary: #0d9488;
   --color-primary-foreground: #ffffff;
-  --color-primary-soft: #eff6ff;
+  --color-primary-soft: #f0fdfa;
 
   /* ── Secondary ──────────────────────────────────── */
-  --color-secondary: #f1f5f9;
+  --color-secondary: #f3f4f6;
   --color-secondary-foreground: #1e293b;
 
   /* ── Destructive ────────────────────────────────── */
@@ -39,26 +39,26 @@
   --color-info-foreground: #ffffff;
 
   /* ── Accent ─────────────────────────────────────── */
-  --color-accent: #f1f5f9;
-  --color-accent-foreground: #1e293b;
+  --color-accent: #ccfbf1;
+  --color-accent-foreground: #134e4a;
 
   /* ── Surface Colors ─────────────────────────────── */
   --color-card: #ffffff;
-  --color-card-foreground: #0f172a;
+  --color-card-foreground: #111827;
   --color-popover: #ffffff;
-  --color-popover-foreground: #0f172a;
+  --color-popover-foreground: #111827;
 
   /* ── Sidebar ────────────────────────────────────── */
-  --color-sidebar: #ffffff;
-  --color-sidebar-foreground: #334155;
-  --color-sidebar-accent: #f1f5f9;
-  --color-sidebar-accent-foreground: #1e293b;
-  --color-sidebar-border: #e2e8f0;
-  --color-sidebar-muted: #94a3b8;
+  --color-sidebar: #1f2937;
+  --color-sidebar-foreground: #d1d5db;
+  --color-sidebar-accent: #374151;
+  --color-sidebar-accent-foreground: #ffffff;
+  --color-sidebar-border: #374151;
+  --color-sidebar-muted: #9ca3af;
 
   /* ── Chart Colors ───────────────────────────────── */
-  --color-chart-1: #2563eb;
-  --color-chart-2: #059669;
+  --color-chart-1: #0d9488;
+  --color-chart-2: #2563eb;
   --color-chart-3: #d97706;
   --color-chart-4: #7c3aed;
   --color-chart-5: #e11d48;

@@ -65,22 +65,28 @@ describe("Role-Permission Mappings", () => {
     expect(finance).toContain(PERMISSIONS.FINANCE_REPORTS_READ);
   });
 
-  it("parent role should be read-only", () => {
+  it("parent role should be read-only except PTC booking", () => {
     const parent = DEFAULT_ROLE_PERMISSIONS.parent;
     if (!parent) return; // Skip if not defined yet
+    const allowedNonRead = [PERMISSIONS.PTC_BOOK];
     for (const perm of parent) {
-      expect(perm).toMatch(/read$/, `Parent permission "${perm}" should end with 'read'`);
+      const isAllowed = perm.endsWith("read") || allowedNonRead.includes(perm as any);
+      expect(isAllowed).toBe(
+        true,
+        `Parent permission "${perm}" should end with 'read' or be an allowed action`,
+      );
     }
   });
 
-  it("student role should be read-only except exeat create", () => {
+  it("student role should be read-only except exeat create and elective selection", () => {
     const student = DEFAULT_ROLE_PERMISSIONS.student;
     if (!student) return;
+    const allowedNonRead = [PERMISSIONS.EXEAT_CREATE, PERMISSIONS.ELECTIVE_SELECTION_CREATE];
     for (const perm of student) {
-      const isReadOrExeatCreate = perm.endsWith("read") || perm === PERMISSIONS.EXEAT_CREATE;
-      expect(isReadOrExeatCreate).toBe(
+      const isAllowed = perm.endsWith("read") || allowedNonRead.includes(perm as any);
+      expect(isAllowed).toBe(
         true,
-        `Student permission "${perm}" is not read-only or exeat:create`,
+        `Student permission "${perm}" is not read-only or an allowed action`,
       );
     }
   });

@@ -89,6 +89,10 @@ model Subject {
   subjectResults            SubjectResult[]
   timetableSlots            TimetableSlot[]
   examSchedules             ExamSchedule[]
+  subjectAnnualResults      SubjectAnnualResult[]
+  studentSubjectSelections  StudentSubjectSelection[]
+  academicAwards            AcademicAward[]
+  homeworks                 Homework[]
 
   @@unique([schoolId, name])
   @@index([schoolId])
@@ -142,9 +146,12 @@ model AssessmentType {
   weight    Float              @default(0) // percentage weight toward term total
   maxScore  Float              @default(100)
   termId    String?
-  category  AssessmentCategory @default(CLASSWORK)
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  category           AssessmentCategory @default(CLASSWORK)
+  entryDeadline      DateTime?
+  submissionDeadline DateTime?
+  isLocked           Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   marks Mark[]
 
@@ -221,6 +228,7 @@ model SubjectResult {
   interpretation   String?
   position         Int?
   teacherInitials  String?
+  caBreakdown      Json?
 
   terminalResult TerminalResult @relation(fields: [terminalResultId], references: [id], onDelete: Cascade)
   subject        Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
@@ -291,4 +299,48 @@ model Transcript {
 
   @@index([schoolId])
   @@index([studentId])
+}
+
+// ─── Annual Results ────────────────────────────────────────────────
+
+model AnnualResult {
+  id               String   @id @default(cuid())
+  studentId        String
+  classArmId       String
+  academicYearId   String
+  totalScore       Float?
+  averageScore     Float?
+  classPosition    Int?
+  overallGrade     String?
+  subjectCount     Int?
+  promotionStatus  PromotionStatus?
+  computedAt       DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  subjectAnnualResults SubjectAnnualResult[]
+
+  @@unique([studentId, academicYearId])
+  @@index([classArmId])
+  @@index([academicYearId])
+  @@index([classArmId, academicYearId])
+}
+
+model SubjectAnnualResult {
+  id               String @id @default(cuid())
+  annualResultId   String
+  subjectId        String
+  term1Score       Float?
+  term2Score       Float?
+  term3Score       Float?
+  averageScore     Float?
+  grade            String?
+  interpretation   String?
+  position         Int?
+
+  annualResult AnnualResult @relation(fields: [annualResultId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([annualResultId, subjectId])
+  @@index([annualResultId])
+  @@index([subjectId])
 }

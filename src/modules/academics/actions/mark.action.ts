@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { logMarkChange } from "@/modules/academics/utils/mark-audit";
 
 // ─── Mark Entry Data ─────────────────────────────────────────────────
 
@@ -102,14 +103,22 @@ export async function enterMarksAction(data: {
     return { error: "Unauthorized" };
   }
 
-  // Validate assessment type exists and get maxScore
+  // Validate assessment type exists and get maxScore + deadline info
   const assessmentType = await db.assessmentType.findUnique({
     where: { id: data.assessmentTypeId },
-    select: { id: true, name: true, maxScore: true },
+    select: { id: true, name: true, maxScore: true, entryDeadline: true, isLocked: true },
   });
 
   if (!assessmentType) {
     return { error: "Assessment type not found." };
+  }
+
+  // Check deadline enforcement
+  if (assessmentType.isLocked) {
+    return { error: `Mark entry for "${assessmentType.name}" is locked by an administrator.` };
+  }
+  if (assessmentType.entryDeadline && new Date() > assessmentType.entryDeadline) {
+    return { error: `Mark entry deadline for "${assessmentType.name}" has passed (${assessmentType.entryDeadline.toLocaleDateString()}).` };
   }
 
   // Validate all scores are within range
@@ -140,6 +149,18 @@ export async function enterMarksAction(data: {
       error: "Cannot modify marks that have already been approved. Please contact an administrator.",
     };
   }
+
+  // Fetch existing marks for audit trail
+  const existingMarks = await db.mark.findMany({
+    where: {
+      subjectId: data.subjectId,
+      assessmentTypeId: data.assessmentTypeId,
+      termId: data.termId,
+      studentId: { in: data.marks.map((m) => m.studentId) },
+    },
+    select: { id: true, studentId: true, score: true, status: true },
+  });
+  const existingMap = new Map(existingMarks.map((m) => [m.studentId, m]));
 
   // Batch upsert marks in DRAFT status
   const results = await db.$transaction(
@@ -178,6 +199,25 @@ export async function enterMarksAction(data: {
     ),
   );
 
+  // Log audit trail for changed marks
+  for (const result of results) {
+    const existing = existingMap.get(result.studentId);
+    if (existing && existing.score !== result.score) {
+      await logMarkChange({
+        markId: result.id,
+        studentId: result.studentId,
+        subjectId: data.subjectId,
+        assessmentTypeId: data.assessmentTypeId,
+        termId: data.termId,
+        previousScore: existing.score,
+        newScore: result.score,
+        previousStatus: existing.status,
+        newStatus: result.status,
+        changedBy: session.user.id!,
+      });
+    }
+  }
+
   await audit({
     userId: session.user.id!,
     action: "CREATE",
@@ -207,6 +247,19 @@ export async function submitMarksForApprovalAction(
   const session = await auth();
   if (!session?.user) {
     return { error: "Unauthorized" };
+  }
+
+  // Check submission deadline
+  const assessmentType = await db.assessmentType.findUnique({
+    where: { id: assessmentTypeId },
+    select: { name: true, submissionDeadline: true, isLocked: true },
+  });
+
+  if (assessmentType?.isLocked) {
+    return { error: `Submission for "${assessmentType.name}" is locked by an administrator.` };
+  }
+  if (assessmentType?.submissionDeadline && new Date() > assessmentType.submissionDeadline) {
+    return { error: `Submission deadline for "${assessmentType.name}" has passed (${assessmentType.submissionDeadline.toLocaleDateString()}).` };
   }
 
   // Find all DRAFT marks for this combination
@@ -455,7 +508,7 @@ export async function approveMarksAction(
       termId,
       status: "SUBMITTED",
     },
-    select: { id: true },
+    select: { id: true, studentId: true, score: true },
   });
 
   if (submittedMarks.length === 0) {
@@ -476,6 +529,22 @@ export async function approveMarksAction(
       approvedAt: new Date(),
     },
   });
+
+  // Log audit trail for status change
+  for (const mark of submittedMarks) {
+    await logMarkChange({
+      markId: mark.id,
+      studentId: mark.studentId,
+      subjectId,
+      assessmentTypeId,
+      termId,
+      previousScore: mark.score,
+      newScore: mark.score,
+      previousStatus: "SUBMITTED",
+      newStatus: "APPROVED",
+      changedBy: session.user.id!,
+    });
+  }
 
   await audit({
     userId: session.user.id!,
@@ -521,7 +590,7 @@ export async function rejectMarksAction(
       termId,
       status: "SUBMITTED",
     },
-    select: { id: true },
+    select: { id: true, studentId: true, score: true },
   });
 
   if (submittedMarks.length === 0) {
@@ -542,6 +611,23 @@ export async function rejectMarksAction(
       approvedAt: null,
     },
   });
+
+  // Log audit trail for rejection
+  for (const mark of submittedMarks) {
+    await logMarkChange({
+      markId: mark.id,
+      studentId: mark.studentId,
+      subjectId,
+      assessmentTypeId,
+      termId,
+      previousScore: mark.score,
+      newScore: mark.score,
+      previousStatus: "SUBMITTED",
+      newStatus: "DRAFT",
+      changedBy: session.user.id!,
+      changeReason: reason,
+    });
+  }
 
   await audit({
     userId: session.user.id!,

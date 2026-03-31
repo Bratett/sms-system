@@ -3,34 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-
-// ─── Helper: look up grade from grading scale ─────────────────────────
-
-interface GradeDef {
-  grade: string;
-  minScore: number;
-  maxScore: number;
-  interpretation: string;
-  gradePoint: number;
-}
-
-function lookupGrade(
-  score: number,
-  gradeDefinitions: GradeDef[],
-): { grade: string; interpretation: string } | null {
-  // gradeDefinitions are sorted by minScore desc
-  for (const gd of gradeDefinitions) {
-    if (score >= gd.minScore && score <= gd.maxScore) {
-      return { grade: gd.grade, interpretation: gd.interpretation };
-    }
-  }
-  // Fallback to lowest grade if score is below all ranges
-  if (gradeDefinitions.length > 0) {
-    const lowest = gradeDefinitions[gradeDefinitions.length - 1];
-    return { grade: lowest.grade, interpretation: lowest.interpretation };
-  }
-  return null;
-}
+import { lookupGrade } from "@/modules/academics/utils/grading";
 
 // ─── Compute Terminal Results ──────────────────────────────────────────
 
@@ -210,14 +183,27 @@ export async function computeTerminalResultsAction(
 
     // For each subject the student has marks in
     for (const [subjectId, subjectMarks] of studentSubjectMarks) {
-      // Calculate weighted class score
+      // Build CA breakdown and calculate weighted class score
+      const caBreakdown: Array<{
+        name: string;
+        score: number;
+        maxScore: number;
+        weight: number;
+        weightedScore: number;
+      }> = [];
       let classScore = 0;
       for (const mark of subjectMarks) {
         if (mark.assessmentType.category !== "END_OF_TERM") {
-          // Weighted: (score / maxScore) * assessmentType.weight
           const weighted =
             (mark.score / mark.maxScore) * mark.assessmentType.weight;
           classScore += weighted;
+          caBreakdown.push({
+            name: mark.assessmentType.name,
+            score: mark.score,
+            maxScore: mark.maxScore,
+            weight: mark.assessmentType.weight,
+            weightedScore: Math.round(weighted * 100) / 100,
+          });
         }
       }
 
@@ -233,7 +219,7 @@ export async function computeTerminalResultsAction(
       const totalScore = Math.round((classScore + examScore) * 100) / 100;
       const gradeResult = lookupGrade(totalScore, gradeDefinitions);
 
-      // Create subject result
+      // Create subject result with CA breakdown
       await db.subjectResult.create({
         data: {
           terminalResultId: terminalResult.id,
@@ -243,6 +229,7 @@ export async function computeTerminalResultsAction(
           totalScore,
           grade: gradeResult?.grade ?? null,
           interpretation: gradeResult?.interpretation ?? null,
+          caBreakdown: caBreakdown.length > 0 ? caBreakdown : undefined,
         },
       });
 
