@@ -2,6 +2,10 @@ import type { PaymentProvider } from "./types";
 import { PaystackProvider } from "./providers/paystack.provider";
 import { FlutterwaveProvider } from "./providers/flutterwave.provider";
 import { StripeProvider } from "./providers/stripe.provider";
+import { MtnMomoProvider } from "./providers/mtn-momo.provider";
+import { TelecelCashProvider } from "./providers/telecel-cash.provider";
+import { AirtelTigoProvider } from "./providers/airteltigo.provider";
+import { GMoneyProvider } from "./providers/g-money.provider";
 
 /**
  * Payment provider registry.
@@ -15,6 +19,12 @@ const providers = new Map<string, PaymentProvider>();
 providers.set("paystack", new PaystackProvider());
 providers.set("flutterwave", new FlutterwaveProvider());
 providers.set("stripe", new StripeProvider());
+
+// Register Ghana-specific MoMo providers
+providers.set("mtn_momo", new MtnMomoProvider());
+providers.set("telecel_cash", new TelecelCashProvider());
+providers.set("airteltigo", new AirtelTigoProvider());
+providers.set("g_money", new GMoneyProvider());
 
 /**
  * Get a payment provider by name.

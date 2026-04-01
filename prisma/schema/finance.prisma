@@ -53,6 +53,9 @@ model StudentBill {
   feeStructure FeeStructure    @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
   billItems    StudentBillItem[]
   payments     Payment[]
+  installments StudentInstallment[]
+  penalties    AppliedPenalty[]
+  waivers      FeeWaiver[]
 
   @@unique([studentId, feeStructureId])
   @@index([studentId])
@@ -200,4 +203,445 @@ enum ReversalStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+// ─── Phase 1A: Fee Templates ──────────────────────────────────────
+
+model FeeTemplate {
+  id             String          @id @default(cuid())
+  schoolId       String
+  name           String
+  description    String?
+  boardingStatus BoardingStatus?
+  programmeId    String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  items FeeTemplateItem[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model FeeTemplateItem {
+  id            String  @id @default(cuid())
+  feeTemplateId String
+  name          String
+  code          String?
+  amount        Float
+  isOptional    Boolean @default(false)
+  description   String?
+
+  feeTemplate FeeTemplate @relation(fields: [feeTemplateId], references: [id], onDelete: Cascade)
+
+  @@index([feeTemplateId])
+}
+
+// ─── Phase 1A: Installment Plans ──────────────────────────────────
+
+model InstallmentPlan {
+  id                   String   @id @default(cuid())
+  schoolId             String
+  feeStructureId       String?  // null = school-wide default plan
+  name                 String
+  numberOfInstallments Int
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  schedules           InstallmentSchedule[]
+  studentInstallments StudentInstallment[]
+
+  @@index([schoolId])
+  @@index([feeStructureId])
+}
+
+model InstallmentSchedule {
+  id                String @id @default(cuid())
+  installmentPlanId String
+  installmentNumber Int
+  percentageOfTotal Float  // e.g., 40.0 for 40%
+  dueDaysFromStart  Int    // days from term start date
+  label             String? // "1st Installment", "2nd Installment"
+
+  installmentPlan InstallmentPlan @relation(fields: [installmentPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([installmentPlanId, installmentNumber])
+  @@index([installmentPlanId])
+}
+
+model StudentInstallment {
+  id                String            @id @default(cuid())
+  studentBillId     String
+  installmentPlanId String
+  installmentNumber Int
+  amount            Float
+  dueDate           DateTime
+  paidAmount        Float             @default(0)
+  status            InstallmentStatus @default(PENDING)
+  paidAt            DateTime?
+
+  studentBill     StudentBill     @relation(fields: [studentBillId], references: [id], onDelete: Cascade)
+  installmentPlan InstallmentPlan @relation(fields: [installmentPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([studentBillId, installmentPlanId, installmentNumber])
+  @@index([studentBillId])
+  @@index([dueDate])
+  @@index([status])
+}
+
+enum InstallmentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+// ─── Phase 1A: Late Penalty Rules ─────────────────────────────────
+
+model LatePenaltyRule {
+  id              String      @id @default(cuid())
+  schoolId        String
+  feeStructureId  String?     // null = applies to all active fee structures
+  name            String
+  type            PenaltyType
+  value           Float       // percentage or fixed amount
+  gracePeriodDays Int         @default(0)
+  maxPenalty      Float?      // cap on total penalty
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  penalties AppliedPenalty[]
+
+  @@index([schoolId])
+  @@index([feeStructureId])
+}
+
+model AppliedPenalty {
+  id                String   @id @default(cuid())
+  studentBillId     String
+  latePenaltyRuleId String
+  amount            Float
+  appliedAt         DateTime @default(now())
+  waived            Boolean  @default(false)
+  waivedBy          String?  // userId
+  waivedAt          DateTime?
+
+  studentBill     StudentBill     @relation(fields: [studentBillId], references: [id], onDelete: Cascade)
+  latePenaltyRule LatePenaltyRule @relation(fields: [latePenaltyRuleId], references: [id], onDelete: Cascade)
+
+  @@index([studentBillId])
+  @@index([latePenaltyRuleId])
+}
+
+enum PenaltyType {
+  PERCENTAGE       // one-time percentage of outstanding balance
+  FIXED_AMOUNT     // one-time fixed surcharge
+  DAILY_PERCENTAGE // daily accruing percentage
+  DAILY_FIXED      // daily accruing fixed amount
+}
+
+// ─── Phase 1A: Fee Waivers ────────────────────────────────────────
+
+model FeeWaiver {
+  id                String       @id @default(cuid())
+  schoolId          String
+  studentBillId     String
+  studentBillItemId String?      // null = entire bill, specific = per line item
+  requestedBy       String       // userId
+  approvedBy        String?
+  reason            String
+  waiverType        WaiverType
+  value             Float        // percentage or fixed amount
+  calculatedAmount  Float        // actual GHS amount waived
+  status            WaiverStatus @default(PENDING)
+  requestedAt       DateTime     @default(now())
+  reviewedAt        DateTime?
+  notes             String?
+
+  studentBill StudentBill @relation(fields: [studentBillId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([studentBillId])
+  @@index([status])
+}
+
+enum WaiverType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FULL_WAIVER
+  STAFF_CHILD_DISCOUNT
+  SIBLING_DISCOUNT
+}
+
+enum WaiverStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ─── Phase 1B: Government Subsidies (Free SHS) ───────────────────
+
+model GovernmentSubsidy {
+  id              String        @id @default(cuid())
+  schoolId        String
+  name            String        // "Free SHS Subsidy Term 1", "Capitation Grant 2026"
+  subsidyType     SubsidyType
+  academicYearId  String
+  termId          String?
+  expectedAmount  Float
+  receivedAmount  Float         @default(0)
+  status          SubsidyStatus @default(EXPECTED)
+  referenceNumber String?       // Government reference / voucher number
+  receivedAt      DateTime?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  disbursements SubsidyDisbursement[]
+
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([status])
+}
+
+model SubsidyDisbursement {
+  id                  String   @id @default(cuid())
+  governmentSubsidyId String
+  amount              Float
+  receivedAt          DateTime
+  bankReference       String?
+  recordedBy          String   // userId
+  notes               String?
+  createdAt           DateTime @default(now())
+
+  governmentSubsidy GovernmentSubsidy @relation(fields: [governmentSubsidyId], references: [id], onDelete: Cascade)
+
+  @@index([governmentSubsidyId])
+}
+
+enum SubsidyType {
+  FREE_SHS
+  GOVERNMENT_PLACEMENT
+  CAPITATION_GRANT
+  OTHER_GOVERNMENT
+}
+
+enum SubsidyStatus {
+  EXPECTED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  OVERDUE
+}
+
+// ─── Phase 1B: Donor Funds ───────────────────────────────────────
+
+model DonorFund {
+  id              String   @id @default(cuid())
+  schoolId        String
+  donorName       String
+  donorType       DonorType
+  contactEmail    String?
+  contactPhone    String?
+  totalPledged    Float
+  totalReceived   Float    @default(0)
+  totalDisbursed  Float    @default(0)
+  purpose         String?  // Restriction on fund usage
+  startDate       DateTime?
+  endDate         DateTime?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  allocations DonorFundAllocation[]
+
+  @@index([schoolId])
+  @@index([isActive])
+}
+
+model DonorFundAllocation {
+  id           String   @id @default(cuid())
+  donorFundId  String
+  studentId    String
+  termId       String
+  amount       Float
+  description  String?
+  allocatedBy  String   // userId
+  allocatedAt  DateTime @default(now())
+
+  donorFund DonorFund @relation(fields: [donorFundId], references: [id], onDelete: Cascade)
+
+  @@index([donorFundId])
+  @@index([studentId])
+  @@index([termId])
+}
+
+enum DonorType {
+  INDIVIDUAL
+  ORGANIZATION
+  FOUNDATION
+  ALUMNI
+  CORPORATE
+}
+
+// ─── Phase 1B: Financial Aid Applications ────────────────────────
+
+model FinancialAidApplication {
+  id                String         @id @default(cuid())
+  schoolId          String
+  studentId         String
+  academicYearId    String
+  termId            String
+  aidType           AidType
+  requestedAmount   Float
+  approvedAmount    Float?
+  reason            String
+  supportingDocs    String[]       // URLs to uploaded documents
+  householdIncome   Float?
+  numberOfDependents Int?
+  status            AidStatus      @default(SUBMITTED)
+  submittedBy       String         // userId (parent or admin)
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  reviewNotes       String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([academicYearId])
+  @@index([status])
+}
+
+enum AidType {
+  NEEDS_BASED
+  MERIT_BASED
+  HARDSHIP
+  ORPHAN_SUPPORT
+  COMMUNITY_SPONSORED
+}
+
+enum AidStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  DISBURSED
+}
+
+// ─── Phase 2: Online Payment Transactions ─────────────────────────
+
+model OnlinePaymentTransaction {
+  id              String                @id @default(cuid())
+  schoolId        String
+  studentBillId   String
+  studentId       String
+  provider        String                // paystack, flutterwave, mtn_momo, telecel_cash, etc.
+  reference       String                @unique
+  amount          Float
+  currency        String                @default("GHS")
+  status          OnlinePaymentStatus   @default(INITIATED)
+  providerReference String?
+  channel         String?               // mobile_money, card, bank_transfer
+  callbackUrl     String?
+  metadata        Json?
+  initiatedAt     DateTime              @default(now())
+  completedAt     DateTime?
+  failureReason   String?
+
+  @@index([schoolId])
+  @@index([studentBillId])
+  @@index([reference])
+  @@index([status])
+  @@index([provider])
+}
+
+enum OnlinePaymentStatus {
+  INITIATED
+  PENDING
+  SUCCESSFUL
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+// ─── Phase 2: Payment Links ──────────────────────────────────────
+
+model PaymentLink {
+  id              String          @id @default(cuid())
+  schoolId        String
+  studentBillId   String
+  code            String          @unique // short URL-safe code
+  amount          Float?          // null = pay any amount up to balance
+  description     String?
+  expiresAt       DateTime?
+  isOneTime       Boolean         @default(true)
+  isActive        Boolean         @default(true)
+  usedCount       Int             @default(0)
+  createdBy       String          // userId
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([schoolId])
+  @@index([code])
+  @@index([studentBillId])
+  @@index([isActive])
+}
+
+// ─── Phase 2: Bank Reconciliation ─────────────────────────────────
+
+model BankReconciliation {
+  id              String                  @id @default(cuid())
+  schoolId        String
+  bankName        String
+  accountNumber   String?
+  statementDate   DateTime
+  fileName        String?
+  uploadedBy      String                  // userId
+  uploadedAt      DateTime                @default(now())
+  status          ReconciliationStatus    @default(PENDING)
+  totalEntries    Int                     @default(0)
+  matchedEntries  Int                     @default(0)
+  unmatchedEntries Int                    @default(0)
+
+  entries BankStatementEntry[]
+
+  @@index([schoolId])
+  @@index([status])
+}
+
+model BankStatementEntry {
+  id                  String              @id @default(cuid())
+  bankReconciliationId String
+  transactionDate     DateTime
+  description         String
+  reference           String?
+  debitAmount         Float?
+  creditAmount        Float?
+  balance             Float?
+  matchedPaymentId    String?             // matched Payment record
+  matchStatus         MatchStatus         @default(UNMATCHED)
+  matchedAt           DateTime?
+  matchedBy           String?             // userId
+
+  bankReconciliation BankReconciliation @relation(fields: [bankReconciliationId], references: [id], onDelete: Cascade)
+
+  @@index([bankReconciliationId])
+  @@index([matchStatus])
+  @@index([reference])
+}
+
+enum ReconciliationStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum MatchStatus {
+  UNMATCHED
+  AUTO_MATCHED
+  MANUALLY_MATCHED
+  NO_MATCH
 }

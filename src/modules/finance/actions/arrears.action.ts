@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 
 export async function getArrearsAction(filters?: {
   termId?: string;
@@ -267,13 +268,136 @@ export async function getArrearsReportAction(termId?: string) {
   };
 }
 
-export async function carryForwardArrearsAction(_fromTermId: string, _toTermId: string) {
+export async function carryForwardArrearsAction(fromTermId: string, toTermId: string) {
   const session = await auth();
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
 
-  return {
-    error: "Arrears carry-forward is not available in this version. This feature will be implemented in Phase 2.",
-  };
+  // Validate terms exist
+  const [fromTerm, toTerm] = await Promise.all([
+    db.term.findUnique({ where: { id: fromTermId }, include: { academicYear: true } }),
+    db.term.findUnique({ where: { id: toTermId }, include: { academicYear: true } }),
+  ]);
+
+  if (!fromTerm) return { error: "Source term not found" };
+  if (!toTerm) return { error: "Destination term not found" };
+
+  // Get all bills with outstanding balances from the source term
+  const overdueBills = await db.studentBill.findMany({
+    where: {
+      termId: fromTermId,
+      balanceAmount: { gt: 0 },
+      status: { in: ["UNPAID", "PARTIAL"] },
+    },
+    include: {
+      feeStructure: { select: { schoolId: true } },
+    },
+  });
+
+  if (overdueBills.length === 0) {
+    return { data: { carried: 0, message: "No outstanding arrears found for the source term" } };
+  }
+
+  const schoolId = overdueBills[0].feeStructure.schoolId;
+
+  // Find or create an arrears fee structure in the destination term
+  let arrearsFeeStructure = await db.feeStructure.findFirst({
+    where: {
+      schoolId,
+      termId: toTermId,
+      academicYearId: toTerm.academicYearId,
+      name: { contains: "Arrears" },
+      status: "ACTIVE",
+    },
+  });
+
+  if (!arrearsFeeStructure) {
+    arrearsFeeStructure = await db.feeStructure.create({
+      data: {
+        schoolId,
+        name: `Carried Forward Arrears - ${toTerm.name}`,
+        academicYearId: toTerm.academicYearId,
+        termId: toTermId,
+        status: "ACTIVE",
+      },
+    });
+
+    // Create a single "Arrears" fee item
+    await db.feeItem.create({
+      data: {
+        feeStructureId: arrearsFeeStructure.id,
+        name: "Carried Forward Arrears",
+        code: "ARR",
+        amount: 0, // placeholder - actual amounts are per-student
+        isOptional: false,
+      },
+    });
+  }
+
+  const arrearsItem = await db.feeItem.findFirst({
+    where: { feeStructureId: arrearsFeeStructure.id, code: "ARR" },
+  });
+
+  let carried = 0;
+  const errors: string[] = [];
+
+  for (const bill of overdueBills) {
+    try {
+      // Check if arrears bill already exists for this student in dest term
+      const existingBill = await db.studentBill.findUnique({
+        where: {
+          studentId_feeStructureId: {
+            studentId: bill.studentId,
+            feeStructureId: arrearsFeeStructure.id,
+          },
+        },
+      });
+
+      if (existingBill) continue;
+
+      await db.$transaction(async (tx) => {
+        const newBill = await tx.studentBill.create({
+          data: {
+            studentId: bill.studentId,
+            feeStructureId: arrearsFeeStructure!.id,
+            termId: toTermId,
+            academicYearId: toTerm.academicYearId,
+            totalAmount: bill.balanceAmount,
+            paidAmount: 0,
+            balanceAmount: bill.balanceAmount,
+            status: "UNPAID",
+          },
+        });
+
+        if (arrearsItem) {
+          await tx.studentBillItem.create({
+            data: {
+              studentBillId: newBill.id,
+              feeItemId: arrearsItem.id,
+              amount: bill.balanceAmount,
+            },
+          });
+        }
+      });
+
+      carried++;
+    } catch (err) {
+      errors.push(
+        `Failed for student ${bill.studentId}: ${err instanceof Error ? err.message : "Unknown error"}`
+      );
+    }
+  }
+
+  await audit({
+    userId: session.user.id!,
+    action: "CREATE",
+    entity: "StudentBill",
+    entityId: arrearsFeeStructure.id,
+    module: "finance",
+    description: `Carried forward ${carried} arrears from ${fromTerm.name} to ${toTerm.name}`,
+    metadata: { carried, errors: errors.length },
+  });
+
+  return { data: { carried, errors } };
 }
