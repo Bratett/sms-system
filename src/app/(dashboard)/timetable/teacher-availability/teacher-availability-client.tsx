@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   getTeacherAvailabilityAction,
@@ -56,7 +55,6 @@ export function TeacherAvailabilityClient({
   periods: PeriodOption[];
   terms: TermOption[];
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const currentTerm = terms.find((t) => t.isCurrent);
@@ -337,7 +335,7 @@ export function TeacherAvailabilityClient({
 
       {!loaded && selectedTeacherId && selectedTermId && (
         <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-          Click "Load" to view and edit availability.
+          Click &ldquo;Load&rdquo; to view and edit availability.
         </div>
       )}
     </>
