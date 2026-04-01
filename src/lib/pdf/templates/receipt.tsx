@@ -27,6 +27,7 @@ export interface ReceiptProps {
   totalAmount: number;
   paidBy: string;
   receivedBy: string;
+  verificationUrl?: string;
 }
 
 /* ---------- Helpers ---------- */
@@ -333,6 +334,14 @@ export const Receipt: React.FC<ReceiptProps> = (props) => {
             <Text style={styles.signatureLabel}>Date</Text>
           </View>
         </View>
+
+        {/* Verification */}
+        {props.verificationUrl && (
+          <View style={{ marginTop: 16, padding: 8, border: '1px solid #ccc', borderRadius: 3, alignItems: 'center' }}>
+            <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>VERIFY THIS RECEIPT ONLINE</Text>
+            <Text style={{ fontSize: 8, color: '#0066cc' }}>{props.verificationUrl}</Text>
+          </View>
+        )}
 
         {/* Footer */}
         <View style={styles.footer}>

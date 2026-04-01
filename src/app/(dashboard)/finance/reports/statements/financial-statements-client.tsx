@@ -11,6 +11,12 @@ import {
   generateCashFlowAction,
   generateBoardSummaryAction,
 } from "@/modules/accounting/actions/financial-reports.action";
+import {
+  exportTrialBalanceAction,
+  exportBalanceSheetAction,
+  exportIncomeStatementAction,
+  exportCashFlowAction,
+} from "@/modules/accounting/actions/export-reports.action";
 
 type ReportTab = "trial_balance" | "balance_sheet" | "income_statement" | "cash_flow" | "board_summary";
 
@@ -55,6 +61,40 @@ export function FinancialStatementsClient({ accounts }: { accounts: Account[] })
     });
   }
 
+  function handleExportExcel() {
+    startTransition(async () => {
+      let result;
+      switch (activeTab) {
+        case "trial_balance":
+          result = await exportTrialBalanceAction(new Date(periodEnd));
+          break;
+        case "balance_sheet":
+          result = await exportBalanceSheetAction(new Date(periodEnd));
+          break;
+        case "income_statement":
+          result = await exportIncomeStatementAction(new Date(periodStart), new Date(periodEnd));
+          break;
+        case "cash_flow":
+          result = await exportCashFlowAction(new Date(periodStart), new Date(periodEnd));
+          break;
+        default:
+          return;
+      }
+      if (result?.error || !result?.data) { toast.error(result?.error ?? "Export failed"); return; }
+
+      // Download the file
+      const bytes = Uint8Array.from(atob(result.data.buffer), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.data.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Report exported");
+    });
+  }
+
   const tabs: { key: ReportTab; label: string }[] = [
     { key: "trial_balance", label: "Trial Balance" },
     { key: "balance_sheet", label: "Balance Sheet" },
@@ -94,6 +134,11 @@ export function FinancialStatementsClient({ accounts }: { accounts: Account[] })
         <button onClick={handleGenerate} disabled={isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
           {isPending ? "Generating..." : "Generate Report"}
         </button>
+        {reportData && activeTab !== "board_summary" && (
+          <button onClick={handleExportExcel} disabled={isPending} className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50">
+            Export Excel
+          </button>
+        )}
       </div>
 
       {/* Report Output */}
