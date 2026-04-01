@@ -36,7 +36,7 @@ model StoreItem {
   unit         String   @default("pcs") // pcs, kg, liters, boxes, etc.
   quantity     Int      @default(0)
   reorderLevel Int      @default(0)
-  unitPrice    Float    @default(0)
+  unitPrice    Decimal  @default(0) @db.Decimal(18, 2)
   description  String?
   status       Status   @default(ACTIVE)
   createdAt    DateTime @default(now())
@@ -115,7 +115,7 @@ model PurchaseRequestItem {
   purchaseRequestId String
   storeItemId       String
   quantityRequested Int
-  estimatedUnitPrice Float?
+  estimatedUnitPrice Decimal? @db.Decimal(18, 2)
 
   purchaseRequest PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
 
@@ -127,7 +127,7 @@ model PurchaseOrder {
   purchaseRequestId String?
   supplierId        String
   orderNumber       String            @unique // PO/YYYY/NNNN
-  totalAmount       Float             @default(0)
+  totalAmount       Decimal           @default(0) @db.Decimal(18, 2)
   status            PurchaseOrderStatus @default(DRAFT)
   orderedBy         String            // userId
   orderedAt         DateTime          @default(now())
@@ -147,8 +147,8 @@ model PurchaseOrderItem {
   purchaseOrderId String
   storeItemId     String
   quantity        Int
-  unitPrice       Float
-  totalPrice      Float
+  unitPrice       Decimal @db.Decimal(18, 2)
+  totalPrice      Decimal @db.Decimal(18, 2)
 
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   storeItem     StoreItem     @relation(fields: [storeItemId], references: [id], onDelete: Cascade)
@@ -237,16 +237,16 @@ model FixedAsset {
   model              String?
   manufacturer       String?
   purchaseDate       DateTime?
-  purchasePrice      Float
-  currentValue       Float
+  purchasePrice      Decimal            @db.Decimal(18, 2)
+  currentValue       Decimal            @db.Decimal(18, 2)
   usefulLifeYears    Int?
-  salvageValue       Float              @default(0)
+  salvageValue       Decimal            @default(0) @db.Decimal(18, 2)
   depreciationMethod DepreciationMethod @default(STRAIGHT_LINE)
   condition          AssetCondition     @default(GOOD)
   status             AssetStatus        @default(ACTIVE)
   disposedAt         DateTime?
   disposalMethod     String?            // SOLD, DONATED, SCRAPPED, WRITTEN_OFF
-  disposalAmount     Float?
+  disposalAmount     Decimal?           @db.Decimal(18, 2)
   disposedBy         String?
   purchaseOrderId    String?            // link to PurchaseOrder
   accountId          String?            // link to Chart of Accounts
@@ -269,9 +269,9 @@ model AssetDepreciation {
   id                 String   @id @default(cuid())
   fixedAssetId       String
   period             String   // "2025-Q1", "2024-2025"
-  openingValue       Float
-  depreciationAmount Float
-  closingValue       Float
+  openingValue       Decimal  @db.Decimal(18, 2)
+  depreciationAmount Decimal  @db.Decimal(18, 2)
+  closingValue       Decimal  @db.Decimal(18, 2)
   calculatedAt       DateTime @default(now())
 
   fixedAsset FixedAsset @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
@@ -286,7 +286,7 @@ model AssetMaintenance {
   date         DateTime
   type         MaintenanceType
   description  String
-  cost         Float?
+  cost         Decimal? @db.Decimal(18, 2)
   performedBy  String?
   nextDueDate  DateTime?
   recordedBy   String   // userId

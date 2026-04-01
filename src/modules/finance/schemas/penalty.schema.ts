@@ -8,7 +8,10 @@ export const createLatePenaltyRuleSchema = z.object({
   }),
   value: z.coerce.number().min(0.01, "Penalty value must be greater than 0"),
   gracePeriodDays: z.coerce.number().int().min(0, "Grace period must be 0 or greater").default(0),
-  maxPenalty: z.coerce.number().min(0).optional().nullable(),
+  maxPenalty: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.coerce.number().min(0).optional().nullable(),
+  ),
 });
 export type CreateLatePenaltyRuleInput = z.infer<typeof createLatePenaltyRuleSchema>;
 
@@ -17,7 +20,10 @@ export const updateLatePenaltyRuleSchema = z.object({
   type: z.enum(["PERCENTAGE", "FIXED_AMOUNT", "DAILY_PERCENTAGE", "DAILY_FIXED"]).optional(),
   value: z.coerce.number().min(0.01).optional(),
   gracePeriodDays: z.coerce.number().int().min(0).optional(),
-  maxPenalty: z.coerce.number().min(0).optional().nullable(),
+  maxPenalty: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.coerce.number().min(0).optional().nullable(),
+  ),
   isActive: z.boolean().optional(),
 });
 export type UpdateLatePenaltyRuleInput = z.infer<typeof updateLatePenaltyRuleSchema>;

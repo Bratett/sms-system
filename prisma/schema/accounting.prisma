@@ -25,7 +25,7 @@ model Account {
   normalBalance   BalanceSide // DEBIT or CREDIT
   isSystemAccount Boolean     @default(false)
   isActive        Boolean     @default(true)
-  currentBalance  Float       @default(0)
+  currentBalance  Decimal     @default(0) @db.Decimal(18, 2)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
@@ -84,7 +84,7 @@ model JournalEntry {
   journalTransactionId String
   debitAccountId       String
   creditAccountId      String
-  amount               Float
+  amount               Decimal @db.Decimal(18, 2)
   narration            String?
 
   journalTransaction JournalTransaction @relation(fields: [journalTransactionId], references: [id], onDelete: Cascade)
@@ -128,7 +128,7 @@ model Expense {
   schoolId             String
   expenseCategoryId    String
   description          String
-  amount               Float
+  amount               Decimal  @db.Decimal(18, 2)
   date                 DateTime
   payee                String?
   referenceNumber      String?
@@ -168,8 +168,8 @@ model PettyCashFund {
   schoolId        String
   name            String
   custodianId     String   // userId
-  authorizedLimit Float
-  currentBalance  Float    @default(0)
+  authorizedLimit Decimal  @db.Decimal(18, 2)
+  currentBalance  Decimal  @default(0) @db.Decimal(18, 2)
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -186,7 +186,7 @@ model PettyCashTransaction {
   id                String        @id @default(cuid())
   pettyCashFundId   String
   type              PettyCashType
-  amount            Float
+  amount            Decimal  @db.Decimal(18, 2)
   description       String
   receiptNumber     String?
   receiptUrl        String?
@@ -204,7 +204,7 @@ model PettyCashTransaction {
 model PettyCashReplenishment {
   id              String              @id @default(cuid())
   pettyCashFundId String
-  amount          Float
+  amount          Decimal             @db.Decimal(18, 2)
   requestedBy     String
   approvedBy      String?
   status          ReplenishmentStatus @default(PENDING)
@@ -238,7 +238,7 @@ model Budget {
   name           String
   academicYearId String
   termId         String?      // null = annual budget
-  totalAmount    Float
+  totalAmount    Decimal      @db.Decimal(18, 2)
   status         BudgetStatus @default(DRAFT)
   createdBy      String
   approvedBy     String?
@@ -258,8 +258,8 @@ model BudgetLine {
   budgetId          String
   expenseCategoryId String
   departmentId      String?
-  allocatedAmount   Float
-  spentAmount       Float  @default(0)
+  allocatedAmount   Decimal @db.Decimal(18, 2)
+  spentAmount       Decimal @default(0) @db.Decimal(18, 2)
   description       String?
 
   budget          Budget          @relation(fields: [budgetId], references: [id], onDelete: Cascade)
@@ -283,7 +283,7 @@ model ExpenseClaim {
   schoolId    String
   claimantId  String            // userId or staffId
   description String
-  totalAmount Float
+  totalAmount Decimal            @db.Decimal(18, 2)
   status      ExpenseClaimStatus @default(SUBMITTED)
   submittedAt DateTime          @default(now())
   approvedBy  String?
@@ -301,7 +301,7 @@ model ExpenseClaimItem {
   id                String   @id @default(cuid())
   expenseClaimId    String
   description       String
-  amount            Float
+  amount            Decimal  @db.Decimal(18, 2)
   date              DateTime
   receiptUrl        String?
   expenseCategoryId String?
@@ -361,9 +361,9 @@ model TaxRecord {
   schoolId        String
   taxType         TaxType
   period          String    // "2026-Q1", "2026-03"
-  amount          Float
+  amount          Decimal   @db.Decimal(18, 2)
   dueDate         DateTime
-  paidAmount      Float     @default(0)
+  paidAmount      Decimal   @default(0) @db.Decimal(18, 2)
   paidDate        DateTime?
   referenceNumber String?   // GRA filing reference
   status          TaxStatus @default(PENDING)

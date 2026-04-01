@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPaymentProvider } from "@/lib/payment/registry";
 import { db } from "@/lib/db";
+import { generateOnlineReceiptNumber } from "@/lib/receipt";
+import { toNum } from "@/lib/decimal";
 
 /**
  * Paystack Webhook Handler
@@ -95,11 +97,11 @@ async function handleChargeSuccess(data: {
       },
     });
 
-    const newPaidAmount = bill.paidAmount + amount;
-    const newBalanceAmount = bill.totalAmount - newPaidAmount;
+    const newPaidAmount = toNum(bill.paidAmount) + amount;
+    const newBalanceAmount = toNum(bill.totalAmount) - newPaidAmount;
 
     let newStatus: "UNPAID" | "PARTIAL" | "PAID" | "OVERPAID";
-    if (newBalanceAmount <= 0 && newPaidAmount > bill.totalAmount) {
+    if (newBalanceAmount <= 0 && newPaidAmount > toNum(bill.totalAmount)) {
       newStatus = "OVERPAID";
     } else if (newBalanceAmount <= 0) {
       newStatus = "PAID";
@@ -118,11 +120,7 @@ async function handleChargeSuccess(data: {
       },
     });
 
-    const year = new Date().getFullYear();
-    const count = await tx.receipt.count({
-      where: { receiptNumber: { startsWith: `RCP/${year}/` } },
-    });
-    const receiptNumber = `RCP/${year}/ON/${String(count + 1).padStart(4, "0")}`;
+    const receiptNumber = await generateOnlineReceiptNumber(tx);
 
     await tx.receipt.create({
       data: {

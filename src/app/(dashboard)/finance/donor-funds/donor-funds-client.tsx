@@ -14,16 +14,17 @@ import {
   allocateDonorFundAction,
 } from "@/modules/finance/actions/donor-fund.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface Fund {
   id: string;
   donorName: string;
   donorType: string;
   contactEmail: string | null;
   contactPhone: string | null;
-  totalPledged: number;
-  totalReceived: number;
-  totalDisbursed: number;
-  availableBalance: number;
+  totalPledged: Monetary;
+  totalReceived: Monetary;
+  totalDisbursed: Monetary;
+  availableBalance: Monetary;
   pledgeUtilization: number;
   purpose: string | null;
   isActive: boolean;
@@ -44,8 +45,8 @@ const TYPE_STYLES: Record<string, { label: string; className: string }> = {
   CORPORATE: { label: "Corporate", className: "bg-teal-100 text-teal-700" },
 };
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function DonorFundsClient({ funds, terms }: { funds: Fund[]; terms: Term[] }) {
@@ -65,9 +66,9 @@ export function DonorFundsClient({ funds, terms }: { funds: Fund[]; terms: Term[
   const [receiptAmount, setReceiptAmount] = useState(0);
   const [allocateData, setAllocateData] = useState({ studentId: "", termId: terms.find((t) => t.isCurrent)?.id ?? "", amount: 0, description: "" });
 
-  const totalPledged = funds.reduce((sum, f) => sum + f.totalPledged, 0);
-  const totalReceived = funds.reduce((sum, f) => sum + f.totalReceived, 0);
-  const totalDisbursed = funds.reduce((sum, f) => sum + f.totalDisbursed, 0);
+  const totalPledged = funds.reduce((sum, f) => sum + Number(f.totalPledged), 0);
+  const totalReceived = funds.reduce((sum, f) => sum + Number(f.totalReceived), 0);
+  const totalDisbursed = funds.reduce((sum, f) => sum + Number(f.totalDisbursed), 0);
   const totalAvailable = totalReceived - totalDisbursed;
 
   function handleCreate() {
@@ -81,7 +82,7 @@ export function DonorFundsClient({ funds, terms }: { funds: Fund[]; terms: Term[
     setFormData({
       donorName: fund.donorName, donorType: fund.donorType as DonorType,
       contactEmail: fund.contactEmail ?? "", contactPhone: fund.contactPhone ?? "",
-      totalPledged: fund.totalPledged, purpose: fund.purpose ?? "",
+      totalPledged: Number(fund.totalPledged), purpose: fund.purpose ?? "",
       startDate: fund.startDate ? new Date(fund.startDate).toISOString().split("T")[0] : "",
       endDate: fund.endDate ? new Date(fund.endDate).toISOString().split("T")[0] : "",
     });
@@ -126,7 +127,7 @@ export function DonorFundsClient({ funds, terms }: { funds: Fund[]; terms: Term[
     if (!selectedFund) return;
     startTransition(async () => {
       const result = await updateDonorFundAction(selectedFund.id, {
-        totalReceived: selectedFund.totalReceived + receiptAmount,
+        totalReceived: Number(selectedFund.totalReceived) + receiptAmount,
       });
       if (result.error) { toast.error(result.error); return; }
       toast.success(`Receipt of ${formatCurrency(receiptAmount)} recorded`);
@@ -238,7 +239,7 @@ export function DonorFundsClient({ funds, terms }: { funds: Fund[]; terms: Term[
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button onClick={() => handleRecordReceipt(fund)} className="text-xs text-green-600 hover:underline">Receive</button>
-                        {fund.isActive && fund.availableBalance > 0 && (
+                        {fund.isActive && Number(fund.availableBalance) > 0 && (
                           <button onClick={() => handleAllocate(fund)} className="text-xs text-blue-600 hover:underline">Allocate</button>
                         )}
                         <button onClick={() => handleEdit(fund)} className="text-xs text-muted-foreground hover:text-foreground">Edit</button>
@@ -363,7 +364,7 @@ export function DonorFundsClient({ funds, terms }: { funds: Fund[]; terms: Term[
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Amount (GHS) *</label>
-                <input type="number" value={allocateData.amount} onChange={(e) => setAllocateData({ ...allocateData, amount: parseFloat(e.target.value) || 0 })} required min="0.01" step="0.01" max={selectedFund.availableBalance} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                <input type="number" value={allocateData.amount} onChange={(e) => setAllocateData({ ...allocateData, amount: parseFloat(e.target.value) || 0 })} required min="0.01" step="0.01" max={Number(selectedFund.availableBalance)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>

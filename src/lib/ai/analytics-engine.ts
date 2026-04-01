@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { toNum } from "@/lib/decimal";
 
 export interface RiskFactor {
   factor: string;
@@ -95,7 +96,7 @@ export async function computeStudentRiskProfiles(
 
   const unpaidByStudent = new Map<string, number>();
   for (const bill of bills) {
-    unpaidByStudent.set(bill.studentId, (unpaidByStudent.get(bill.studentId) ?? 0) + bill.balanceAmount);
+    unpaidByStudent.set(bill.studentId, (unpaidByStudent.get(bill.studentId) ?? 0) + toNum(bill.balanceAmount));
   }
 
   // Compute risk for each student

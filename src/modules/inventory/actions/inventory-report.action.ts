@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { toNum } from "@/lib/decimal";
 
 // ─── Stock Level Report ─────────────────────────────────────────────
 
@@ -43,7 +44,7 @@ export async function getStockLevelReportAction(storeId?: string) {
     quantity: item.quantity,
     reorderLevel: item.reorderLevel,
     unitPrice: item.unitPrice,
-    totalValue: item.quantity * item.unitPrice,
+    totalValue: item.quantity * toNum(item.unitPrice),
     status:
       item.quantity === 0
         ? "OUT_OF_STOCK"
@@ -190,7 +191,7 @@ export async function getStockValuationAction() {
 
   const data = stores.map((store) => {
     const totalValue = store.items.reduce(
-      (sum, item) => sum + item.quantity * item.unitPrice,
+      (sum, item) => sum + item.quantity * toNum(item.unitPrice),
       0,
     );
     const itemCount = store.items.length;

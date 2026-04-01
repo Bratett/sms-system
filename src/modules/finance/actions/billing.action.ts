@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   generateBillsSchema,
   type GenerateBillsInput,
@@ -89,7 +90,7 @@ export async function generateBillsAction(data: GenerateBillsInput) {
   // Calculate total for non-optional items
   const nonOptionalTotal = feeStructure.feeItems
     .filter((item) => !item.isOptional)
-    .reduce((sum, item) => sum + item.amount, 0);
+    .reduce((sum, item) => sum + toNum(item.amount), 0);
 
   let generated = 0;
   let skipped = 0;
@@ -125,9 +126,9 @@ export async function generateBillsAction(data: GenerateBillsInput) {
       let scholarshipDiscount = 0;
       for (const ss of studentScholarships) {
         if (ss.scholarship.type === "PERCENTAGE") {
-          scholarshipDiscount += nonOptionalTotal * (ss.scholarship.value / 100);
+          scholarshipDiscount += nonOptionalTotal * (toNum(ss.scholarship.value) / 100);
         } else {
-          scholarshipDiscount += ss.scholarship.value;
+          scholarshipDiscount += toNum(ss.scholarship.value);
         }
       }
 

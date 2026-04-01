@@ -11,6 +11,7 @@ import {
 
 // ─── Types ──────────────────────────────────────────────────────────
 
+import type { Monetary } from "@/lib/monetary";
 interface RouteRow {
   id: string;
   name: string;
@@ -19,9 +20,9 @@ interface RouteRow {
   vehicleRegistration: string | null;
   startPoint: string | null;
   endPoint: string | null;
-  distance: number | null;
+  distance: Monetary | null;
   estimatedDuration: number | null;
-  fee: number | null;
+  fee: Monetary | null;
   status: string;
 }
 
@@ -35,9 +36,9 @@ function getStatusBadge(status: string) {
   return map[status] || "bg-gray-100 text-gray-700";
 }
 
-function formatCurrency(amount: number | null) {
+function formatCurrency(amount: Monetary | null) {
   if (amount == null) return "-";
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 // ─── Component ──────────────────────────────────────────────────────
@@ -113,9 +114,9 @@ export function RoutesClient({
     setVehicleId(route.vehicleId ?? "");
     setStartPoint(route.startPoint ?? "");
     setEndPoint(route.endPoint ?? "");
-    setDistance(route.distance ?? "");
+    setDistance(route.distance != null ? Number(route.distance) : "");
     setEstimatedDuration(route.estimatedDuration ?? "");
-    setFee(route.fee ?? "");
+    setFee(route.fee != null ? Number(route.fee) : "");
     setShowForm(true);
   }
 

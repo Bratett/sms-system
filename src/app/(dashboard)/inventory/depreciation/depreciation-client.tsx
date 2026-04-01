@@ -8,9 +8,10 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { runDepreciationAction } from "@/modules/inventory/actions/depreciation.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface DepreciationAsset {
   id: string; assetNumber: string; name: string; categoryName: string;
-  purchasePrice: number; currentValue: number; salvageValue: number;
+  purchasePrice: Monetary; currentValue: Monetary; salvageValue: Monetary;
   accumulatedDepreciation: number; depreciationMethod: string;
   usefulLifeYears: number | null; lastDepreciationPeriod: string | null;
   percentDepreciated: number;
@@ -18,8 +19,8 @@ interface DepreciationAsset {
 
 interface Summary { totalPurchaseValue: number; totalCurrentValue: number; totalAccumulated: number; assetCount: number; }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function DepreciationClient({ assets, summary }: { assets: DepreciationAsset[]; summary: Summary | null; }) {

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   createTaxRecordSchema,
   type CreateTaxRecordInput,
@@ -35,7 +36,7 @@ export async function getTaxRecordsAction(filters?: { taxType?: string; status?:
     ...r,
     filedByName: r.filedBy ? userMap.get(r.filedBy) ?? null : null,
     isOverdue: r.status === "PENDING" && new Date(r.dueDate) < new Date(),
-    outstanding: r.amount - r.paidAmount,
+    outstanding: toNum(r.amount) - toNum(r.paidAmount),
   }));
 
   return { data };
@@ -85,7 +86,7 @@ export async function recordTaxPaymentAction(recordId: string, amount: number, r
   const record = await db.taxRecord.findUnique({ where: { id: recordId } });
   if (!record) return { error: "Tax record not found" };
 
-  const newPaidAmount = record.paidAmount + amount;
+  const newPaidAmount = toNum(record.paidAmount) + amount;
 
   await db.taxRecord.update({
     where: { id: recordId },
@@ -93,7 +94,7 @@ export async function recordTaxPaymentAction(recordId: string, amount: number, r
       paidAmount: newPaidAmount,
       paidDate: new Date(),
       referenceNumber: referenceNumber ?? record.referenceNumber,
-      status: newPaidAmount >= record.amount ? "PAID" : "FILED",
+      status: newPaidAmount >= toNum(record.amount) ? "PAID" : "FILED",
     },
   });
 
@@ -114,15 +115,15 @@ export async function getTaxSummaryAction(year?: string) {
 
   const records = await db.taxRecord.findMany({ where });
 
-  const totalDue = records.reduce((sum, r) => sum + r.amount, 0);
-  const totalPaid = records.reduce((sum, r) => sum + r.paidAmount, 0);
+  const totalDue = records.reduce((sum, r) => sum + toNum(r.amount), 0);
+  const totalPaid = records.reduce((sum, r) => sum + toNum(r.paidAmount), 0);
   const overdueCount = records.filter((r) => r.status === "PENDING" && new Date(r.dueDate) < new Date()).length;
 
   const byType = new Map<string, { type: string; due: number; paid: number; count: number }>();
   for (const r of records) {
     const entry = byType.get(r.taxType) ?? { type: r.taxType, due: 0, paid: 0, count: 0 };
-    entry.due += r.amount;
-    entry.paid += r.paidAmount;
+    entry.due += toNum(r.amount);
+    entry.paid += toNum(r.paidAmount);
     entry.count++;
     byType.set(r.taxType, entry);
   }

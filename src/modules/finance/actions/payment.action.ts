@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   recordPaymentSchema,
   initiateReversalSchema,
@@ -84,11 +85,11 @@ export async function recordPaymentAction(data: RecordPaymentInput) {
     });
 
     // Update bill amounts
-    const newPaidAmount = bill.paidAmount + parsed.data.amount;
-    const newBalanceAmount = bill.totalAmount - newPaidAmount;
+    const newPaidAmount = toNum(bill.paidAmount) + parsed.data.amount;
+    const newBalanceAmount = toNum(bill.totalAmount) - newPaidAmount;
 
     let newStatus: "UNPAID" | "PARTIAL" | "PAID" | "OVERPAID";
-    if (newBalanceAmount <= 0 && newPaidAmount > bill.totalAmount) {
+    if (newBalanceAmount <= 0 && newPaidAmount > toNum(bill.totalAmount)) {
       newStatus = "OVERPAID";
     } else if (newBalanceAmount <= 0) {
       newStatus = "PAID";
@@ -404,8 +405,8 @@ export async function getDailyCollectionAction(date: string) {
       grouped[method] = { payments: [], total: 0 };
     }
     grouped[method].payments.push(payment);
-    grouped[method].total += payment.amount;
-    grandTotal += payment.amount;
+    grouped[method].total += toNum(payment.amount);
+    grandTotal += toNum(payment.amount);
   }
 
   const data = payments.map((p) => {
@@ -524,8 +525,8 @@ export async function approveReversalAction(reversalId: string) {
 
     // Recalculate bill
     const bill = reversal.payment.studentBill;
-    const newPaidAmount = bill.paidAmount - reversal.payment.amount;
-    const newBalanceAmount = bill.totalAmount - newPaidAmount;
+    const newPaidAmount = toNum(bill.paidAmount) - toNum(reversal.payment.amount);
+    const newBalanceAmount = toNum(bill.totalAmount) - newPaidAmount;
 
     let newStatus: "UNPAID" | "PARTIAL" | "PAID" | "OVERPAID";
     if (newPaidAmount <= 0) {

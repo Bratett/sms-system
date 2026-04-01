@@ -27,7 +27,7 @@ model SmsLog {
   provider         String?
   providerMessageId String?
   sentAt           DateTime?
-  cost             Float?
+  cost             Decimal? @db.Decimal(18, 4)
   createdAt        DateTime @default(now())
 
   @@index([schoolId])

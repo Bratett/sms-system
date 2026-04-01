@@ -1,5 +1,6 @@
 import { createWorker, getQueue, QUEUE_NAMES, type FinanceReminderJobData, type SmsJobData } from "@/lib/queue";
 import { PrismaClient } from "@prisma/client";
+import { toNum } from "@/lib/decimal";
 
 const db = new PrismaClient();
 
@@ -67,7 +68,7 @@ export function startFinanceReminderWorker() {
           // Convert to bill-like format for unified processing
           bills = installments.map((inst) => ({
             studentId: inst.studentBill.studentId,
-            balanceAmount: inst.amount - inst.paidAmount,
+            balanceAmount: toNum(inst.amount) - toNum(inst.paidAmount),
             dueDate: inst.dueDate,
             feeStructure: { name: `Installment ${inst.installmentNumber}` },
           }));
@@ -114,7 +115,7 @@ export function startFinanceReminderWorker() {
         const guardian = guardianLink.guardian;
 
         const studentName = `${student.firstName} ${student.lastName}`;
-        const amount = `GHS ${bill.balanceAmount.toFixed(2)}`;
+        const amount = `GHS ${toNum(bill.balanceAmount).toFixed(2)}`;
         const dueDate = bill.dueDate ? new Date(bill.dueDate).toLocaleDateString("en-GH") : "N/A";
         const feeName = "feeStructure" in bill ? (bill.feeStructure as { name: string }).name : "";
 

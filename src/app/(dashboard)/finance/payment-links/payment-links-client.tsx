@@ -11,14 +11,15 @@ import {
   deactivatePaymentLinkAction,
 } from "@/modules/finance/actions/payment-link.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface PaymentLinkItem {
   id: string;
   code: string;
   studentBillId: string;
   studentName: string;
   studentIdNumber: string;
-  amount: number | null;
-  billBalance: number;
+  amount: Monetary | null;
+  billBalance: Monetary;
   description: string | null;
   expiresAt: Date | string | null;
   isOneTime: boolean;
@@ -30,8 +31,8 @@ interface PaymentLinkItem {
 
 interface Pagination { page: number; pageSize: number; total: number; totalPages: number; }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function PaymentLinksClient({

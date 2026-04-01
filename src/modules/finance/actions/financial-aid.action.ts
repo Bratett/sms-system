@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   createFinancialAidApplicationSchema,
   reviewFinancialAidSchema,
@@ -243,17 +244,17 @@ export async function getFinancialAidSummaryAction(academicYearId?: string) {
 
   const applications = await db.financialAidApplication.findMany({ where });
 
-  const totalRequested = applications.reduce((sum, a) => sum + a.requestedAmount, 0);
+  const totalRequested = applications.reduce((sum, a) => sum + toNum(a.requestedAmount), 0);
   const approved = applications.filter((a) => a.status === "APPROVED" || a.status === "DISBURSED");
-  const totalApproved = approved.reduce((sum, a) => sum + (a.approvedAmount ?? 0), 0);
+  const totalApproved = approved.reduce((sum, a) => sum + toNum(a.approvedAmount), 0);
 
   const byType = new Map<string, { type: string; count: number; requested: number; approved: number }>();
   for (const app of applications) {
     const entry = byType.get(app.aidType) ?? { type: app.aidType, count: 0, requested: 0, approved: 0 };
     entry.count++;
-    entry.requested += app.requestedAmount;
+    entry.requested += toNum(app.requestedAmount);
     if (app.status === "APPROVED" || app.status === "DISBURSED") {
-      entry.approved += app.approvedAmount ?? 0;
+      entry.approved += toNum(app.approvedAmount);
     }
     byType.set(app.aidType, entry);
   }

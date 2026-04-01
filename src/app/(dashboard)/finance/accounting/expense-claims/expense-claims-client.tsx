@@ -13,13 +13,14 @@ import {
   markClaimPaidAction,
 } from "@/modules/accounting/actions/expense-claim.action";
 
-interface ClaimItem { id: string; description: string; amount: number; date: Date | string; receiptUrl: string | null; }
+import type { Monetary } from "@/lib/monetary";
+interface ClaimItem { id: string; description: string; amount: Monetary; date: Date | string; receiptUrl: string | null; }
 interface Claim {
   id: string;
   claimantId: string;
   claimantName: string;
   description: string;
-  totalAmount: number;
+  totalAmount: Monetary;
   status: string;
   submittedAt: Date | string;
   approvedByName: string | null;
@@ -43,8 +44,8 @@ const STATUS_STYLES: Record<string, { label: string; className: string }> = {
   PAID: { label: "Paid", className: "bg-blue-100 text-blue-700" },
 };
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function ExpenseClaimsClient({
@@ -69,7 +70,7 @@ export function ExpenseClaimsClient({
     return claims.filter((c) => c.status === statusFilter);
   }, [claims, statusFilter]);
 
-  const totalClaimed = claims.reduce((sum, c) => sum + c.totalAmount, 0);
+  const totalClaimed = claims.reduce((sum, c) => sum + Number(c.totalAmount), 0);
   const pendingCount = claims.filter((c) => c.status === "SUBMITTED").length;
 
   function addItem() {

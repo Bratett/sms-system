@@ -9,7 +9,7 @@ export default async function WaiversPage() {
   }
 
   const waiversResult = await getWaiversAction();
-  const waivers = waiversResult.data ?? [];
+  const waivers = "data" in waiversResult ? waiversResult.data ?? [] : [];
 
   return <WaiversClient waivers={waivers} />;
 }

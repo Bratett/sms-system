@@ -13,19 +13,20 @@ import {
   recordTaxPaymentAction,
 } from "@/modules/accounting/actions/tax-compliance.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface TaxRecord {
   id: string;
   taxType: string;
   period: string;
-  amount: number;
+  amount: Monetary;
   dueDate: Date | string;
-  paidAmount: number;
+  paidAmount: Monetary;
   paidDate: Date | string | null;
   referenceNumber: string | null;
   status: string;
   filedByName: string | null;
   isOverdue: boolean;
-  outstanding: number;
+  outstanding: Monetary;
 }
 
 interface Summary {
@@ -50,8 +51,8 @@ const TAX_TYPE_STYLES: Record<string, string> = {
   SSNIT: "bg-green-100 text-green-700",
 };
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function TaxComplianceClient({ records, summary }: { records: TaxRecord[]; summary: Summary | null }) {
@@ -93,7 +94,7 @@ export function TaxComplianceClient({ records, summary }: { records: TaxRecord[]
 
   function handleOpenPayment(record: TaxRecord) {
     setSelectedRecord(record);
-    setPaymentAmount(record.outstanding);
+    setPaymentAmount(Number(record.outstanding));
     setPaymentRef("");
     setShowPaymentModal(true);
   }
@@ -184,7 +185,7 @@ export function TaxComplianceClient({ records, summary }: { records: TaxRecord[]
                             trigger={<button className="text-xs text-primary hover:underline">File</button>}
                           />
                         )}
-                        {record.outstanding > 0 && record.status !== "PENDING" && (
+                        {Number(record.outstanding) > 0 && record.status !== "PENDING" && (
                           <button onClick={() => handleOpenPayment(record)} className="text-xs text-green-600 hover:underline">Record Payment</button>
                         )}
                       </div>

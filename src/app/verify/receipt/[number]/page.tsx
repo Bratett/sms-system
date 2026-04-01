@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { toNum } from "@/lib/decimal";
 
 export const dynamic = "force-dynamic";
 
@@ -111,7 +112,7 @@ export default async function ReceiptVerificationPage({
                 {bill.billItems.map((item) => (
                   <div key={item.id} className="flex justify-between text-sm">
                     <span className="text-gray-600">{item.feeItem.name}</span>
-                    <span>{formatCurrency(item.amount)}</span>
+                    <span>{formatCurrency(toNum(item.amount))}</span>
                   </div>
                 ))}
               </div>
@@ -121,11 +122,11 @@ export default async function ReceiptVerificationPage({
             <div className="border-t border-gray-100 pt-4">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Bill Total:</span>
-                <span>{formatCurrency(bill.totalAmount)}</span>
+                <span>{formatCurrency(toNum(bill.totalAmount))}</span>
               </div>
               <div className="flex justify-between text-lg font-bold mt-2">
                 <span>Amount Paid:</span>
-                <span className="text-green-600">{formatCurrency(payment.amount)}</span>
+                <span className="text-green-600">{formatCurrency(toNum(payment.amount))}</span>
               </div>
               {payment.referenceNumber && (
                 <div className="flex justify-between text-sm mt-1">

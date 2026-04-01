@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { toNum } from "@/lib/decimal";
 
 export async function getDashboardStatsAction() {
   const session = await auth();
@@ -123,9 +124,9 @@ export async function getDashboardStatsAction() {
   ]);
 
   // ── Compute derived stats ──────────────────────────────────
-  const totalBilled = financeAgg._sum.totalAmount ?? 0;
-  const totalCollected = financeAgg._sum.paidAmount ?? 0;
-  const totalOutstanding = financeAgg._sum.balanceAmount ?? 0;
+  const totalBilled = toNum(financeAgg._sum.totalAmount);
+  const totalCollected = toNum(financeAgg._sum.paidAmount);
+  const totalOutstanding = toNum(financeAgg._sum.balanceAmount);
   const collectionRate = totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 100) : 0;
 
   // Attendance rate for today
@@ -251,15 +252,15 @@ async function getFinanceDashboard(termId?: string, academicYearId?: string) {
     db.paymentReversal.count({ where: { status: "PENDING" } }),
   ]);
 
-  const totalBilled = billStats._sum.totalAmount ?? 0;
-  const totalCollected = billStats._sum.paidAmount ?? 0;
+  const totalBilled = toNum(billStats._sum.totalAmount);
+  const totalCollected = toNum(billStats._sum.paidAmount);
 
   return {
     data: {
       role: "finance_officer",
       totalBilled,
       totalCollected,
-      outstanding: billStats._sum.balanceAmount ?? 0,
+      outstanding: toNum(billStats._sum.balanceAmount),
       collectionRate: totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 100) : 0,
       billCount: billStats._count,
       todayPayments,

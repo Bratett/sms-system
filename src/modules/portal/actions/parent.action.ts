@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { toNum } from "@/lib/decimal";
 
 // ─── Helper: verify parent has access to a student ────────────────────
 
@@ -76,7 +77,7 @@ export async function getParentChildrenAction() {
         },
         select: { balanceAmount: true },
       });
-      const feeBalance = bills.reduce((sum, b) => sum + b.balanceAmount, 0);
+      const feeBalance = bills.reduce((sum, b) => sum + toNum(b.balanceAmount), 0);
 
       // Attendance rate: count present / total for current term
       const currentTerm = await db.term.findFirst({
@@ -320,9 +321,9 @@ export async function getChildFeesAction(studentId: string) {
   }));
 
   // Summary
-  const totalFees = bills.reduce((sum, b) => sum + b.totalAmount, 0);
-  const totalPaid = bills.reduce((sum, b) => sum + b.paidAmount, 0);
-  const totalBalance = bills.reduce((sum, b) => sum + b.balanceAmount, 0);
+  const totalFees = bills.reduce((sum, b) => sum + toNum(b.totalAmount), 0);
+  const totalPaid = bills.reduce((sum, b) => sum + toNum(b.paidAmount), 0);
+  const totalBalance = bills.reduce((sum, b) => sum + toNum(b.balanceAmount), 0);
 
   return {
     data: {

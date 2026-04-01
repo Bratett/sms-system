@@ -13,10 +13,11 @@ import {
   rejectExpenseAction,
 } from "@/modules/accounting/actions/expense.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface Expense {
   id: string;
   description: string;
-  amount: number;
+  amount: Monetary;
   date: Date | string;
   payee: string | null;
   referenceNumber: string | null;
@@ -42,8 +43,8 @@ interface Pagination {
   totalPages: number;
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const STATUS_TABS = ["All", "PENDING", "APPROVED", "REJECTED", "PAID"] as const;
@@ -99,9 +100,9 @@ export function ExpensesClient({
 
   const filteredExpenses = activeTab === "All" ? expenses : expenses.filter((e) => e.status === activeTab);
 
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const pendingTotal = expenses.filter((e) => e.status === "PENDING").reduce((sum, e) => sum + e.amount, 0);
-  const approvedTotal = expenses.filter((e) => e.status === "APPROVED" || e.status === "PAID").reduce((sum, e) => sum + e.amount, 0);
+  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const pendingTotal = expenses.filter((e) => e.status === "PENDING").reduce((sum, e) => sum + Number(e.amount), 0);
+  const approvedTotal = expenses.filter((e) => e.status === "APPROVED" || e.status === "PAID").reduce((sum, e) => sum + Number(e.amount), 0);
 
   const categoryColorMap = new Map<string, string>();
   categories.forEach((cat, i) => categoryColorMap.set(cat.name, CATEGORY_COLORS[i % CATEGORY_COLORS.length]));

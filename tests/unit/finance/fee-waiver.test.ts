@@ -9,6 +9,11 @@ import {
 describe("Fee Waiver Actions", () => {
   beforeEach(() => {
     mockAuthenticatedUser();
+    // requestFeeWaiverAction uses db.$transaction, mock it to call the callback with prismaMock
+    prismaMock.$transaction.mockImplementation(async (fn: unknown) => {
+      if (typeof fn === "function") return fn(prismaMock);
+      return fn;
+    });
   });
 
   describe("requestFeeWaiverAction", () => {
@@ -38,7 +43,7 @@ describe("Fee Waiver Actions", () => {
     it("should reject if bill not found", async () => {
       prismaMock.studentBill.findUnique.mockResolvedValue(null);
       const result = await requestFeeWaiverAction(validInput);
-      expect(result).toEqual({ error: "Student bill not found" });
+      expect(result.error).toBe("Student bill not found");
     });
 
     it("should reject if bill already paid", async () => {

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import { getPaymentProvider, getProviderForCurrency } from "@/lib/payment/registry";
 import { CURRENCIES } from "@/lib/payment/types";
 
@@ -33,8 +34,8 @@ export async function initiateOnlinePaymentAction(data: {
     return { error: "This bill is already fully paid" };
   }
 
-  if (data.amount > bill.balanceAmount) {
-    return { error: `Amount exceeds outstanding balance of ${bill.balanceAmount.toFixed(2)}` };
+  if (data.amount > toNum(bill.balanceAmount)) {
+    return { error: `Amount exceeds outstanding balance of ${toNum(bill.balanceAmount).toFixed(2)}` };
   }
 
   // Resolve payment provider

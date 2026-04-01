@@ -10,6 +10,7 @@ import {
 
 // ─── Types ──────────────────────────────────────────────────────────
 
+import type { Monetary } from "@/lib/monetary";
 interface BookIssue {
   id: string;
   borrowerId: string;
@@ -19,7 +20,7 @@ interface BookIssue {
   dueDate: Date | string;
   returnedAt: Date | string | null;
   status: string;
-  fineAmount: number | null;
+  fineAmount: Monetary | null;
   [key: string]: unknown;
 }
 

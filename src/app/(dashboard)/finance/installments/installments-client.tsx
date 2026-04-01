@@ -13,9 +13,10 @@ import {
   deleteInstallmentPlanAction,
 } from "@/modules/finance/actions/installment.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface Schedule {
   installmentNumber: number;
-  percentageOfTotal: number;
+  percentageOfTotal: Monetary;
   dueDaysFromStart: number;
   label: string | null;
 }
@@ -44,8 +45,8 @@ interface ScheduleFormItem {
   label: string;
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function InstallmentsClient({
@@ -256,7 +257,7 @@ export function InstallmentsClient({
                                 <tr key={s.installmentNumber}>
                                   <td className="px-3 py-2 text-sm">{s.installmentNumber}</td>
                                   <td className="px-3 py-2 text-sm">{s.label ?? `Installment ${s.installmentNumber}`}</td>
-                                  <td className="px-3 py-2 text-sm">{s.percentageOfTotal}%</td>
+                                  <td className="px-3 py-2 text-sm">{Number(s.percentageOfTotal)}%</td>
                                   <td className="px-3 py-2 text-sm">{s.dueDaysFromStart} days</td>
                                 </tr>
                               ))}

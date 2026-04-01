@@ -3,6 +3,8 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
+import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import {
   createGovernmentSubsidySchema,
   updateGovernmentSubsidySchema,
@@ -19,6 +21,8 @@ export async function getGovernmentSubsidiesAction(filters?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.SUBSIDIES_READ);
+  if (permErr) return permErr;
 
   const school = await db.school.findFirst();
   if (!school) return { error: "School not found" };
@@ -60,7 +64,7 @@ export async function getGovernmentSubsidiesAction(filters?: {
     ...s,
     academicYearName: ayMap.get(s.academicYearId) ?? "Unknown",
     termName: s.termId ? termMap.get(s.termId) ?? null : null,
-    variance: s.expectedAmount - s.receivedAmount,
+    variance: toNum(s.expectedAmount) - toNum(s.receivedAmount),
     disbursementCount: s.disbursements.length,
   }));
 
@@ -102,6 +106,8 @@ export async function getGovernmentSubsidyAction(subsidyId: string) {
 export async function createGovernmentSubsidyAction(data: CreateGovernmentSubsidyInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.SUBSIDIES_CREATE);
+  if (permErr) return permErr;
 
   const parsed = createGovernmentSubsidySchema.safeParse(data);
   if (!parsed.success) {
@@ -139,6 +145,8 @@ export async function createGovernmentSubsidyAction(data: CreateGovernmentSubsid
 export async function updateGovernmentSubsidyAction(subsidyId: string, data: UpdateGovernmentSubsidyInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.SUBSIDIES_UPDATE);
+  if (permErr) return permErr;
 
   const parsed = updateGovernmentSubsidySchema.safeParse(data);
   if (!parsed.success) {
@@ -168,6 +176,8 @@ export async function updateGovernmentSubsidyAction(subsidyId: string, data: Upd
 export async function recordDisbursementAction(data: RecordDisbursementInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.SUBSIDIES_RECORD_DISBURSEMENT);
+  if (permErr) return permErr;
 
   const parsed = recordDisbursementSchema.safeParse(data);
   if (!parsed.success) {
@@ -179,9 +189,7 @@ export async function recordDisbursementAction(data: RecordDisbursementInput) {
   });
   if (!subsidy) return { error: "Subsidy not found" };
 
-  const newReceivedTotal = subsidy.receivedAmount + parsed.data.amount;
-
-  await db.$transaction(async (tx) => {
+  const updated = await db.$transaction(async (tx) => {
     await tx.subsidyDisbursement.create({
       data: {
         governmentSubsidyId: subsidy.id,
@@ -193,20 +201,30 @@ export async function recordDisbursementAction(data: RecordDisbursementInput) {
       },
     });
 
-    // Update subsidy received amount and status
-    const newStatus = newReceivedTotal >= subsidy.expectedAmount
+    // Atomically increment receivedAmount to avoid lost updates on concurrent disbursements
+    const updatedSubsidy = await tx.governmentSubsidy.update({
+      where: { id: subsidy.id },
+      data: {
+        receivedAmount: { increment: parsed.data.amount },
+        receivedAt: new Date(),
+      },
+    });
+
+    // Set status based on the atomically updated receivedAmount
+    const newStatus = toNum(updatedSubsidy.receivedAmount) >= toNum(subsidy.expectedAmount)
       ? "RECEIVED"
       : "PARTIALLY_RECEIVED";
 
-    await tx.governmentSubsidy.update({
-      where: { id: subsidy.id },
-      data: {
-        receivedAmount: newReceivedTotal,
-        receivedAt: new Date(),
-        status: newStatus,
-      },
-    });
+    if (updatedSubsidy.status !== newStatus) {
+      return tx.governmentSubsidy.update({
+        where: { id: subsidy.id },
+        data: { status: newStatus },
+      });
+    }
+    return updatedSubsidy;
   });
+
+  const newReceivedTotal = toNum(updated.receivedAmount);
 
   await audit({
     userId: session.user.id!,
@@ -217,7 +235,7 @@ export async function recordDisbursementAction(data: RecordDisbursementInput) {
     description: `Recorded disbursement of GHS ${parsed.data.amount} for "${subsidy.name}" (total received: GHS ${newReceivedTotal})`,
   });
 
-  return { data: { newReceivedTotal, remainingAmount: subsidy.expectedAmount - newReceivedTotal } };
+  return { data: { newReceivedTotal, remainingAmount: toNum(subsidy.expectedAmount) - newReceivedTotal } };
 }
 
 export async function deleteGovernmentSubsidyAction(subsidyId: string) {
@@ -260,15 +278,15 @@ export async function getSubsidySummaryAction(academicYearId?: string) {
 
   const subsidies = await db.governmentSubsidy.findMany({ where });
 
-  const totalExpected = subsidies.reduce((sum, s) => sum + s.expectedAmount, 0);
-  const totalReceived = subsidies.reduce((sum, s) => sum + s.receivedAmount, 0);
+  const totalExpected = subsidies.reduce((sum, s) => sum + toNum(s.expectedAmount), 0);
+  const totalReceived = subsidies.reduce((sum, s) => sum + toNum(s.receivedAmount), 0);
   const totalVariance = totalExpected - totalReceived;
 
   const byType = new Map<string, { type: string; expected: number; received: number; count: number }>();
   for (const s of subsidies) {
     const entry = byType.get(s.subsidyType) ?? { type: s.subsidyType, expected: 0, received: 0, count: 0 };
-    entry.expected += s.expectedAmount;
-    entry.received += s.receivedAmount;
+    entry.expected += toNum(s.expectedAmount);
+    entry.received += toNum(s.receivedAmount);
     entry.count++;
     byType.set(s.subsidyType, entry);
   }

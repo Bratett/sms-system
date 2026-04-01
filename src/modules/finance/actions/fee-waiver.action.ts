@@ -3,6 +3,8 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
+import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import {
   requestFeeWaiverSchema,
   type RequestFeeWaiverInput,
@@ -15,6 +17,8 @@ export async function getWaiversAction(filters?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.FEE_WAIVERS_READ);
+  if (permErr) return permErr;
 
   const school = await db.school.findFirst();
   if (!school) return { error: "School not found" };
@@ -103,6 +107,8 @@ export async function getWaiversAction(filters?: {
 export async function requestFeeWaiverAction(data: RequestFeeWaiverInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.FEE_WAIVERS_CREATE);
+  if (permErr) return permErr;
 
   const parsed = requestFeeWaiverSchema.safeParse(data);
   if (!parsed.success) {
@@ -112,50 +118,63 @@ export async function requestFeeWaiverAction(data: RequestFeeWaiverInput) {
   const school = await db.school.findFirst();
   if (!school) return { error: "School not found" };
 
-  const bill = await db.studentBill.findUnique({
-    where: { id: parsed.data.studentBillId },
-    include: { billItems: true },
-  });
-  if (!bill) return { error: "Student bill not found" };
-  if (bill.status === "PAID" || bill.status === "OVERPAID" || bill.status === "WAIVED") {
-    return { error: "Cannot create a waiver for a bill that is already paid or waived" };
-  }
+  // Wrap in transaction to ensure bill balances are fresh
+  const result = await db.$transaction(async (tx) => {
+    const bill = await tx.studentBill.findUnique({
+      where: { id: parsed.data.studentBillId },
+      include: { billItems: true },
+    });
+    if (!bill) throw new Error("Student bill not found");
+    if (bill.status === "PAID" || bill.status === "OVERPAID" || bill.status === "WAIVED") {
+      throw new Error("Cannot create a waiver for a bill that is already paid or waived");
+    }
 
-  // Calculate the actual waiver amount
-  let calculatedAmount = 0;
-  const baseAmount = parsed.data.studentBillItemId
-    ? bill.billItems.find((i) => i.id === parsed.data.studentBillItemId)?.amount ?? 0
-    : bill.totalAmount;
+    // Calculate the actual waiver amount
+    let calculatedAmount = 0;
+    const baseAmount = parsed.data.studentBillItemId
+      ? toNum(bill.billItems.find((i) => i.id === parsed.data.studentBillItemId)?.amount) ?? 0
+      : toNum(bill.totalAmount);
 
-  switch (parsed.data.waiverType) {
-    case "PERCENTAGE":
-    case "STAFF_CHILD_DISCOUNT":
-    case "SIBLING_DISCOUNT":
-      calculatedAmount = baseAmount * (parsed.data.value / 100);
-      break;
-    case "FIXED_AMOUNT":
-      calculatedAmount = Math.min(parsed.data.value, baseAmount);
-      break;
-    case "FULL_WAIVER":
-      calculatedAmount = bill.balanceAmount;
-      break;
-  }
+    switch (parsed.data.waiverType) {
+      case "PERCENTAGE":
+      case "STAFF_CHILD_DISCOUNT":
+      case "SIBLING_DISCOUNT":
+        calculatedAmount = baseAmount * (parsed.data.value / 100);
+        break;
+      case "FIXED_AMOUNT":
+        calculatedAmount = Math.min(parsed.data.value, baseAmount);
+        break;
+      case "FULL_WAIVER":
+        calculatedAmount = toNum(bill.balanceAmount);
+        break;
+    }
 
-  calculatedAmount = Math.round(calculatedAmount * 100) / 100;
+    calculatedAmount = Math.round(calculatedAmount * 100) / 100;
 
-  const waiver = await db.feeWaiver.create({
-    data: {
-      schoolId: school.id,
-      studentBillId: bill.id,
-      studentBillItemId: parsed.data.studentBillItemId,
-      requestedBy: session.user.id!,
-      reason: parsed.data.reason,
-      waiverType: parsed.data.waiverType,
-      value: parsed.data.value,
-      calculatedAmount,
-      notes: parsed.data.notes,
-    },
-  });
+    // Clamp to live outstanding balance to prevent over-waiver
+    calculatedAmount = Math.min(calculatedAmount, toNum(bill.balanceAmount));
+    if (calculatedAmount <= 0) throw new Error("No outstanding balance to waive");
+
+    const waiver = await tx.feeWaiver.create({
+      data: {
+        schoolId: school.id,
+        studentBillId: bill.id,
+        studentBillItemId: parsed.data.studentBillItemId,
+        requestedBy: session.user.id!,
+        reason: parsed.data.reason,
+        waiverType: parsed.data.waiverType,
+        value: parsed.data.value,
+        calculatedAmount,
+        notes: parsed.data.notes,
+      },
+    });
+
+    return { waiver, calculatedAmount };
+  }).catch((e: Error) => ({ error: e.message }));
+
+  if ("error" in result) return { error: result.error };
+
+  const { waiver, calculatedAmount } = result;
 
   await audit({
     userId: session.user.id!,
@@ -172,6 +191,8 @@ export async function requestFeeWaiverAction(data: RequestFeeWaiverInput) {
 export async function approveFeeWaiverAction(waiverId: string, notes?: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.FEE_WAIVERS_APPROVE);
+  if (permErr) return permErr;
 
   const waiver = await db.feeWaiver.findUnique({
     where: { id: waiverId },
@@ -193,8 +214,8 @@ export async function approveFeeWaiverAction(waiverId: string, notes?: string) {
     });
 
     // Apply waiver to bill
-    const newTotal = Math.max(0, waiver.studentBill.totalAmount - waiver.calculatedAmount);
-    const newBalance = Math.max(0, waiver.studentBill.balanceAmount - waiver.calculatedAmount);
+    const newTotal = Math.max(0, toNum(waiver.studentBill.totalAmount) - toNum(waiver.calculatedAmount));
+    const newBalance = Math.max(0, toNum(waiver.studentBill.balanceAmount) - toNum(waiver.calculatedAmount));
 
     let newStatus = waiver.studentBill.status;
     if (newBalance === 0 && newTotal === 0) {
@@ -229,7 +250,7 @@ export async function approveFeeWaiverAction(waiverId: string, notes?: string) {
     entity: "FeeWaiver",
     entityId: waiverId,
     module: "finance",
-    description: `Approved fee waiver of GHS ${waiver.calculatedAmount.toFixed(2)}`,
+    description: `Approved fee waiver of GHS ${toNum(waiver.calculatedAmount).toFixed(2)}`,
   });
 
   return { data: { success: true } };
@@ -238,6 +259,8 @@ export async function approveFeeWaiverAction(waiverId: string, notes?: string) {
 export async function rejectFeeWaiverAction(waiverId: string, notes?: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.FEE_WAIVERS_APPROVE);
+  if (permErr) return permErr;
 
   const waiver = await db.feeWaiver.findUnique({ where: { id: waiverId } });
   if (!waiver) return { error: "Fee waiver not found" };

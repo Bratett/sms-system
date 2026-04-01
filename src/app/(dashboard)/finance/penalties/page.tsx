@@ -14,7 +14,7 @@ export default async function PenaltiesPage() {
     getFeeStructuresAction(),
   ]);
 
-  const penaltyRules = penaltyRulesResult.data ?? [];
+  const penaltyRules = "data" in penaltyRulesResult ? penaltyRulesResult.data ?? [] : [];
   const feeStructures = (feeStructuresResult.data ?? []).filter(
     (fs: { status: string }) => fs.status === "ACTIVE"
   );

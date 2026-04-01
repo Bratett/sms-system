@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   createPettyCashFundSchema,
   recordPettyCashTransactionSchema,
@@ -35,7 +36,7 @@ export async function getPettyCashFundsAction() {
     ...f,
     custodianName: userMap.get(f.custodianId) ?? "Unknown",
     transactionCount: f._count.transactions,
-    utilizationRate: f.authorizedLimit > 0 ? ((f.authorizedLimit - f.currentBalance) / f.authorizedLimit) * 100 : 0,
+    utilizationRate: toNum(f.authorizedLimit) > 0 ? ((toNum(f.authorizedLimit) - toNum(f.currentBalance)) / toNum(f.authorizedLimit)) * 100 : 0,
   }));
 
   return { data };
@@ -71,8 +72,8 @@ export async function recordPettyCashTransactionAction(data: RecordPettyCashTran
   if (!fund) return { error: "Petty cash fund not found" };
   if (!fund.isActive) return { error: "Fund is inactive" };
 
-  if (parsed.data.type === "DISBURSEMENT" && parsed.data.amount > fund.currentBalance) {
-    return { error: `Insufficient balance. Available: GHS ${fund.currentBalance.toFixed(2)}` };
+  if (parsed.data.type === "DISBURSEMENT" && parsed.data.amount > toNum(fund.currentBalance)) {
+    return { error: `Insufficient balance. Available: GHS ${toNum(fund.currentBalance).toFixed(2)}` };
   }
 
   const balanceChange = parsed.data.type === "DISBURSEMENT" ? -parsed.data.amount : parsed.data.amount;
@@ -90,7 +91,7 @@ export async function recordPettyCashTransactionAction(data: RecordPettyCashTran
 
   await audit({ userId: session.user.id!, action: "CREATE", entity: "PettyCashTransaction", entityId: fund.id, module: "accounting", description: `${parsed.data.type} of GHS ${parsed.data.amount} from "${fund.name}"` });
 
-  return { data: { success: true, newBalance: fund.currentBalance + balanceChange } };
+  return { data: { success: true, newBalance: toNum(fund.currentBalance) + balanceChange } };
 }
 
 export async function getPettyCashTransactionsAction(fundId: string) {

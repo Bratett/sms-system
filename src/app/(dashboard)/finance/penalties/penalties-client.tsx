@@ -15,13 +15,14 @@ import {
   applyPenaltiesAction,
 } from "@/modules/finance/actions/penalty.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface PenaltyRule {
   id: string;
   name: string;
   type: string;
-  value: number;
+  value: Monetary;
   gracePeriodDays: number;
-  maxPenalty: number | null;
+  maxPenalty: Monetary | null;
   feeStructureId: string | null;
   feeStructureName: string | null;
   appliedCount: number;
@@ -54,8 +55,8 @@ const TYPE_BADGES: Record<PenaltyType, { label: string; className: string }> = {
   DAILY_FIXED: { label: "Daily Fixed", className: "bg-orange-100 text-orange-700" },
 };
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function getValueLabel(type: PenaltyType): string {
@@ -98,7 +99,7 @@ export function PenaltiesClient({
     setFormData({
       name: rule.name,
       type: rule.type as PenaltyType,
-      value: rule.value,
+      value: Number(rule.value),
       gracePeriodDays: rule.gracePeriodDays,
       maxPenalty: rule.maxPenalty != null ? String(rule.maxPenalty) : "",
       feeStructureId: rule.feeStructureId ?? "",
@@ -147,7 +148,7 @@ export function PenaltiesClient({
   function handleDelete(rule: PenaltyRule) {
     startTransition(async () => {
       const result = await deleteLatePenaltyRuleAction(rule.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -171,7 +172,7 @@ export function PenaltiesClient({
   function handleApplyPenalties() {
     startTransition(async () => {
       const result = await applyPenaltiesAction();
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

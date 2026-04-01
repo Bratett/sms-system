@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   createAssetCategorySchema,
   createFixedAssetSchema,
@@ -101,7 +102,7 @@ export async function getFixedAssetsAction(filters?: {
     categoryCode: a.category.code,
     depreciationCount: a._count.depreciationRecords,
     maintenanceCount: a._count.maintenanceRecords,
-    accumulatedDepreciation: a.purchasePrice - a.currentValue,
+    accumulatedDepreciation: toNum(a.purchasePrice) - toNum(a.currentValue),
   }));
 
   return { data, pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
@@ -223,8 +224,8 @@ export async function getAssetSummaryAction() {
     include: { category: { select: { name: true } } },
   });
 
-  const totalPurchaseValue = assets.reduce((sum, a) => sum + a.purchasePrice, 0);
-  const totalCurrentValue = assets.reduce((sum, a) => sum + a.currentValue, 0);
+  const totalPurchaseValue = assets.reduce((sum, a) => sum + toNum(a.purchasePrice), 0);
+  const totalCurrentValue = assets.reduce((sum, a) => sum + toNum(a.currentValue), 0);
   const totalDepreciation = totalPurchaseValue - totalCurrentValue;
   const activeCount = assets.filter((a) => a.status === "ACTIVE").length;
 
@@ -233,8 +234,8 @@ export async function getAssetSummaryAction() {
     const cat = a.category.name;
     const entry = byCategory.get(cat) ?? { category: cat, count: 0, purchaseValue: 0, currentValue: 0 };
     entry.count++;
-    entry.purchaseValue += a.purchasePrice;
-    entry.currentValue += a.currentValue;
+    entry.purchaseValue += toNum(a.purchasePrice);
+    entry.currentValue += toNum(a.currentValue);
     byCategory.set(cat, entry);
   }
 

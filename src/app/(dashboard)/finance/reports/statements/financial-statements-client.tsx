@@ -20,10 +20,11 @@ import {
 
 type ReportTab = "trial_balance" | "balance_sheet" | "income_statement" | "cash_flow" | "board_summary";
 
-interface Account { id: string; code: string; name: string; currentBalance: number; category: { name: string; type: string }; }
+import type { Monetary } from "@/lib/monetary";
+interface Account { id: string; code: string; name: string; currentBalance: Monetary; category: { name: string; type: string }; }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,8 +56,8 @@ export function FinancialStatementsClient({ accounts }: { accounts: Account[] })
           result = await generateBoardSummaryAction(new Date(periodStart), new Date(periodEnd));
           break;
       }
-      if (result?.error) { toast.error(result.error); return; }
-      setReportData(result?.data);
+      if (result && "error" in result) { toast.error(result.error); return; }
+      setReportData(result && "data" in result ? result.data : undefined);
       toast.success("Report generated");
     });
   }

@@ -12,6 +12,7 @@ import {
   getReconciliationEntriesAction,
 } from "@/modules/finance/actions/bank-reconciliation.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface Reconciliation {
   id: string;
   bankName: string;
@@ -31,17 +32,17 @@ interface Entry {
   transactionDate: Date | string;
   description: string;
   reference: string | null;
-  debitAmount: number | null;
-  creditAmount: number | null;
-  balance: number | null;
+  debitAmount: Monetary | null;
+  creditAmount: Monetary | null;
+  balance: Monetary | null;
   matchStatus: string;
   matchedPaymentId: string | null;
 }
 
 interface Pagination { page: number; pageSize: number; total: number; totalPages: number; }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const MATCH_STYLES: Record<string, { label: string; className: string }> = {

@@ -1,5 +1,6 @@
 import { createWorker, QUEUE_NAMES, type FinancePenaltyJobData } from "@/lib/queue";
 import { PrismaClient } from "@prisma/client";
+import { toNum } from "@/lib/decimal";
 
 const db = new PrismaClient();
 
@@ -50,16 +51,16 @@ export function startFinancePenaltyWorker() {
           let penaltyAmount = 0;
           switch (rule.type) {
             case "PERCENTAGE":
-              penaltyAmount = bill.balanceAmount * (rule.value / 100);
+              penaltyAmount = toNum(bill.balanceAmount) * (toNum(rule.value) / 100);
               break;
             case "FIXED_AMOUNT":
-              penaltyAmount = rule.value;
+              penaltyAmount = toNum(rule.value);
               break;
             case "DAILY_PERCENTAGE":
-              penaltyAmount = bill.balanceAmount * (rule.value / 100) * (daysPastDue - rule.gracePeriodDays);
+              penaltyAmount = toNum(bill.balanceAmount) * (toNum(rule.value) / 100) * (daysPastDue - rule.gracePeriodDays);
               break;
             case "DAILY_FIXED":
-              penaltyAmount = rule.value * (daysPastDue - rule.gracePeriodDays);
+              penaltyAmount = toNum(rule.value) * (daysPastDue - rule.gracePeriodDays);
               break;
           }
 
@@ -67,8 +68,8 @@ export function startFinancePenaltyWorker() {
           if (rule.maxPenalty !== null) {
             const existingTotal = bill.penalties
               .filter((p) => p.latePenaltyRuleId === rule.id && !p.waived)
-              .reduce((sum, p) => sum + p.amount, 0);
-            const remaining = rule.maxPenalty - existingTotal;
+              .reduce((sum, p) => sum + toNum(p.amount), 0);
+            const remaining = toNum(rule.maxPenalty) - existingTotal;
             if (remaining <= 0) continue;
             penaltyAmount = Math.min(penaltyAmount, remaining);
           }

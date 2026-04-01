@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 
 export async function getScholarshipsAction() {
   const session = await auth();
@@ -124,7 +125,7 @@ export async function updateScholarshipAction(
   }
 
   const newType = data.type ?? existing.type;
-  const newValue = data.value ?? existing.value;
+  const newValue = data.value ?? toNum(existing.value);
   if (newType === "PERCENTAGE" && newValue > 100) {
     return { error: "Percentage value cannot exceed 100" };
   }
@@ -231,10 +232,10 @@ export async function applyScholarshipAction(
 
   let appliedAmount: number;
   if (scholarship.type === "PERCENTAGE") {
-    const billTotal = studentBill?.totalAmount ?? 0;
-    appliedAmount = (scholarship.value / 100) * billTotal;
+    const billTotal = toNum(studentBill?.totalAmount);
+    appliedAmount = (toNum(scholarship.value) / 100) * billTotal;
   } else {
-    appliedAmount = scholarship.value;
+    appliedAmount = toNum(scholarship.value);
   }
 
   const studentScholarship = await db.studentScholarship.create({
