@@ -82,6 +82,7 @@ export function startFinanceReminderWorker() {
 
       // Get student contact info via guardians
       const studentIds = [...new Set(bills.map((b) => b.studentId))];
+      // Get student contact info via StudentGuardian -> Guardian
       const students = await db.student.findMany({
         where: { id: { in: studentIds } },
         select: {
@@ -90,7 +91,11 @@ export function startFinanceReminderWorker() {
           lastName: true,
           guardians: {
             where: { isPrimary: true },
-            select: { phone: true, email: true, firstName: true },
+            select: {
+              guardian: {
+                select: { phone: true, email: true, firstName: true },
+              },
+            },
             take: 1,
           },
         },
@@ -104,8 +109,9 @@ export function startFinanceReminderWorker() {
         const student = studentMap.get(bill.studentId);
         if (!student) continue;
 
-        const guardian = student.guardians[0];
-        if (!guardian) continue;
+        const guardianLink = student.guardians[0];
+        if (!guardianLink) continue;
+        const guardian = guardianLink.guardian;
 
         const studentName = `${student.firstName} ${student.lastName}`;
         const amount = `GHS ${bill.balanceAmount.toFixed(2)}`;
@@ -132,9 +138,7 @@ export function startFinanceReminderWorker() {
               schoolId,
               recipientPhone: guardian.phone,
               message,
-              type: "FEE_REMINDER",
               status: "QUEUED",
-              sentBy: "system",
             },
           });
 
