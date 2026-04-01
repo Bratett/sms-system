@@ -60,6 +60,8 @@ export const QUEUE_NAMES = {
   EXPORT: "report-export",
   BULK_IMPORT: "bulk-import",
   NOTIFICATIONS: "notifications",
+  FINANCE_PENALTIES: "finance-penalties",
+  FINANCE_REMINDERS: "finance-reminders",
 } as const;
 
 // ─── Job Type Definitions ──────────────────────────────────────────
@@ -98,4 +100,17 @@ export interface NotificationJobData {
   recipientIds: string[];
   channels: ("in_app" | "sms" | "email")[];
   data: Record<string, unknown>;
+}
+
+export interface FinancePenaltyJobData {
+  schoolId: string;
+  feeStructureId?: string; // null = all active structures
+  dryRun?: boolean;
+}
+
+export interface FinanceReminderJobData {
+  schoolId: string;
+  type: "upcoming_due" | "overdue" | "installment_due";
+  daysThreshold: number; // days before/after due date
+  channels: ("sms" | "email")[];
 }

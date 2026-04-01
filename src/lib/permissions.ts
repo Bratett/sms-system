@@ -110,6 +110,110 @@ export const PERMISSIONS = {
   FINANCE_REPORTS_READ: "finance:reports:read",
   FINANCE_REPORTS_EXPORT: "finance:reports:export",
 
+  // Finance - Fee Templates
+  FEE_TEMPLATES_CREATE: "finance:fee-templates:create",
+  FEE_TEMPLATES_READ: "finance:fee-templates:read",
+  FEE_TEMPLATES_UPDATE: "finance:fee-templates:update",
+  FEE_TEMPLATES_DELETE: "finance:fee-templates:delete",
+
+  // Finance - Installments
+  INSTALLMENTS_CREATE: "finance:installments:create",
+  INSTALLMENTS_READ: "finance:installments:read",
+  INSTALLMENTS_UPDATE: "finance:installments:update",
+
+  // Finance - Late Penalties
+  PENALTIES_CREATE: "finance:penalties:create",
+  PENALTIES_READ: "finance:penalties:read",
+  PENALTIES_APPLY: "finance:penalties:apply",
+  PENALTIES_WAIVE: "finance:penalties:waive",
+
+  // Finance - Fee Waivers
+  FEE_WAIVERS_CREATE: "finance:waivers:create",
+  FEE_WAIVERS_READ: "finance:waivers:read",
+  FEE_WAIVERS_APPROVE: "finance:waivers:approve",
+
+  // Finance - Government Subsidies
+  SUBSIDIES_CREATE: "finance:subsidies:create",
+  SUBSIDIES_READ: "finance:subsidies:read",
+  SUBSIDIES_UPDATE: "finance:subsidies:update",
+  SUBSIDIES_RECORD_DISBURSEMENT: "finance:subsidies:disburse",
+
+  // Finance - Donor Funds
+  DONOR_FUNDS_CREATE: "finance:donor-funds:create",
+  DONOR_FUNDS_READ: "finance:donor-funds:read",
+  DONOR_FUNDS_UPDATE: "finance:donor-funds:update",
+  DONOR_FUNDS_ALLOCATE: "finance:donor-funds:allocate",
+
+  // Finance - Financial Aid
+  FINANCIAL_AID_CREATE: "finance:financial-aid:create",
+  FINANCIAL_AID_READ: "finance:financial-aid:read",
+  FINANCIAL_AID_REVIEW: "finance:financial-aid:review",
+
+  // Finance - Payment Links
+  PAYMENT_LINKS_CREATE: "finance:payment-links:create",
+  PAYMENT_LINKS_READ: "finance:payment-links:read",
+
+  // Finance - Bank Reconciliation
+  BANK_RECONCILIATION_CREATE: "finance:bank-reconciliation:create",
+  BANK_RECONCILIATION_READ: "finance:bank-reconciliation:read",
+  BANK_RECONCILIATION_MATCH: "finance:bank-reconciliation:match",
+
+  // Accounting - Chart of Accounts
+  COA_CREATE: "accounting:coa:create",
+  COA_READ: "accounting:coa:read",
+  COA_UPDATE: "accounting:coa:update",
+
+  // Accounting - Journal Entries
+  JOURNAL_CREATE: "accounting:journal:create",
+  JOURNAL_READ: "accounting:journal:read",
+  JOURNAL_POST: "accounting:journal:post",
+  JOURNAL_REVERSE: "accounting:journal:reverse",
+
+  // Accounting - Expenses
+  EXPENSES_CREATE: "accounting:expenses:create",
+  EXPENSES_READ: "accounting:expenses:read",
+  EXPENSES_APPROVE: "accounting:expenses:approve",
+
+  // Accounting - Petty Cash
+  PETTY_CASH_CREATE: "accounting:petty-cash:create",
+  PETTY_CASH_READ: "accounting:petty-cash:read",
+  PETTY_CASH_TRANSACT: "accounting:petty-cash:transact",
+  PETTY_CASH_APPROVE: "accounting:petty-cash:approve",
+
+  // Accounting - Budgets
+  BUDGETS_CREATE: "accounting:budgets:create",
+  BUDGETS_READ: "accounting:budgets:read",
+  BUDGETS_APPROVE: "accounting:budgets:approve",
+
+  // Accounting - Expense Claims
+  EXPENSE_CLAIMS_CREATE: "accounting:expense-claims:create",
+  EXPENSE_CLAIMS_READ: "accounting:expense-claims:read",
+  EXPENSE_CLAIMS_APPROVE: "accounting:expense-claims:approve",
+
+  // Accounting - Financial Statements
+  FINANCIAL_STATEMENTS_READ: "accounting:statements:read",
+  FINANCIAL_STATEMENTS_GENERATE: "accounting:statements:generate",
+  FINANCIAL_STATEMENTS_EXPORT: "accounting:statements:export",
+
+  // Accounting - Tax Compliance
+  TAX_COMPLIANCE_CREATE: "accounting:tax:create",
+  TAX_COMPLIANCE_READ: "accounting:tax:read",
+  TAX_COMPLIANCE_FILE: "accounting:tax:file",
+
+  // Accounting - Audit Reports
+  AUDIT_REPORTS_READ: "accounting:audit-reports:read",
+  AUDIT_REPORTS_EXPORT: "accounting:audit-reports:export",
+
+  // Inventory - Fixed Assets
+  FIXED_ASSETS_CREATE: "inventory:fixed-assets:create",
+  FIXED_ASSETS_READ: "inventory:fixed-assets:read",
+  FIXED_ASSETS_UPDATE: "inventory:fixed-assets:update",
+  FIXED_ASSETS_DISPOSE: "inventory:fixed-assets:dispose",
+  DEPRECIATION_RUN: "inventory:depreciation:run",
+  DEPRECIATION_READ: "inventory:depreciation:read",
+  ASSET_MAINTENANCE_CREATE: "inventory:maintenance:create",
+  ASSET_MAINTENANCE_READ: "inventory:maintenance:read",
+
   // HR - Staff
   STAFF_CREATE: "hr:staff:create",
   STAFF_READ: "hr:staff:read",
@@ -435,6 +539,17 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.COCURRICULAR_READ,
     PERMISSIONS.AWARDS_READ,
     PERMISSIONS.AWARDS_CREATE,
+    // Phase 1A: Fee management enhancements
+    PERMISSIONS.FEE_TEMPLATES_READ,
+    PERMISSIONS.INSTALLMENTS_READ,
+    PERMISSIONS.PENALTIES_READ,
+    PERMISSIONS.FEE_WAIVERS_READ,
+    PERMISSIONS.FEE_WAIVERS_APPROVE,
+    // Phase 1B: Read access for subsidies, donor funds, financial aid
+    PERMISSIONS.SUBSIDIES_READ,
+    PERMISSIONS.DONOR_FUNDS_READ,
+    PERMISSIONS.FINANCIAL_AID_READ,
+    PERMISSIONS.FINANCIAL_AID_REVIEW,
   ],
   finance_officer: [
     PERMISSIONS.STUDENTS_READ,
@@ -459,6 +574,77 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.AUDIT_LOG_READ,
     PERMISSIONS.ANNOUNCEMENTS_CREATE,
     PERMISSIONS.ANNOUNCEMENTS_READ,
+    // Phase 1A: Fee management enhancements
+    PERMISSIONS.FEE_TEMPLATES_CREATE,
+    PERMISSIONS.FEE_TEMPLATES_READ,
+    PERMISSIONS.FEE_TEMPLATES_UPDATE,
+    PERMISSIONS.FEE_TEMPLATES_DELETE,
+    PERMISSIONS.INSTALLMENTS_CREATE,
+    PERMISSIONS.INSTALLMENTS_READ,
+    PERMISSIONS.INSTALLMENTS_UPDATE,
+    PERMISSIONS.PENALTIES_CREATE,
+    PERMISSIONS.PENALTIES_READ,
+    PERMISSIONS.PENALTIES_APPLY,
+    PERMISSIONS.PENALTIES_WAIVE,
+    PERMISSIONS.FEE_WAIVERS_CREATE,
+    PERMISSIONS.FEE_WAIVERS_READ,
+    // Phase 1B: Subsidies, Donor Funds, Financial Aid
+    PERMISSIONS.SUBSIDIES_CREATE,
+    PERMISSIONS.SUBSIDIES_READ,
+    PERMISSIONS.SUBSIDIES_UPDATE,
+    PERMISSIONS.SUBSIDIES_RECORD_DISBURSEMENT,
+    PERMISSIONS.DONOR_FUNDS_CREATE,
+    PERMISSIONS.DONOR_FUNDS_READ,
+    PERMISSIONS.DONOR_FUNDS_UPDATE,
+    PERMISSIONS.DONOR_FUNDS_ALLOCATE,
+    PERMISSIONS.FINANCIAL_AID_CREATE,
+    PERMISSIONS.FINANCIAL_AID_READ,
+    PERMISSIONS.FINANCIAL_AID_REVIEW,
+    // Phase 2: Payment links, bank reconciliation
+    PERMISSIONS.PAYMENT_LINKS_CREATE,
+    PERMISSIONS.PAYMENT_LINKS_READ,
+    PERMISSIONS.BANK_RECONCILIATION_CREATE,
+    PERMISSIONS.BANK_RECONCILIATION_READ,
+    PERMISSIONS.BANK_RECONCILIATION_MATCH,
+    // Phase 3: Accounting
+    PERMISSIONS.COA_CREATE,
+    PERMISSIONS.COA_READ,
+    PERMISSIONS.COA_UPDATE,
+    PERMISSIONS.JOURNAL_CREATE,
+    PERMISSIONS.JOURNAL_READ,
+    PERMISSIONS.JOURNAL_POST,
+    PERMISSIONS.JOURNAL_REVERSE,
+    PERMISSIONS.EXPENSES_CREATE,
+    PERMISSIONS.EXPENSES_READ,
+    PERMISSIONS.EXPENSES_APPROVE,
+    PERMISSIONS.PETTY_CASH_CREATE,
+    PERMISSIONS.PETTY_CASH_READ,
+    PERMISSIONS.PETTY_CASH_TRANSACT,
+    PERMISSIONS.PETTY_CASH_APPROVE,
+    PERMISSIONS.BUDGETS_CREATE,
+    PERMISSIONS.BUDGETS_READ,
+    PERMISSIONS.BUDGETS_APPROVE,
+    PERMISSIONS.EXPENSE_CLAIMS_CREATE,
+    PERMISSIONS.EXPENSE_CLAIMS_READ,
+    PERMISSIONS.EXPENSE_CLAIMS_APPROVE,
+    // Phase 4: Financial statements, tax, audit
+    PERMISSIONS.FINANCIAL_STATEMENTS_READ,
+    PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE,
+    PERMISSIONS.FINANCIAL_STATEMENTS_EXPORT,
+    PERMISSIONS.TAX_COMPLIANCE_CREATE,
+    PERMISSIONS.TAX_COMPLIANCE_READ,
+    PERMISSIONS.TAX_COMPLIANCE_FILE,
+    PERMISSIONS.AUDIT_REPORTS_READ,
+    PERMISSIONS.AUDIT_REPORTS_EXPORT,
+    // Phase 5: Fixed assets
+    PERMISSIONS.FIXED_ASSETS_CREATE,
+    PERMISSIONS.FIXED_ASSETS_READ,
+    PERMISSIONS.FIXED_ASSETS_UPDATE,
+    PERMISSIONS.FIXED_ASSETS_DISPOSE,
+    PERMISSIONS.DEPRECIATION_RUN,
+    PERMISSIONS.DEPRECIATION_READ,
+    PERMISSIONS.ASSET_MAINTENANCE_CREATE,
+    PERMISSIONS.ASSET_MAINTENANCE_READ,
   ],
   assistant_headmaster_academic: [
     PERMISSIONS.SCHOOL_SETTINGS_READ,

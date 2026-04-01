@@ -205,3 +205,124 @@ enum PurchaseOrderStatus {
   RECEIVED
   CANCELLED
 }
+
+// ─── Phase 5: Fixed Asset Register ───────────────────────────────
+
+model AssetCategory {
+  id                        String              @id @default(cuid())
+  schoolId                  String
+  name                      String              // Furniture, ICT Equipment, Vehicles, Buildings, Lab Equipment
+  code                      String?
+  defaultUsefulLife         Int?                // years
+  defaultDepreciationMethod DepreciationMethod?
+  accountId                 String?             // default GL account for this category
+  createdAt                 DateTime            @default(now())
+
+  assets FixedAsset[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model FixedAsset {
+  id                 String             @id @default(cuid())
+  schoolId           String
+  assetNumber        String             @unique // AST/YYYY/NNNN
+  name               String
+  description        String?
+  categoryId         String
+  location           String?            // Building, Room, Department
+  departmentId       String?
+  serialNumber       String?
+  model              String?
+  manufacturer       String?
+  purchaseDate       DateTime?
+  purchasePrice      Float
+  currentValue       Float
+  usefulLifeYears    Int?
+  salvageValue       Float              @default(0)
+  depreciationMethod DepreciationMethod @default(STRAIGHT_LINE)
+  condition          AssetCondition     @default(GOOD)
+  status             AssetStatus        @default(ACTIVE)
+  disposedAt         DateTime?
+  disposalMethod     String?            // SOLD, DONATED, SCRAPPED, WRITTEN_OFF
+  disposalAmount     Float?
+  disposedBy         String?
+  purchaseOrderId    String?            // link to PurchaseOrder
+  accountId          String?            // link to Chart of Accounts
+  photoUrl           String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  category            AssetCategory       @relation(fields: [categoryId], references: [id])
+  depreciationRecords AssetDepreciation[]
+  maintenanceRecords  AssetMaintenance[]
+
+  @@index([schoolId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([departmentId])
+  @@index([assetNumber])
+}
+
+model AssetDepreciation {
+  id                 String   @id @default(cuid())
+  fixedAssetId       String
+  period             String   // "2025-Q1", "2024-2025"
+  openingValue       Float
+  depreciationAmount Float
+  closingValue       Float
+  calculatedAt       DateTime @default(now())
+
+  fixedAsset FixedAsset @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
+
+  @@unique([fixedAssetId, period])
+  @@index([fixedAssetId])
+}
+
+model AssetMaintenance {
+  id           String   @id @default(cuid())
+  fixedAssetId String
+  date         DateTime
+  type         MaintenanceType
+  description  String
+  cost         Float?
+  performedBy  String?
+  nextDueDate  DateTime?
+  recordedBy   String   // userId
+  createdAt    DateTime @default(now())
+
+  fixedAsset FixedAsset @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
+
+  @@index([fixedAssetId])
+  @@index([date])
+  @@index([nextDueDate])
+}
+
+enum DepreciationMethod {
+  STRAIGHT_LINE
+  REDUCING_BALANCE
+  NONE
+}
+
+enum AssetCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+  UNSERVICEABLE
+}
+
+enum AssetStatus {
+  ACTIVE
+  UNDER_MAINTENANCE
+  DISPOSED
+  WRITTEN_OFF
+}
+
+enum MaintenanceType {
+  REPAIR
+  SERVICE
+  UPGRADE
+  INSPECTION
+}
