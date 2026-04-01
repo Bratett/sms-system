@@ -3,6 +3,8 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { dispatch } from "@/lib/notifications/dispatcher";
+import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
 
 // ─── Open/Get Attendance Register ────────────────────────────────────
 
@@ -10,23 +12,73 @@ export async function openAttendanceRegisterAction(data: {
   classArmId: string;
   date: string;
   type?: "DAILY" | "PERIOD";
+  periodId?: string;
 }) {
   const session = await auth();
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
 
+  const school = await db.school.findFirst();
+  if (!school) {
+    return { error: "No school configured" };
+  }
+
   const type = data.type ?? "DAILY";
   const dateObj = new Date(data.date);
-  // Normalize to start of day
   dateObj.setHours(0, 0, 0, 0);
 
-  // Check if register already exists for this class/date/type
+  let substituteForId: string | undefined;
+
+  // For PERIOD attendance, validate periodId exists
+  if (type === "PERIOD" && !data.periodId) {
+    return { error: "Period is required for period-based attendance." };
+  }
+
+  // If period-based, validate the period exists in the timetable for this class arm + day
+  // Also check if user is the scheduled teacher OR an approved substitute
+  if (type === "PERIOD" && data.periodId) {
+    const dayOfWeek = dateObj.getDay() === 0 ? 7 : dateObj.getDay(); // 1=Mon, 7=Sun
+    const currentTerm = await db.term.findFirst({ where: { isCurrent: true } });
+
+    if (currentTerm) {
+      const slot = await db.timetableSlot.findFirst({
+        where: {
+          classArmId: data.classArmId,
+          periodId: data.periodId,
+          dayOfWeek,
+          termId: currentTerm.id,
+        },
+      });
+
+      if (!slot) {
+        return { error: "No timetable slot found for this class, period, and day." };
+      }
+
+      // Check if there's an approved substitution for this slot on this date
+      const substitution = await db.timetableSubstitution.findFirst({
+        where: {
+          timetableSlotId: slot.id,
+          date: dateObj,
+          status: "APPROVED",
+          substituteTeacherId: session.user.id!,
+        },
+      });
+
+      // If the user is a substitute, track it
+      if (substitution) {
+        substituteForId = slot.teacherId;
+      }
+    }
+  }
+
+  // Check if register already exists for this class/date/type/period
   const existing = await db.attendanceRegister.findFirst({
     where: {
       classArmId: data.classArmId,
       date: dateObj,
       type,
+      periodId: data.periodId ?? null,
     },
     include: {
       records: {
@@ -38,7 +90,6 @@ export async function openAttendanceRegisterAction(data: {
   });
 
   if (existing) {
-    // Return existing register with enrolled students
     const enrollments = await db.enrollment.findMany({
       where: {
         classArmId: data.classArmId,
@@ -73,6 +124,7 @@ export async function openAttendanceRegisterAction(data: {
           classArmId: existing.classArmId,
           date: existing.date,
           type: existing.type,
+          periodId: existing.periodId,
           status: existing.status,
           takenBy: existing.takenBy,
         },
@@ -81,6 +133,7 @@ export async function openAttendanceRegisterAction(data: {
           studentId: r.studentId,
           status: r.status,
           remarks: r.remarks,
+          arrivalTime: r.arrivalTime,
         })),
         students,
         isExisting: true,
@@ -91,10 +144,13 @@ export async function openAttendanceRegisterAction(data: {
   // Create new register
   const register = await db.attendanceRegister.create({
     data: {
+      schoolId: school.id,
       classArmId: data.classArmId,
       date: dateObj,
       type,
+      periodId: data.periodId ?? null,
       takenBy: session.user.id!,
+      substituteForId: substituteForId ?? null,
     },
   });
 
@@ -133,6 +189,7 @@ export async function openAttendanceRegisterAction(data: {
         classArmId: register.classArmId,
         date: register.date,
         type: register.type,
+        periodId: register.periodId,
         status: register.status,
         takenBy: register.takenBy,
       },
@@ -195,6 +252,7 @@ export async function getAttendanceRegisterAction(id: string) {
         classArmId: register.classArmId,
         date: register.date,
         type: register.type,
+        periodId: register.periodId,
         status: register.status,
         takenBy: register.takenBy,
       },
@@ -203,6 +261,7 @@ export async function getAttendanceRegisterAction(id: string) {
         studentId: r.studentId,
         status: r.status,
         remarks: r.remarks,
+        arrivalTime: r.arrivalTime,
       })),
       students,
     },
@@ -217,6 +276,7 @@ export async function recordAttendanceAction(
     studentId: string;
     status: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | "SICK";
     remarks?: string;
+    arrivalTime?: string;
   }>,
 ) {
   const session = await auth();
@@ -250,10 +310,12 @@ export async function recordAttendanceAction(
         studentId: record.studentId,
         status: record.status,
         remarks: record.remarks || null,
+        arrivalTime: record.arrivalTime ? new Date(record.arrivalTime) : null,
       },
       update: {
         status: record.status,
         remarks: record.remarks || null,
+        arrivalTime: record.arrivalTime ? new Date(record.arrivalTime) : null,
       },
     }),
   );
@@ -269,6 +331,84 @@ export async function recordAttendanceAction(
     description: `Recorded attendance for ${records.length} students`,
     newData: { recordCount: records.length },
   });
+
+  // Dispatch notifications for absent/late students
+  const absentStudents = records.filter((r) => r.status === "ABSENT");
+  const lateStudents = records.filter((r) => r.status === "LATE");
+
+  if (absentStudents.length > 0 || lateStudents.length > 0) {
+    // Get student details and guardian contacts for notifications
+    const studentIds = [...absentStudents, ...lateStudents].map((r) => r.studentId);
+    const students = await db.student.findMany({
+      where: { id: { in: studentIds } },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        guardians: {
+          include: {
+            guardian: {
+              select: {
+                userId: true,
+                phone: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const studentMap = new Map(students.map((s) => [s.id, s]));
+
+    // Notify for absent students
+    for (const record of absentStudents) {
+      const student = studentMap.get(record.studentId);
+      if (!student) continue;
+
+      const guardianRecipients = student.guardians.map((sg) => ({
+        userId: sg.guardian.userId ?? undefined,
+        phone: sg.guardian.phone ?? undefined,
+        email: sg.guardian.email ?? undefined,
+        name: `${sg.guardian.firstName} ${sg.guardian.lastName}`,
+      }));
+
+      if (guardianRecipients.length > 0) {
+        dispatch({
+          event: NOTIFICATION_EVENTS.STUDENT_ABSENT,
+          title: "Student Absent",
+          message: `${student.firstName} ${student.lastName} was marked absent on ${register.date.toLocaleDateString()}.`,
+          recipients: guardianRecipients,
+          schoolId: register.schoolId,
+        }).catch(() => {}); // fire and forget
+      }
+    }
+
+    // Notify for late students
+    for (const record of lateStudents) {
+      const student = studentMap.get(record.studentId);
+      if (!student) continue;
+
+      const guardianRecipients = student.guardians.map((sg) => ({
+        userId: sg.guardian.userId ?? undefined,
+        phone: sg.guardian.phone ?? undefined,
+        email: sg.guardian.email ?? undefined,
+        name: `${sg.guardian.firstName} ${sg.guardian.lastName}`,
+      }));
+
+      if (guardianRecipients.length > 0) {
+        dispatch({
+          event: NOTIFICATION_EVENTS.STUDENT_LATE,
+          title: "Student Late",
+          message: `${student.firstName} ${student.lastName} was marked late on ${register.date.toLocaleDateString()}.`,
+          recipients: guardianRecipients,
+          schoolId: register.schoolId,
+        }).catch(() => {}); // fire and forget
+      }
+    }
+  }
 
   return { success: true };
 }
@@ -324,11 +464,14 @@ export async function getAttendanceHistoryAction(filters: {
     return { error: "Unauthorized" };
   }
 
+  const school = await db.school.findFirst();
+
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
 
   const where: Record<string, unknown> = {};
+  if (school) where.schoolId = school.id;
   if (filters.classArmId) where.classArmId = filters.classArmId;
   if (filters.date) {
     const dateObj = new Date(filters.date);
@@ -373,6 +516,7 @@ export async function getAttendanceHistoryAction(filters: {
     classArmName: classArmMap.get(reg.classArmId) ?? "Unknown",
     date: reg.date,
     type: reg.type,
+    periodId: reg.periodId,
     status: reg.status,
     recordCount: reg.records.length,
     presentCount: reg.records.filter((r) => r.status === "PRESENT").length,
@@ -521,6 +665,7 @@ export async function getStudentAttendanceAction(studentId: string, termId?: str
           classArmId: true,
           date: true,
           type: true,
+          periodId: true,
         },
       },
     },
@@ -531,9 +676,100 @@ export async function getStudentAttendanceAction(studentId: string, termId?: str
     id: r.id,
     date: r.register.date,
     type: r.register.type,
+    periodId: r.register.periodId,
     status: r.status,
     remarks: r.remarks,
+    arrivalTime: r.arrivalTime,
   }));
 
   return { data };
+}
+
+// ─── Generate Attendance Registers from Timetable ───────────────────
+
+export async function generateDailyRegistersFromTimetableAction(data: {
+  classArmId: string;
+  date: string;
+}) {
+  const session = await auth();
+  if (!session?.user) {
+    return { error: "Unauthorized" };
+  }
+
+  const school = await db.school.findFirst();
+  if (!school) {
+    return { error: "No school configured" };
+  }
+
+  const dateObj = new Date(data.date);
+  dateObj.setHours(0, 0, 0, 0);
+  const dayOfWeek = dateObj.getDay() === 0 ? 7 : dateObj.getDay();
+
+  const currentTerm = await db.term.findFirst({ where: { isCurrent: true } });
+  if (!currentTerm) {
+    return { error: "No active term found." };
+  }
+
+  // Get timetable slots for this class arm on this day
+  const slots = await db.timetableSlot.findMany({
+    where: {
+      classArmId: data.classArmId,
+      dayOfWeek,
+      termId: currentTerm.id,
+    },
+    include: {
+      period: { select: { id: true, name: true, type: true } },
+    },
+  });
+
+  // Filter to lesson periods only
+  const lessonSlots = slots.filter((s) => s.period.type === "LESSON");
+
+  if (lessonSlots.length === 0) {
+    return { error: "No lesson periods found in the timetable for this day." };
+  }
+
+  let created = 0;
+  let existing = 0;
+
+  for (const slot of lessonSlots) {
+    // Check if register already exists
+    const existingRegister = await db.attendanceRegister.findFirst({
+      where: {
+        classArmId: data.classArmId,
+        date: dateObj,
+        type: "PERIOD",
+        periodId: slot.period.id,
+      },
+    });
+
+    if (existingRegister) {
+      existing++;
+      continue;
+    }
+
+    await db.attendanceRegister.create({
+      data: {
+        schoolId: school.id,
+        classArmId: data.classArmId,
+        date: dateObj,
+        type: "PERIOD",
+        periodId: slot.period.id,
+        takenBy: session.user.id!,
+      },
+    });
+    created++;
+  }
+
+  await audit({
+    userId: session.user.id!,
+    action: "CREATE",
+    entity: "AttendanceRegister",
+    entityId: data.classArmId,
+    module: "attendance",
+    description: `Generated ${created} period-based attendance registers from timetable`,
+    metadata: { classArmId: data.classArmId, date: data.date, created, existing },
+  });
+
+  return { data: { created, existing, total: lessonSlots.length } };
 }

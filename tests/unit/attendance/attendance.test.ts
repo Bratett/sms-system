@@ -71,6 +71,7 @@ describe("openAttendanceRegisterAction", () => {
   });
 
   it("should create new register if none exists", async () => {
+    prismaMock.school.findFirst.mockResolvedValue({ id: "school-1" } as never);
     prismaMock.attendanceRegister.findFirst.mockResolvedValue(null as never);
     prismaMock.attendanceRegister.create.mockResolvedValue({
       id: "reg-new",
@@ -95,6 +96,7 @@ describe("openAttendanceRegisterAction", () => {
   });
 
   it("should default type to DAILY", async () => {
+    prismaMock.school.findFirst.mockResolvedValue({ id: "school-1" } as never);
     prismaMock.attendanceRegister.findFirst.mockResolvedValue(null as never);
     prismaMock.attendanceRegister.create.mockResolvedValue({
       id: "reg-new",
@@ -118,29 +120,16 @@ describe("openAttendanceRegisterAction", () => {
     );
   });
 
-  it("should use PERIOD type when specified", async () => {
-    prismaMock.attendanceRegister.findFirst.mockResolvedValue(null as never);
-    prismaMock.attendanceRegister.create.mockResolvedValue({
-      id: "reg-new",
-      classArmId: "ca-1",
-      date: new Date("2026-03-15"),
-      type: "PERIOD",
-      status: "OPEN",
-      takenBy: "test-user-id",
-    } as never);
-    prismaMock.enrollment.findMany.mockResolvedValue([] as never);
+  it("should require periodId for PERIOD type", async () => {
+    prismaMock.school.findFirst.mockResolvedValue({ id: "school-1" } as never);
 
-    await openAttendanceRegisterAction({
+    const result = await openAttendanceRegisterAction({
       classArmId: "ca-1",
       date: "2026-03-15",
       type: "PERIOD",
     });
 
-    expect(prismaMock.attendanceRegister.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ type: "PERIOD" }),
-      })
-    );
+    expect(result).toEqual({ error: "Period is required for period-based attendance." });
   });
 });
 
@@ -237,9 +226,12 @@ describe("recordAttendanceAction", () => {
     prismaMock.attendanceRegister.findUnique.mockResolvedValue({
       id: "reg-1",
       status: "OPEN",
+      schoolId: "school-1",
+      date: new Date("2026-03-15"),
     } as never);
     prismaMock.attendanceRecord.upsert.mockResolvedValue({} as never);
     prismaMock.$transaction.mockResolvedValue([] as never);
+    prismaMock.student.findMany.mockResolvedValue([] as never);
 
     const records = [
       { studentId: "s1", status: "PRESENT" as const },
@@ -306,6 +298,7 @@ describe("closeAttendanceRegisterAction", () => {
 describe("getAttendanceHistoryAction", () => {
   beforeEach(() => {
     mockAuthenticatedUser();
+    prismaMock.school.findFirst.mockResolvedValue({ id: "school-1" } as never);
   });
 
   it("should reject unauthenticated users", async () => {

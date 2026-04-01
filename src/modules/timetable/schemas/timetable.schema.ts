@@ -9,6 +9,7 @@ export const createRoomSchema = z.object({
   type: z.enum(["CLASSROOM", "LABORATORY", "HALL", "FIELD", "OTHER"], {
     message: "Invalid room type",
   }),
+  features: z.array(z.string()).optional(),
 });
 export type CreateRoomInput = z.infer<typeof createRoomSchema>;
 
@@ -21,6 +22,7 @@ export const updateRoomSchema = z.object({
       message: "Invalid room type",
     })
     .optional(),
+  features: z.array(z.string()).optional(),
   isActive: z.boolean().optional(),
 });
 export type UpdateRoomInput = z.infer<typeof updateRoomSchema>;
@@ -64,7 +66,7 @@ export const createTimetableSlotSchema = z.object({
   teacherId: z.string().min(1, "Teacher is required"),
   periodId: z.string().min(1, "Period is required"),
   roomId: z.string().optional(),
-  dayOfWeek: z.coerce.number().int().min(1, "Day must be 1 (Monday) to 5 (Friday)").max(5, "Day must be 1 (Monday) to 5 (Friday)"),
+  dayOfWeek: z.coerce.number().int().min(1, "Day must be 1 (Monday) to 7 (Sunday)").max(7, "Day must be 1 (Monday) to 7 (Sunday)"),
 });
 export type CreateTimetableSlotInput = z.infer<typeof createTimetableSlotSchema>;
 
@@ -76,8 +78,8 @@ export const updateTimetableSlotSchema = z.object({
   dayOfWeek: z.coerce
     .number()
     .int()
-    .min(1, "Day must be 1 (Monday) to 5 (Friday)")
-    .max(5, "Day must be 1 (Monday) to 5 (Friday)")
+    .min(1, "Day must be 1 (Monday) to 7 (Sunday)")
+    .max(7, "Day must be 1 (Monday) to 7 (Sunday)")
     .optional(),
 });
 export type UpdateTimetableSlotInput = z.infer<typeof updateTimetableSlotSchema>;

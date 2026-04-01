@@ -11,6 +11,7 @@ export async function createRoomAction(data: {
   building?: string;
   capacity?: number;
   type: "CLASSROOM" | "LABORATORY" | "HALL" | "FIELD" | "OTHER";
+  features?: string[];
 }) {
   const session = await auth();
   if (!session?.user) {
@@ -43,6 +44,7 @@ export async function createRoomAction(data: {
       building: data.building || null,
       capacity: data.capacity ?? null,
       type: data.type,
+      features: data.features ?? [],
     },
   });
 

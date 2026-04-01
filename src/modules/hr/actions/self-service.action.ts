@@ -356,3 +356,61 @@ export async function getMyLeaveRequestsAction(filters?: { status?: string; page
     pageSize,
   };
 }
+
+// ─── My Timetable (Teacher Portal) ─────────────────────────
+
+export async function getMyTeacherTimetableAction() {
+  const session = await auth();
+  if (!session?.user?.id) return { error: "Unauthorized" };
+
+  const currentTerm = await db.term.findFirst({
+    where: { isCurrent: true },
+    select: { id: true },
+  });
+
+  if (!currentTerm) {
+    return { data: { timetable: [], periods: [] } };
+  }
+
+  const school = await db.school.findFirst();
+  if (!school) {
+    return { data: { timetable: [], periods: [] } };
+  }
+
+  const [slots, periods] = await Promise.all([
+    db.timetableSlot.findMany({
+      where: {
+        teacherId: session.user.id,
+        termId: currentTerm.id,
+      },
+      include: {
+        subject: { select: { name: true, code: true } },
+        classArm: {
+          select: {
+            name: true,
+            class: { select: { name: true } },
+          },
+        },
+        period: { select: { name: true, startTime: true, endTime: true, order: true, type: true } },
+        room: { select: { name: true } },
+      },
+      orderBy: [{ dayOfWeek: "asc" }, { period: { order: "asc" } }],
+    }),
+    db.period.findMany({
+      where: { schoolId: school.id, isActive: true },
+      orderBy: { order: "asc" },
+      select: { id: true, name: true, startTime: true, endTime: true, order: true, type: true },
+    }),
+  ]);
+
+  const timetable = slots.map((s) => ({
+    id: s.id,
+    dayOfWeek: s.dayOfWeek,
+    period: s.period,
+    subject: s.subject,
+    className: `${s.classArm.class.name} ${s.classArm.name}`,
+    room: s.room?.name || null,
+  }));
+
+  return { data: { timetable, periods } };
+}

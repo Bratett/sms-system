@@ -26,8 +26,16 @@ model School {
   periods        Period[]
   timetableSlots TimetableSlot[]
   examSchedules  ExamSchedule[]
-  userSchools     UserSchool[]
-  academicEvents  AcademicEvent[]
+  userSchools          UserSchool[]
+  academicEvents       AcademicEvent[]
+  attendanceRegisters  AttendanceRegister[]
+  attendancePolicies   AttendancePolicy[]
+  attendanceAlerts     AttendanceAlert[]
+  timetableSubstitutions TimetableSubstitution[]
+  timetableVersions    TimetableVersion[]
+  teacherAvailabilities TeacherAvailability[]
+  teacherPreferences   TeacherPreference[]
+  eventAttendances     EventAttendance[]
 }
 
 model AcademicYear {

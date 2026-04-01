@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/layout/page-header";
 import { getClassesAction } from "@/modules/academics/actions/class.action";
+import { getPeriodsAction } from "@/modules/timetable/actions/timetable.action";
 import { AttendanceForm } from "./attendance-form";
 import Link from "next/link";
 
@@ -10,8 +11,19 @@ export default async function TakeAttendancePage() {
     return null;
   }
 
-  const classesResult = await getClassesAction();
+  const [classesResult, periodsResult] = await Promise.all([
+    getClassesAction(),
+    getPeriodsAction(),
+  ]);
+
   const classes = classesResult.data ?? [];
+  const periods = (periodsResult.data ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    startTime: p.startTime,
+    endTime: p.endTime,
+    type: p.type,
+  }));
 
   // Build class arms list
   const classArms: { id: string; name: string; className: string }[] = [];
@@ -39,7 +51,7 @@ export default async function TakeAttendancePage() {
           </Link>
         }
       />
-      <AttendanceForm classArms={classArms} />
+      <AttendanceForm classArms={classArms} periods={periods} />
     </div>
   );
 }

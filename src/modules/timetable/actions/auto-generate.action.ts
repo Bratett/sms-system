@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { solveTimetable, type SolverConstraints } from "@/modules/timetable/lib/constraint-solver";
 
 // ─── Auto Generate Timetable ─────────────────────────────────────────
 
@@ -52,125 +53,82 @@ export async function autoGenerateTimetableAction(data: {
     return { error: "No teacher-subject assignments found. Assign teachers to subjects first." };
   }
 
-  const days = [1, 2, 3, 4, 5]; // Monday to Friday
+  // Get operating days from school config (default Mon-Fri)
+  const operatingDaysSetting = await db.systemSetting.findFirst({
+    where: { key: "school.operatingDays" },
+  });
+  const days: number[] = operatingDaysSetting
+    ? JSON.parse(operatingDaysSetting.value)
+    : [1, 2, 3, 4, 5];
+
+  // Get teacher availability for the term
+  const teacherIds = [...new Set(assignments.map((a) => a.staffId))];
+  const availability = await db.teacherAvailability.findMany({
+    where: {
+      teacherId: { in: teacherIds },
+      termId: data.termId,
+    },
+  });
+
+  // Get teacher preferences
+  const preferences = await db.teacherPreference.findMany({
+    where: {
+      teacherId: { in: teacherIds },
+      termId: data.termId,
+    },
+  });
+
   const maxConsecutive = data.constraints?.maxConsecutivePeriodsPerTeacher ?? 3;
 
-  // Track assignments: teacher -> set of (day, periodId)
-  const teacherSchedule = new Map<string, Set<string>>();
-  // Track: room -> set of (day, periodId)
-  const roomSchedule = new Map<string, Set<string>>();
-  // Track: classArm -> set of (day, periodId)
-  const classSchedule = new Map<string, Set<string>>();
-
-  const createdSlots: any[] = [];
-  const conflicts: string[] = [];
-
-  const slotKey = (day: number, periodId: string) => `${day}-${periodId}`;
-
-  const isTeacherFree = (teacherId: string, day: number, periodId: string) => {
-    const schedule = teacherSchedule.get(teacherId);
-    return !schedule || !schedule.has(slotKey(day, periodId));
+  // Build solver constraints
+  const solverConstraints: SolverConstraints = {
+    maxConsecutivePeriodsPerTeacher: maxConsecutive,
+    subjectFrequencyPerWeek: data.constraints?.subjectFrequencyPerWeek ?? {},
+    teacherAvailability: availability.map((a) => ({
+      teacherId: a.teacherId,
+      dayOfWeek: a.dayOfWeek,
+      periodId: a.periodId,
+      isAvailable: a.isAvailable,
+    })),
+    teacherPreferences: preferences.map((p) => ({
+      teacherId: p.teacherId,
+      maxPeriodsPerDay: p.maxPeriodsPerDay,
+      maxConsecutivePeriods: p.maxConsecutivePeriods,
+    })),
   };
 
-  const isClassFree = (classArmId: string, day: number, periodId: string) => {
-    const schedule = classSchedule.get(classArmId);
-    return !schedule || !schedule.has(slotKey(day, periodId));
-  };
-
-  const markSlot = (teacherId: string, classArmId: string, roomId: string | null, day: number, periodId: string) => {
-    const key = slotKey(day, periodId);
-    if (!teacherSchedule.has(teacherId)) teacherSchedule.set(teacherId, new Set());
-    teacherSchedule.get(teacherId)!.add(key);
-    if (!classSchedule.has(classArmId)) classSchedule.set(classArmId, new Set());
-    classSchedule.get(classArmId)!.add(key);
-    if (roomId) {
-      if (!roomSchedule.has(roomId)) roomSchedule.set(roomId, new Set());
-      roomSchedule.get(roomId)!.add(key);
-    }
-  };
-
-  // Group assignments by classArm
-  const assignmentsByClass = new Map<string, typeof assignments>();
-  for (const a of assignments) {
-    if (!assignmentsByClass.has(a.classArmId)) assignmentsByClass.set(a.classArmId, []);
-    assignmentsByClass.get(a.classArmId)!.push(a);
-  }
-
-  // Default frequency: distribute subjects evenly across the week
-  const totalSlotsPerWeek = periods.length * days.length;
-
-  for (const classArmId of data.classArmIds) {
-    const classAssignments = assignmentsByClass.get(classArmId) ?? [];
-    if (classAssignments.length === 0) {
-      conflicts.push(`No assignments for class arm ${classArmId}`);
-      continue;
-    }
-
-    // Determine frequency per subject
-    const frequency = data.constraints?.subjectFrequencyPerWeek ?? {};
-    const defaultFreq = Math.max(1, Math.floor(totalSlotsPerWeek / classAssignments.length));
-
-    // Build a queue of (assignment, remaining slots)
-    const queue: Array<{ assignment: typeof assignments[0]; remaining: number }> = [];
-    for (const a of classAssignments) {
-      const freq = frequency[a.subjectId] ?? defaultFreq;
-      queue.push({ assignment: a, remaining: freq });
-    }
-
-    // Greedy assignment
-    for (const day of days) {
-      for (const period of periods) {
-        if (!isClassFree(classArmId, day, period.id)) continue;
-
-        // Find an assignment that can fill this slot
-        let assigned = false;
-        for (const item of queue) {
-          if (item.remaining <= 0) continue;
-          const teacherId = item.assignment.staffId;
-
-          if (!isTeacherFree(teacherId, day, period.id)) continue;
-
-          // Find a free room (optional)
-          let roomId: string | null = null;
-          for (const room of rooms) {
-            const roomKey = slotKey(day, period.id);
-            const schedule = roomSchedule.get(room.id);
-            if (!schedule || !schedule.has(roomKey)) {
-              roomId = room.id;
-              break;
-            }
-          }
-
-          // Create the slot
-          markSlot(teacherId, classArmId, roomId, day, period.id);
-          item.remaining--;
-
-          createdSlots.push({
-            schoolId: school.id,
-            academicYearId: data.academicYearId,
-            termId: data.termId,
-            classArmId,
-            subjectId: item.assignment.subjectId,
-            teacherId,
-            periodId: period.id,
-            roomId,
-            dayOfWeek: day,
-          });
-
-          assigned = true;
-          break;
-        }
-
-        if (!assigned) {
-          conflicts.push(`Could not fill slot: day ${day}, period ${period.name} for class arm ${classArmId}`);
-        }
-      }
-    }
-  }
+  // Run solver
+  const result = solveTimetable({
+    classArmIds: data.classArmIds,
+    assignments: assignments.map((a) => ({
+      staffId: a.staffId,
+      subjectId: a.subjectId,
+      classArmId: a.classArmId,
+      subjectName: a.subject.name,
+    })),
+    periods: periods.map((p) => ({ id: p.id, name: p.name, order: p.order })),
+    rooms: rooms.map((r) => ({ id: r.id, name: r.name, features: r.features })),
+    days,
+    constraints: solverConstraints,
+    schoolId: school.id,
+    academicYearId: data.academicYearId,
+    termId: data.termId,
+  });
 
   // Bulk create all slots
-  if (createdSlots.length > 0) {
-    await db.timetableSlot.createMany({ data: createdSlots });
+  if (result.slots.length > 0) {
+    const createData = result.slots.map((s) => ({
+      schoolId: school.id,
+      academicYearId: data.academicYearId,
+      termId: data.termId,
+      classArmId: s.classArmId,
+      subjectId: s.subjectId,
+      teacherId: s.teacherId,
+      periodId: s.periodId,
+      roomId: s.roomId,
+      dayOfWeek: s.dayOfWeek,
+    }));
+    await db.timetableSlot.createMany({ data: createData });
   }
 
   await audit({
@@ -179,11 +137,11 @@ export async function autoGenerateTimetableAction(data: {
     entity: "TimetableSlot",
     entityId: "auto-generate",
     module: "timetable",
-    description: `Auto-generated ${createdSlots.length} timetable slots for ${data.classArmIds.length} class arm(s)`,
-    metadata: { classArmIds: data.classArmIds, created: createdSlots.length, conflicts: conflicts.length },
+    description: `Auto-generated ${result.slots.length} timetable slots for ${data.classArmIds.length} class arm(s) using constraint solver`,
+    metadata: { classArmIds: data.classArmIds, created: result.slots.length, conflicts: result.conflicts.length },
   });
 
-  return { data: { created: createdSlots.length, conflicts } };
+  return { data: { created: result.slots.length, conflicts: result.conflicts } };
 }
 
 // ─── Validate Timetable ──────────────────────────────────────────────

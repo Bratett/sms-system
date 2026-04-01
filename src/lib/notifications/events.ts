@@ -22,6 +22,12 @@ export const NOTIFICATION_EVENTS = {
   // Attendance
   STUDENT_ABSENT: "student_absent",
   STUDENT_LATE: "student_late",
+  CHRONIC_ABSENCE_WARNING: "chronic_absence_warning",
+  CHRONIC_ABSENCE_CRITICAL: "chronic_absence_critical",
+
+  // Timetable
+  SUBSTITUTION_ASSIGNED: "substitution_assigned",
+  TIMETABLE_PUBLISHED: "timetable_published",
 
   // Boarding / Exeat
   EXEAT_APPROVED: "exeat_approved",
@@ -67,6 +73,10 @@ export const EVENT_CHANNELS: Record<NotificationEvent, ("in_app" | "sms" | "emai
   [NOTIFICATION_EVENTS.ADMISSION_ACCEPTED]: ["in_app", "sms", "email"],
   [NOTIFICATION_EVENTS.STUDENT_ABSENT]: ["in_app", "sms"],
   [NOTIFICATION_EVENTS.STUDENT_LATE]: ["in_app"],
+  [NOTIFICATION_EVENTS.CHRONIC_ABSENCE_WARNING]: ["in_app", "sms"],
+  [NOTIFICATION_EVENTS.CHRONIC_ABSENCE_CRITICAL]: ["in_app", "sms", "email"],
+  [NOTIFICATION_EVENTS.SUBSTITUTION_ASSIGNED]: ["in_app", "sms"],
+  [NOTIFICATION_EVENTS.TIMETABLE_PUBLISHED]: ["in_app"],
   [NOTIFICATION_EVENTS.EXEAT_APPROVED]: ["in_app", "sms"],
   [NOTIFICATION_EVENTS.EXEAT_REJECTED]: ["in_app", "sms"],
   [NOTIFICATION_EVENTS.EXEAT_OVERDUE]: ["in_app", "sms", "email"],

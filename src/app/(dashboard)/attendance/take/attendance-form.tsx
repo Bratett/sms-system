@@ -8,6 +8,7 @@ import {
   openAttendanceRegisterAction,
   recordAttendanceAction,
   closeAttendanceRegisterAction,
+  generateDailyRegistersFromTimetableAction,
 } from "@/modules/attendance/actions/attendance.action";
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -16,6 +17,14 @@ interface ClassArmOption {
   id: string;
   name: string;
   className: string;
+}
+
+interface PeriodOption {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  type: string;
 }
 
 interface StudentInfo {
@@ -30,6 +39,7 @@ interface AttendanceRecordEntry {
   studentId: string;
   status: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | "SICK";
   remarks: string;
+  arrivalTime: string;
 }
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | "SICK";
@@ -38,8 +48,10 @@ type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | "SICK";
 
 export function AttendanceForm({
   classArms,
+  periods = [],
 }: {
   classArms: ClassArmOption[];
+  periods?: PeriodOption[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -47,6 +59,8 @@ export function AttendanceForm({
   // Step 1: Selection
   const [selectedClassArmId, setSelectedClassArmId] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
+  const [attendanceMode, setAttendanceMode] = useState<"DAILY" | "PERIOD">("DAILY");
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>("");
 
   // Step 2: Attendance
   const [registerId, setRegisterId] = useState<string | null>(null);
@@ -55,6 +69,8 @@ export function AttendanceForm({
   const [records, setRecords] = useState<Map<string, AttendanceRecordEntry>>(new Map());
   const [isExisting, setIsExisting] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
+
+  const lessonPeriods = periods.filter((p) => p.type === "LESSON");
 
   function handleOpenRegister() {
     if (!selectedClassArmId) {
@@ -65,12 +81,17 @@ export function AttendanceForm({
       toast.error("Please select a date.");
       return;
     }
+    if (attendanceMode === "PERIOD" && !selectedPeriodId) {
+      toast.error("Please select a period for period-based attendance.");
+      return;
+    }
 
     startTransition(async () => {
       const result = await openAttendanceRegisterAction({
         classArmId: selectedClassArmId,
         date: selectedDate,
-        type: "DAILY",
+        type: attendanceMode,
+        periodId: attendanceMode === "PERIOD" ? selectedPeriodId : undefined,
       });
 
       if (result.error) {
@@ -84,7 +105,6 @@ export function AttendanceForm({
         setStudents(result.data.students);
         setIsExisting(result.data.isExisting ?? false);
 
-        // Initialize records
         const newRecords = new Map<string, AttendanceRecordEntry>();
         for (const student of result.data.students) {
           const existingRecord = result.data.records.find(
@@ -94,6 +114,7 @@ export function AttendanceForm({
             studentId: student.id,
             status: (existingRecord?.status as AttendanceStatus) ?? "PRESENT",
             remarks: existingRecord?.remarks ?? "",
+            arrivalTime: "",
           });
         }
         setRecords(newRecords);
@@ -102,6 +123,28 @@ export function AttendanceForm({
         if (result.data.isExisting) {
           toast.info("Existing register found. You can update the attendance.");
         }
+      }
+    });
+  }
+
+  function handleGenerateFromTimetable() {
+    if (!selectedClassArmId || !selectedDate) {
+      toast.error("Select a class arm and date first.");
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await generateDailyRegistersFromTimetableAction({
+        classArmId: selectedClassArmId,
+        date: selectedDate,
+      });
+
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.data) {
+        toast.success(
+          `Generated ${result.data.created} period registers (${result.data.existing} already existed).`,
+        );
       }
     });
   }
@@ -128,6 +171,17 @@ export function AttendanceForm({
     });
   }
 
+  function updateStudentArrivalTime(studentId: string, arrivalTime: string) {
+    setRecords((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(studentId);
+      if (existing) {
+        next.set(studentId, { ...existing, arrivalTime });
+      }
+      return next;
+    });
+  }
+
   function handleMarkAllPresent() {
     setRecords((prev) => {
       const next = new Map(prev);
@@ -145,6 +199,7 @@ export function AttendanceForm({
       studentId: r.studentId,
       status: r.status,
       remarks: r.remarks || undefined,
+      arrivalTime: r.status === "LATE" && r.arrivalTime ? r.arrivalTime : undefined,
     }));
 
     startTransition(async () => {
@@ -228,13 +283,76 @@ export function AttendanceForm({
             />
           </div>
 
-          <button
-            onClick={handleOpenRegister}
-            disabled={isPending || !selectedClassArmId || !selectedDate}
-            className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {isPending ? "Loading..." : "Open Register"}
-          </button>
+          {/* Attendance Mode Toggle */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Attendance Mode</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAttendanceMode("DAILY")}
+                className={`rounded-md px-4 py-2 text-sm font-medium border transition-all ${
+                  attendanceMode === "DAILY"
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background border-input hover:bg-muted"
+                }`}
+              >
+                Daily
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttendanceMode("PERIOD")}
+                className={`rounded-md px-4 py-2 text-sm font-medium border transition-all ${
+                  attendanceMode === "PERIOD"
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background border-input hover:bg-muted"
+                }`}
+              >
+                Per Period
+              </button>
+            </div>
+          </div>
+
+          {/* Period Selection (for period-based attendance) */}
+          {attendanceMode === "PERIOD" && (
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Period <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={selectedPeriodId}
+                onChange={(e) => setSelectedPeriodId(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Select a period</option>
+                {lessonPeriods.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.startTime} - {p.endTime})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleOpenRegister}
+              disabled={isPending || !selectedClassArmId || !selectedDate}
+              className="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {isPending ? "Loading..." : "Open Register"}
+            </button>
+
+            {selectedClassArmId && selectedDate && lessonPeriods.length > 0 && (
+              <button
+                onClick={handleGenerateFromTimetable}
+                disabled={isPending}
+                className="rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
+                title="Create period registers from timetable"
+              >
+                {isPending ? "..." : "Auto-Generate from Timetable"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -242,6 +360,7 @@ export function AttendanceForm({
 
   // Step 2: Record attendance
   const selectedArm = classArms.find((ca) => ca.id === selectedClassArmId);
+  const selectedPeriod = periods.find((p) => p.id === selectedPeriodId);
   const isClosed = registerStatus === "CLOSED";
 
   return (
@@ -254,6 +373,11 @@ export function AttendanceForm({
           </h3>
           <p className="text-sm text-muted-foreground">
             {format(new Date(selectedDate), "EEEE, d MMMM yyyy")}
+            {attendanceMode === "PERIOD" && selectedPeriod && (
+              <span className="ml-2 inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {selectedPeriod.name} ({selectedPeriod.startTime}-{selectedPeriod.endTime})
+              </span>
+            )}
             {isExisting && " (Editing existing register)"}
           </p>
         </div>
@@ -339,21 +463,33 @@ export function AttendanceForm({
                         {student.studentId}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-1 flex-wrap">
-                          {statusOptions.map((opt) => (
-                            <button
-                              key={opt.value}
-                              onClick={() => updateStudentStatus(student.id, opt.value)}
-                              disabled={isClosed}
-                              className={`rounded-full px-2 py-0.5 text-xs font-medium border transition-all disabled:opacity-50 ${
-                                record?.status === opt.value
-                                  ? opt.color + " ring-2 ring-offset-1 ring-current"
-                                  : "bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100"
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="flex items-center justify-center gap-1 flex-wrap">
+                            {statusOptions.map((opt) => (
+                              <button
+                                key={opt.value}
+                                onClick={() => updateStudentStatus(student.id, opt.value)}
+                                disabled={isClosed}
+                                className={`rounded-full px-2 py-0.5 text-xs font-medium border transition-all disabled:opacity-50 ${
+                                  record?.status === opt.value
+                                    ? opt.color + " ring-2 ring-offset-1 ring-current"
+                                    : "bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100"
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                          {/* Arrival time input for LATE students */}
+                          {record?.status === "LATE" && !isClosed && (
+                            <input
+                              type="time"
+                              value={record.arrivalTime}
+                              onChange={(e) => updateStudentArrivalTime(student.id, e.target.value)}
+                              className="mt-1 rounded-md border border-yellow-300 bg-yellow-50 px-2 py-0.5 text-xs"
+                              placeholder="Arrival time"
+                            />
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3">

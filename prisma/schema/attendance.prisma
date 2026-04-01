@@ -1,17 +1,23 @@
 model AttendanceRegister {
-  id          String               @id @default(cuid())
-  classArmId  String
-  date        DateTime
-  type        AttendanceType       @default(DAILY)
-  periodId    String?
-  takenBy     String               // userId who took attendance
-  status      AttendanceRegisterStatus @default(OPEN)
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  id              String                   @id @default(cuid())
+  schoolId        String
+  classArmId      String
+  date            DateTime
+  type            AttendanceType           @default(DAILY)
+  periodId        String?
+  takenBy         String                   // userId who took attendance
+  substituteForId String?                  // original teacher if taken by substitute
+  status          AttendanceRegisterStatus @default(OPEN)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
 
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  period  Period? @relation(fields: [periodId], references: [id], onDelete: SetNull)
   records AttendanceRecord[]
 
   @@unique([classArmId, date, type, periodId])
+  @@index([schoolId])
+  @@index([schoolId, date])
   @@index([classArmId])
   @@index([date])
   @@index([takenBy])
@@ -19,18 +25,71 @@ model AttendanceRegister {
 }
 
 model AttendanceRecord {
-  id         String           @id @default(cuid())
-  registerId String
-  studentId  String
-  status     AttendanceStatus @default(PRESENT)
-  remarks    String?
-  createdAt  DateTime         @default(now())
+  id            String           @id @default(cuid())
+  registerId    String
+  studentId     String
+  status        AttendanceStatus @default(PRESENT)
+  remarks       String?
+  arrivalTime   DateTime?        // for LATE status: actual arrival time
+  departureTime DateTime?        // for early departure tracking
+  createdAt     DateTime         @default(now())
 
   register AttendanceRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
 
   @@unique([registerId, studentId])
   @@index([registerId])
   @@index([studentId])
+}
+
+// ─── Attendance Policy Engine ─────────────────────────────────────────
+
+model AttendancePolicy {
+  id        String                @id @default(cuid())
+  schoolId  String
+  name      String
+  scope     AttendancePolicyScope @default(SCHOOL)
+  scopeId   String?               // classId or classArmId when scope is not SCHOOL
+  metric    AttendancePolicyMetric
+  threshold Float                 // the value that triggers the alert
+  period    AttendancePolicyPeriod @default(TERM)
+  severity  AlertSeverity         @default(WARNING)
+  actions   Json?                 // e.g. ["notify_parent", "notify_admin", "flag_student"]
+  isActive  Boolean               @default(true)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  school School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  alerts AttendanceAlert[]
+
+  @@index([schoolId])
+  @@index([schoolId, isActive])
+}
+
+model AttendanceAlert {
+  id           String        @id @default(cuid())
+  schoolId     String
+  policyId     String
+  studentId    String
+  classArmId   String
+  termId       String
+  metric       String
+  currentValue Float
+  threshold    Float
+  severity     AlertSeverity
+  status       AlertStatus   @default(OPEN)
+  resolvedBy   String?
+  resolvedAt   DateTime?
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  school School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  policy AttendancePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([schoolId, status])
+  @@index([studentId])
+  @@index([policyId])
 }
 
 enum AttendanceType {
@@ -49,4 +108,55 @@ enum AttendanceStatus {
   LATE
   EXCUSED
   SICK
+}
+
+enum AttendancePolicyScope {
+  SCHOOL
+  CLASS
+  CLASS_ARM
+}
+
+enum AttendancePolicyMetric {
+  ABSENCE_COUNT
+  ABSENCE_RATE
+  CONSECUTIVE_ABSENCES
+  LATE_COUNT
+}
+
+enum AttendancePolicyPeriod {
+  WEEKLY
+  MONTHLY
+  TERM
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+// ─── Event-Based Attendance ───────────────────────────────────────────
+
+model EventAttendance {
+  id        String               @id @default(cuid())
+  schoolId  String
+  eventId   String
+  studentId String
+  status    AttendanceStatus     @default(PRESENT)
+  remarks   String?
+  recordedBy String
+  createdAt DateTime             @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, studentId])
+  @@index([schoolId])
+  @@index([eventId])
+  @@index([studentId])
 }
