@@ -30,9 +30,13 @@ export const NOTIFICATION_EVENTS = {
   EXEAT_RETURNED: "exeat_returned",
 
   // HR
+  LEAVE_REQUESTED: "leave_requested",
   LEAVE_APPROVED: "leave_approved",
   LEAVE_REJECTED: "leave_rejected",
   PAYROLL_GENERATED: "payroll_generated",
+  PAYROLL_APPROVED: "payroll_approved",
+  CONTRACT_EXPIRING: "contract_expiring",
+  STAFF_DISCIPLINE_REPORTED: "staff_discipline_reported",
 
   // Communication
   ANNOUNCEMENT_PUBLISHED: "announcement_published",
@@ -67,9 +71,13 @@ export const EVENT_CHANNELS: Record<NotificationEvent, ("in_app" | "sms" | "emai
   [NOTIFICATION_EVENTS.EXEAT_REJECTED]: ["in_app", "sms"],
   [NOTIFICATION_EVENTS.EXEAT_OVERDUE]: ["in_app", "sms", "email"],
   [NOTIFICATION_EVENTS.EXEAT_RETURNED]: ["in_app"],
+  [NOTIFICATION_EVENTS.LEAVE_REQUESTED]: ["in_app", "email"],
   [NOTIFICATION_EVENTS.LEAVE_APPROVED]: ["in_app", "email"],
   [NOTIFICATION_EVENTS.LEAVE_REJECTED]: ["in_app", "email"],
   [NOTIFICATION_EVENTS.PAYROLL_GENERATED]: ["in_app"],
+  [NOTIFICATION_EVENTS.PAYROLL_APPROVED]: ["in_app", "email"],
+  [NOTIFICATION_EVENTS.CONTRACT_EXPIRING]: ["in_app", "email"],
+  [NOTIFICATION_EVENTS.STAFF_DISCIPLINE_REPORTED]: ["in_app"],
   [NOTIFICATION_EVENTS.ANNOUNCEMENT_PUBLISHED]: ["in_app"],
   [NOTIFICATION_EVENTS.DISCIPLINE_INCIDENT]: ["in_app", "sms"],
   [NOTIFICATION_EVENTS.DISCIPLINE_RESOLVED]: ["in_app"],

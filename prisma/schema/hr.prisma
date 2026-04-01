@@ -10,9 +10,9 @@ model Staff {
   gender                  Gender
   phone                   String
   email                   String?
-  ghanaCardNumber         String?
-  ssnitNumber             String?
-  tinNumber               String?
+  ghanaCardNumber         String?   // Encrypted via AES-256-GCM
+  ssnitNumber             String?   // Encrypted via AES-256-GCM
+  tinNumber               String?   // Encrypted via AES-256-GCM
   qualifications          Json?     // Array of {degree, institution, year}
   specialization          String?
   dateOfFirstAppointment  DateTime?
@@ -22,6 +22,7 @@ model Staff {
   address                 String?
   region                  String?
   status                  StaffStatus @default(ACTIVE)
+  deletedAt               DateTime?   // Soft delete
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 
@@ -29,11 +30,19 @@ model Staff {
   leaveRequests LeaveRequest[]
   disciplinaryRecords StaffDisciplinary[]
   performanceNotes PerformanceNote[]
+  attendanceRecords StaffAttendance[]
+  contracts StaffContract[]
+  loans StaffLoan[]
+  promotions StaffPromotion[]
+  trainingEnrollments TrainingEnrollment[]
+  overtimeRecords OvertimeRecord[]
+  exitClearance ExitClearance[]
 
   @@index([schoolId])
   @@index([staffId])
   @@index([staffType])
   @@index([status])
+  @@index([deletedAt])
 }
 
 model Employment {
@@ -262,4 +271,161 @@ model PerformanceNote {
   @@index([schoolId])
   @@index([staffId])
   @@index([academicYearId])
+}
+
+// ─── Public Holiday Calendar ──────────────────────────────────
+
+model PublicHoliday {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String
+  date      DateTime
+  recurring Boolean  @default(false) // If true, repeats annually (day/month only)
+  createdAt DateTime @default(now())
+
+  @@unique([schoolId, date])
+  @@index([schoolId])
+  @@index([date])
+}
+
+// ─── Staff Attendance ─────────────────────────────────────────
+
+model StaffAttendance {
+  id         String                @id @default(cuid())
+  schoolId   String
+  staffId    String
+  date       DateTime
+  clockIn    DateTime?
+  clockOut   DateTime?
+  status     StaffAttendanceStatus @default(PRESENT)
+  source     String                @default("MANUAL") // MANUAL, BIOMETRIC, SYSTEM
+  remarks    String?
+  recordedBy String?               // User ID
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, date])
+  @@index([schoolId, date])
+  @@index([staffId])
+  @@index([status])
+}
+
+enum StaffAttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+  HALF_DAY
+  ON_LEAVE
+  HOLIDAY
+}
+
+// ─── Staff Contracts ──────────────────────────────────────────
+
+model StaffContract {
+  id             String         @id @default(cuid())
+  schoolId       String
+  staffId        String
+  contractNumber String?
+  type           String         // PERMANENT, FIXED_TERM, PROBATION, NATIONAL_SERVICE
+  startDate      DateTime
+  endDate        DateTime?
+  renewalDate    DateTime?
+  terms          String?        // Free-text terms summary
+  documentId     String?        // Link to Document for the contract PDF
+  status         ContractStatus @default(ACTIVE)
+  createdBy      String         // User ID
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([staffId])
+  @@index([endDate])
+  @@index([status])
+}
+
+enum ContractStatus {
+  ACTIVE
+  EXPIRED
+  RENEWED
+  TERMINATED
+}
+
+// ─── Staff Loans & Advances ──────────────────────────────────
+
+model StaffLoan {
+  id               String     @id @default(cuid())
+  schoolId         String
+  staffId          String
+  loanNumber       String     @unique // Auto: LN/YYYY/NNNN
+  type             String     // SALARY_ADVANCE, PERSONAL_LOAN, EMERGENCY_LOAN
+  amount           Decimal    @db.Decimal(18, 2)
+  interestRate     Decimal    @default(0) @db.Decimal(5, 2)
+  totalRepayment   Decimal    @db.Decimal(18, 2)
+  monthlyDeduction Decimal    @db.Decimal(18, 2)
+  tenure           Int        // months
+  remainingBalance Decimal    @db.Decimal(18, 2)
+  status           LoanStatus @default(PENDING)
+  approvedBy       String?    // User ID
+  approvedAt       DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  staff      Staff           @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  repayments LoanRepayment[]
+
+  @@index([schoolId])
+  @@index([staffId])
+  @@index([status])
+}
+
+model LoanRepayment {
+  id              String   @id @default(cuid())
+  loanId          String
+  payrollPeriodId String?  // Null if manual payment
+  amount          Decimal  @db.Decimal(18, 2)
+  date            DateTime @default(now())
+  method          String   @default("PAYROLL_DEDUCTION") // PAYROLL_DEDUCTION, MANUAL
+
+  loan StaffLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([loanId])
+  @@index([payrollPeriodId])
+}
+
+enum LoanStatus {
+  PENDING
+  APPROVED
+  ACTIVE
+  FULLY_PAID
+  DEFAULTED
+  CANCELLED
+}
+
+// ─── Staff Promotions ─────────────────────────────────────────
+
+model StaffPromotion {
+  id               String   @id @default(cuid())
+  schoolId         String
+  staffId          String
+  effectiveDate    DateTime
+  previousRank     String?
+  newRank          String
+  previousGrade    String?
+  newGrade         String?
+  previousSalary   Decimal? @db.Decimal(18, 2)
+  newSalary        Decimal? @db.Decimal(18, 2)
+  reason           String?
+  approvedBy       String   // User ID
+  letterDocumentId String?  // Link to Document for the promotion letter
+  createdAt        DateTime @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([staffId])
 }

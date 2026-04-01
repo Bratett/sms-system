@@ -658,7 +658,7 @@ export function StaffForm({
                       Create login account for this staff member
                     </span>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      A user account with the &ldquo;teacher&rdquo; role will be created. Default password: changeme123
+                      A user account with the &ldquo;teacher&rdquo; role will be created. A secure password will be generated and a password-reset email sent.
                     </p>
                   </div>
                 </label>

@@ -62,6 +62,7 @@ export const QUEUE_NAMES = {
   NOTIFICATIONS: "notifications",
   FINANCE_PENALTIES: "finance-penalties",
   FINANCE_REMINDERS: "finance-reminders",
+  PAYSLIP_GENERATION: "payslip-generation",
 } as const;
 
 // ─── Job Type Definitions ──────────────────────────────────────────
