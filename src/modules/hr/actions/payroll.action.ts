@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
+import { dispatch } from "@/lib/notifications/dispatcher";
+import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
 import {
   createAllowanceSchema,
   createDeductionSchema,
@@ -372,6 +374,7 @@ export async function generatePayrollAction(periodId: string) {
     where: {
       schoolId: school.id,
       status: "ACTIVE",
+      deletedAt: null,
     },
     include: {
       employments: {
@@ -392,61 +395,108 @@ export async function generatePayrollAction(periodId: string) {
     }),
   ]);
 
-  let generated = 0;
   const errors: { staffId: string; message: string }[] = [];
 
+  // Build entries in memory for batch insertion
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const entriesToCreate: any[] = [];
+
   for (const staff of activeStaff) {
-    try {
-      const employment = staff.employments[0];
-      if (!employment) {
-        errors.push({
-          staffId: staff.staffId,
-          message: "No active employment record",
-        });
-        continue;
-      }
-
-      // Determine basic salary from salary grade
-      const basicSalary = employment.salaryGrade
-        ? SALARY_GRADES[employment.salaryGrade] ?? DEFAULT_SALARY
-        : DEFAULT_SALARY;
-
-      // Calculate allowances
-      const allowanceBreakdown = allowances.map((a) => ({
-        name: a.name,
-        amount: a.type === "PERCENTAGE" ? (basicSalary * toNum(a.amount)) / 100 : toNum(a.amount),
-      }));
-      const totalAllowances = allowanceBreakdown.reduce((sum, a) => sum + a.amount, 0);
-
-      // Calculate deductions
-      const deductionBreakdown = deductions.map((d) => ({
-        name: d.name,
-        amount: d.type === "PERCENTAGE" ? (basicSalary * toNum(d.amount)) / 100 : toNum(d.amount),
-      }));
-      const totalDeductions = deductionBreakdown.reduce((sum, d) => sum + d.amount, 0);
-
-      const netPay = basicSalary + totalAllowances - totalDeductions;
-
-      await db.payrollEntry.create({
-        data: {
-          payrollPeriodId: periodId,
-          staffId: staff.id,
-          basicSalary,
-          totalAllowances,
-          totalDeductions,
-          netPay,
-          details: {
-            allowances: allowanceBreakdown,
-            deductions: deductionBreakdown,
-          },
-        },
-      });
-
-      generated++;
-    } catch (error) {
+    const employment = staff.employments[0];
+    if (!employment) {
       errors.push({
         staffId: staff.staffId,
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: "No active employment record",
+      });
+      continue;
+    }
+
+    const basicSalary = employment.salaryGrade
+      ? SALARY_GRADES[employment.salaryGrade] ?? DEFAULT_SALARY
+      : DEFAULT_SALARY;
+
+    const allowanceBreakdown = allowances.map((a) => ({
+      name: a.name,
+      amount: a.type === "PERCENTAGE" ? (basicSalary * toNum(a.amount)) / 100 : toNum(a.amount),
+    }));
+    const totalAllowances = allowanceBreakdown.reduce((sum, a) => sum + a.amount, 0);
+
+    const deductionBreakdown = deductions.map((d) => ({
+      name: d.name,
+      amount: d.type === "PERCENTAGE" ? (basicSalary * toNum(d.amount)) / 100 : toNum(d.amount),
+    }));
+
+    // Add active loan deductions
+    const activeLoans = await db.staffLoan.findMany({
+      where: { staffId: staff.id, status: "ACTIVE" },
+    });
+    for (const loan of activeLoans) {
+      const monthlyDed = toNum(loan.monthlyDeduction);
+      const remaining = toNum(loan.remainingBalance);
+      const deductAmount = Math.min(monthlyDed, remaining);
+      if (deductAmount > 0) {
+        deductionBreakdown.push({
+          name: `Loan: ${loan.loanNumber}`,
+          amount: deductAmount,
+        });
+      }
+    }
+
+    const totalDeductions = deductionBreakdown.reduce((sum, d) => sum + d.amount, 0);
+
+    const netPay = basicSalary + totalAllowances - totalDeductions;
+
+    entriesToCreate.push({
+      payrollPeriodId: periodId,
+      staffId: staff.id,
+      basicSalary,
+      totalAllowances,
+      totalDeductions,
+      netPay,
+      details: {
+        allowances: allowanceBreakdown,
+        deductions: deductionBreakdown,
+      },
+    });
+  }
+
+  // Batch insert all entries at once
+  let generated = 0;
+  if (entriesToCreate.length > 0) {
+    const result = await db.payrollEntry.createMany({
+      data: entriesToCreate,
+    });
+    generated = result.count;
+  }
+
+  // Process loan repayments for all staff with active loans
+  const allActiveLoans = await db.staffLoan.findMany({
+    where: {
+      staffId: { in: activeStaff.map((s) => s.id) },
+      status: "ACTIVE",
+    },
+  });
+
+  for (const loan of allActiveLoans) {
+    const monthlyDed = toNum(loan.monthlyDeduction);
+    const remaining = toNum(loan.remainingBalance);
+    const deductAmount = Math.min(monthlyDed, remaining);
+    if (deductAmount > 0) {
+      await db.loanRepayment.create({
+        data: {
+          loanId: loan.id,
+          payrollPeriodId: periodId,
+          amount: deductAmount,
+          method: "PAYROLL_DEDUCTION",
+        },
+      });
+      const newBalance = remaining - deductAmount;
+      await db.staffLoan.update({
+        where: { id: loan.id },
+        data: {
+          remainingBalance: newBalance,
+          status: newBalance <= 0 ? "FULLY_PAID" : "ACTIVE",
+        },
       });
     }
   }
@@ -503,6 +553,46 @@ export async function approvePayrollAction(periodId: string) {
     previousData: period,
     newData: updated,
   });
+
+  // Notify all staff with payroll entries in this period
+  const entries = await db.payrollEntry.findMany({
+    where: { payrollPeriodId: periodId },
+    select: { staffId: true },
+  });
+  const staffIds = [...new Set(entries.map((e) => e.staffId))];
+  const staffWithUsers = await db.staff.findMany({
+    where: { id: { in: staffIds }, userId: { not: null }, deletedAt: null },
+    select: { userId: true, firstName: true, lastName: true },
+  });
+
+  if (staffWithUsers.length > 0) {
+    const userIds = staffWithUsers.map((s) => s.userId!);
+    const users = await db.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, email: true },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const recipients = staffWithUsers
+      .map((s) => {
+        const user = userMap.get(s.userId!);
+        return user
+          ? { userId: user.id, email: user.email ?? undefined, name: `${s.firstName} ${s.lastName}` }
+          : null;
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+
+    const school = await db.school.findFirst();
+    if (school) {
+      dispatch({
+        event: NOTIFICATION_EVENTS.PAYROLL_APPROVED,
+        title: "Payroll Approved",
+        message: `Payroll for ${period.month}/${period.year} has been approved. Your payslip is now available.`,
+        recipients,
+        schoolId: school.id,
+      }).catch(() => {});
+    }
+  }
 
   return { data: updated };
 }

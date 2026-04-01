@@ -14,6 +14,7 @@ import {
   createDeductionAction,
   deleteDeductionAction,
 } from "@/modules/hr/actions/payroll.action";
+import { generatePayslipPdfAction, bulkGeneratePayslipsAction } from "@/modules/hr/actions/payslip.action";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -367,6 +368,21 @@ export function PayrollClient({
                           )}
                         </>
                       )}
+                      {period.status !== "DRAFT" && period.entriesCount > 0 && (
+                        <button
+                          onClick={() => {
+                            startTransition(async () => {
+                              const res = await bulkGeneratePayslipsAction(period.id);
+                              if ("error" in res) toast.error(res.error);
+                              else toast.success(`Generated ${res.data.generated} payslip PDFs.`);
+                            });
+                          }}
+                          disabled={isPending}
+                          className="rounded-md bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+                        >
+                          {isPending ? "Generating..." : "Generate All Payslips"}
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -382,13 +398,14 @@ export function PayrollClient({
                             <th className="px-4 py-2 text-right font-medium">Allowances</th>
                             <th className="px-4 py-2 text-right font-medium">Deductions</th>
                             <th className="px-4 py-2 text-right font-medium">Net Pay</th>
+                            <th className="px-4 py-2 text-center font-medium">Payslip</th>
                           </tr>
                         </thead>
                         <tbody>
                           {periodEntries.length === 0 ? (
                             <tr>
                               <td
-                                colSpan={6}
+                                colSpan={7}
                                 className="px-4 py-6 text-center text-muted-foreground"
                               >
                                 {isPending
@@ -417,6 +434,32 @@ export function PayrollClient({
                                 </td>
                                 <td className="px-4 py-2 text-right font-semibold">
                                   {formatCurrency(entry.netPay)}
+                                </td>
+                                <td className="px-4 py-2 text-center">
+                                  <button
+                                    onClick={() => {
+                                      startTransition(async () => {
+                                        const res = await generatePayslipPdfAction(entry.staffId, period.id);
+                                        if ("error" in res) {
+                                          toast.error(res.error);
+                                        } else if (res.data) {
+                                          // Download the PDF
+                                          const byteArray = Uint8Array.from(atob(res.data.base64), c => c.charCodeAt(0));
+                                          const blob = new Blob([byteArray], { type: "application/pdf" });
+                                          const url = URL.createObjectURL(blob);
+                                          const a = document.createElement("a");
+                                          a.href = url;
+                                          a.download = res.data.fileName;
+                                          a.click();
+                                          URL.revokeObjectURL(url);
+                                        }
+                                      });
+                                    }}
+                                    disabled={isPending}
+                                    className="text-xs text-primary hover:text-primary/80 font-medium disabled:opacity-50"
+                                  >
+                                    Download
+                                  </button>
                                 </td>
                               </tr>
                             ))

@@ -20,6 +20,14 @@ const studentLinks = [
   { href: "/student/exeat", label: "Exeat" },
 ];
 
+const staffLinks = [
+  { href: "/staff", label: "Dashboard" },
+  { href: "/staff/profile", label: "My Profile" },
+  { href: "/staff/leave", label: "My Leave" },
+  { href: "/staff/payslips", label: "My Payslips" },
+  { href: "/staff/attendance", label: "My Attendance" },
+];
+
 interface PortalNavProps {
   role: string;
   userName: string;
@@ -27,7 +35,7 @@ interface PortalNavProps {
 
 export function PortalNav({ role }: PortalNavProps) {
   const pathname = usePathname();
-  const links = role === "parent" ? parentLinks : studentLinks;
+  const links = role === "parent" ? parentLinks : role === "staff" ? staffLinks : studentLinks;
 
   return (
     <nav className="sticky top-16 z-20 border-b border-gray-200 bg-white">

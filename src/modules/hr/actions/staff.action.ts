@@ -3,7 +3,9 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
+import { encryptOptional, decryptOptional } from "@/lib/crypto/field-encrypt";
 import {
   createStaffSchema,
   updateStaffSchema,
@@ -40,6 +42,7 @@ export async function getStaffAction(filters?: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {
     schoolId: school.id,
+    deletedAt: null,
   };
 
   if (filters?.search) {
@@ -190,9 +193,9 @@ export async function getStaffMemberAction(id: string) {
       email: staff.email,
       address: staff.address,
       region: staff.region,
-      ghanaCardNumber: staff.ghanaCardNumber,
-      ssnitNumber: staff.ssnitNumber,
-      tinNumber: staff.tinNumber,
+      ghanaCardNumber: decryptOptional(staff.ghanaCardNumber),
+      ssnitNumber: decryptOptional(staff.ssnitNumber),
+      tinNumber: decryptOptional(staff.tinNumber),
       staffType: staff.staffType,
       specialization: staff.specialization,
       qualifications: staff.qualifications as
@@ -275,8 +278,8 @@ export async function createStaffAction(data: CreateStaffInput) {
         counter++;
       }
 
-      const defaultPassword = "changeme123";
-      const passwordHash = await bcrypt.hash(defaultPassword, 12);
+      const generatedPassword = randomBytes(16).toString("hex");
+      const passwordHash = await bcrypt.hash(generatedPassword, 12);
 
       const user = await db.user.create({
         data: {
@@ -313,9 +316,9 @@ export async function createStaffAction(data: CreateStaffInput) {
       email: parsed.data.email || null,
       address: parsed.data.address || null,
       region: parsed.data.region || null,
-      ghanaCardNumber: parsed.data.ghanaCardNumber || null,
-      ssnitNumber: parsed.data.ssnitNumber || null,
-      tinNumber: parsed.data.tinNumber || null,
+      ghanaCardNumber: encryptOptional(parsed.data.ghanaCardNumber),
+      ssnitNumber: encryptOptional(parsed.data.ssnitNumber),
+      tinNumber: encryptOptional(parsed.data.tinNumber),
       staffType: parsed.data.staffType,
       specialization: parsed.data.specialization || null,
       qualifications: parsed.data.qualifications ?? undefined,
@@ -384,10 +387,10 @@ export async function updateStaffAction(id: string, data: UpdateStaffInput) {
   if (parsed.data.address !== undefined) updateData.address = parsed.data.address || null;
   if (parsed.data.region !== undefined) updateData.region = parsed.data.region || null;
   if (parsed.data.ghanaCardNumber !== undefined)
-    updateData.ghanaCardNumber = parsed.data.ghanaCardNumber || null;
+    updateData.ghanaCardNumber = encryptOptional(parsed.data.ghanaCardNumber);
   if (parsed.data.ssnitNumber !== undefined)
-    updateData.ssnitNumber = parsed.data.ssnitNumber || null;
-  if (parsed.data.tinNumber !== undefined) updateData.tinNumber = parsed.data.tinNumber || null;
+    updateData.ssnitNumber = encryptOptional(parsed.data.ssnitNumber);
+  if (parsed.data.tinNumber !== undefined) updateData.tinNumber = encryptOptional(parsed.data.tinNumber);
   if (parsed.data.staffType !== undefined) updateData.staffType = parsed.data.staffType;
   if (parsed.data.specialization !== undefined)
     updateData.specialization = parsed.data.specialization || null;
@@ -500,17 +503,17 @@ export async function getStaffStatsAction() {
   }
 
   const [total, active, teaching, nonTeaching, terminated, retired, onLeave] = await Promise.all([
-    db.staff.count({ where: { schoolId: school.id } }),
-    db.staff.count({ where: { schoolId: school.id, status: "ACTIVE" } }),
+    db.staff.count({ where: { schoolId: school.id, deletedAt: null } }),
+    db.staff.count({ where: { schoolId: school.id, status: "ACTIVE", deletedAt: null } }),
     db.staff.count({
-      where: { schoolId: school.id, staffType: "TEACHING", status: "ACTIVE" },
+      where: { schoolId: school.id, staffType: "TEACHING", status: "ACTIVE", deletedAt: null },
     }),
     db.staff.count({
-      where: { schoolId: school.id, staffType: "NON_TEACHING", status: "ACTIVE" },
+      where: { schoolId: school.id, staffType: "NON_TEACHING", status: "ACTIVE", deletedAt: null },
     }),
-    db.staff.count({ where: { schoolId: school.id, status: "TERMINATED" } }),
-    db.staff.count({ where: { schoolId: school.id, status: "RETIRED" } }),
-    db.staff.count({ where: { schoolId: school.id, status: "ON_LEAVE" } }),
+    db.staff.count({ where: { schoolId: school.id, status: "TERMINATED", deletedAt: null } }),
+    db.staff.count({ where: { schoolId: school.id, status: "RETIRED", deletedAt: null } }),
+    db.staff.count({ where: { schoolId: school.id, status: "ON_LEAVE", deletedAt: null } }),
   ]);
 
   // Pending leave requests
@@ -580,7 +583,7 @@ export async function importStaffAction(
   }
 
   const year = new Date().getFullYear();
-  let currentCount = await db.staff.count();
+  let currentCount = await db.staff.count({ where: { schoolId: school.id } });
 
   const imported: string[] = [];
   const errors: { row: number; message: string }[] = [];

@@ -1,9 +1,39 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   prismaMock,
   mockAuthenticatedUser,
   mockUnauthenticated,
 } from "../setup";
+
+// ─── Module mocks needed by HR actions ────────────────────────────
+
+vi.mock("@/lib/notifications/dispatcher", () => ({
+  dispatch: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/notifications/events", () => ({
+  NOTIFICATION_EVENTS: {
+    LEAVE_REQUESTED: "leave_requested",
+    LEAVE_APPROVED: "leave_approved",
+    LEAVE_REJECTED: "leave_rejected",
+    PAYROLL_GENERATED: "payroll_generated",
+    PAYROLL_APPROVED: "payroll_approved",
+    CONTRACT_EXPIRING: "contract_expiring",
+    STAFF_DISCIPLINE_REPORTED: "staff_discipline_reported",
+  },
+  EVENT_CHANNELS: {},
+}));
+
+vi.mock("@/lib/crypto/field-encrypt", () => ({
+  encryptField: vi.fn((v: string) => `enc:${v}`),
+  decryptField: vi.fn((v: string) => v.startsWith("enc:") ? v.slice(4) : v),
+  encryptOptional: vi.fn((v: string | null | undefined) => v ? `enc:${v}` : null),
+  decryptOptional: vi.fn((v: string | null | undefined) => {
+    if (!v) return null;
+    return v.startsWith("enc:") ? v.slice(4) : v;
+  }),
+  isEncrypted: vi.fn((v: string) => v.startsWith("enc:")),
+}));
 
 import {
   getStaffAction,
@@ -583,6 +613,7 @@ describe("requestLeaveAction", () => {
   it("should return error if insufficient leave balance", async () => {
     prismaMock.staff.findUnique.mockResolvedValue({ id: "staff-1" } as never);
     prismaMock.leaveType.findUnique.mockResolvedValue({ id: "lt-1" } as never);
+    prismaMock.publicHoliday.findMany.mockResolvedValue([] as never);
     prismaMock.leaveBalance.findFirst.mockResolvedValue({
       id: "lb-1",
       remainingDays: 1,
@@ -608,6 +639,7 @@ describe("requestLeaveAction", () => {
       id: "lt-1",
       name: "Annual",
     } as never);
+    prismaMock.publicHoliday.findMany.mockResolvedValue([] as never);
     prismaMock.leaveBalance.findFirst.mockResolvedValue({
       id: "lb-1",
       remainingDays: 20,
@@ -1067,7 +1099,8 @@ describe("generatePayrollAction", () => {
     prismaMock.deduction.findMany.mockResolvedValue([
       { id: "d-1", name: "SSNIT", type: "PERCENTAGE", amount: 5.5 },
     ] as never);
-    prismaMock.payrollEntry.create.mockResolvedValue({ id: "pe-1" } as never);
+    prismaMock.staffLoan.findMany.mockResolvedValue([] as never);
+    prismaMock.payrollEntry.createMany.mockResolvedValue({ count: 1 } as never);
 
     const result = await generatePayrollAction("pp-1");
     expect(result).toHaveProperty("generated");
@@ -1128,6 +1161,9 @@ describe("approvePayrollAction", () => {
       id: "pp-1",
       status: "APPROVED",
     } as never);
+    // Mock notification-related queries (for payroll approval notifications)
+    prismaMock.payrollEntry.findMany.mockResolvedValue([] as never);
+    prismaMock.staff.findMany.mockResolvedValue([] as never);
 
     const result = await approvePayrollAction("pp-1");
     expect(result).toHaveProperty("data");

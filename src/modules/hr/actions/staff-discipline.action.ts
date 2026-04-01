@@ -3,6 +3,8 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { dispatch } from "@/lib/notifications/dispatcher";
+import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
 
 // ─── Report Staff Disciplinary Incident ────────────────────────────
 
@@ -39,6 +41,21 @@ export async function reportStaffDisciplinaryAction(data: {
     module: "hr",
     description: `Reported staff disciplinary: ${data.type} for staff ${data.staffId}`,
   });
+
+  // Notify the staff member about the disciplinary report
+  const staffMember = await db.staff.findUnique({
+    where: { id: data.staffId },
+    select: { userId: true, firstName: true, lastName: true },
+  });
+  if (staffMember?.userId) {
+    dispatch({
+      event: NOTIFICATION_EVENTS.STAFF_DISCIPLINE_REPORTED,
+      title: "Disciplinary Report Filed",
+      message: `A disciplinary report (${data.type}) has been filed. Please contact HR for details.`,
+      recipients: [{ userId: staffMember.userId, name: `${staffMember.firstName} ${staffMember.lastName}` }],
+      schoolId: school.id,
+    }).catch(() => {});
+  }
 
   return { data: record };
 }

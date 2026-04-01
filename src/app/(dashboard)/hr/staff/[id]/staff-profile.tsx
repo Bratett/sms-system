@@ -7,6 +7,9 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { GHANA_REGIONS } from "@/lib/constants";
 import { updateStaffAction, terminateStaffAction } from "@/modules/hr/actions/staff.action";
 import { requestLeaveAction } from "@/modules/hr/actions/leave.action";
+import { getStaffDocumentsAction, deleteStaffDocumentAction } from "@/modules/hr/actions/staff-documents.action";
+import { getStaffContractsAction, renewContractAction } from "@/modules/hr/actions/contract.action";
+import { getPromotionHistoryAction } from "@/modules/hr/actions/promotion.action";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -144,13 +147,48 @@ export function StaffProfile({
     reason: "",
   });
 
+  // Dynamic data for new tabs
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [documents, setDocuments] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [contracts, setContracts] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [promotions, setPromotions] = useState<any[]>([]);
+  const [docsLoaded, setDocsLoaded] = useState(false);
+  const [contractsLoaded, setContractsLoaded] = useState(false);
+  const [promotionsLoaded, setPromotionsLoaded] = useState(false);
+
   const tabs = [
     { title: "Personal Info", index: 0 },
     { title: "Employment", index: 1 },
     { title: "Qualifications", index: 2 },
     { title: "Leave", index: 3 },
     { title: "Documents", index: 4 },
+    { title: "Contracts", index: 5 },
+    { title: "Promotions", index: 6 },
   ];
+
+  function loadTabData(tabIndex: number) {
+    setActiveTab(tabIndex);
+    if (tabIndex === 4 && !docsLoaded) {
+      startTransition(async () => {
+        const res = await getStaffDocumentsAction(staff.id);
+        if ("data" in res && res.data) { setDocuments(res.data); setDocsLoaded(true); }
+      });
+    }
+    if (tabIndex === 5 && !contractsLoaded) {
+      startTransition(async () => {
+        const res = await getStaffContractsAction(staff.id);
+        if ("data" in res && res.data) { setContracts(res.data); setContractsLoaded(true); }
+      });
+    }
+    if (tabIndex === 6 && !promotionsLoaded) {
+      startTransition(async () => {
+        const res = await getPromotionHistoryAction(staff.id);
+        if ("data" in res && res.data) { setPromotions(res.data); setPromotionsLoaded(true); }
+      });
+    }
+  }
 
   function handleSavePersonal() {
     startTransition(async () => {
@@ -272,7 +310,7 @@ export function StaffProfile({
           <button
             key={tab.index}
             type="button"
-            onClick={() => setActiveTab(tab.index)}
+            onClick={() => loadTabData(tab.index)}
             className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab.index
                 ? "border-primary text-primary"
@@ -617,8 +655,161 @@ export function StaffProfile({
 
       {/* Tab 5: Documents */}
       {activeTab === 4 && (
-        <div className="rounded-lg border border-border bg-card p-8 text-center">
-          <p className="text-muted-foreground">Document management coming soon.</p>
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <h3 className="text-sm font-semibold">Staff Documents</h3>
+          </div>
+          {documents.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              {isPending ? "Loading documents..." : "No documents uploaded yet."}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 py-3 text-left font-medium">Title</th>
+                    <th className="px-4 py-3 text-left font-medium">Category</th>
+                    <th className="px-4 py-3 text-left font-medium">File</th>
+                    <th className="px-4 py-3 text-left font-medium">Uploaded</th>
+                    <th className="px-4 py-3 text-center font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {documents.map((doc: any) => (
+                    <tr key={doc.id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3 font-medium">{doc.title}</td>
+                      <td className="px-4 py-3"><StatusBadge status={doc.category} /></td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{doc.fileName}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{formatDate(doc.createdAt)}</td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => {
+                            startTransition(async () => {
+                              const res = await deleteStaffDocumentAction(doc.id);
+                              if ("error" in res) toast.error(res.error);
+                              else {
+                                toast.success("Document deleted.");
+                                setDocuments((prev) => prev.filter((d: { id: string }) => d.id !== doc.id));
+                              }
+                            });
+                          }}
+                          disabled={isPending}
+                          className="text-xs text-red-600 hover:text-red-800"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 6: Contracts */}
+      {activeTab === 5 && (
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <h3 className="text-sm font-semibold">Contracts</h3>
+          </div>
+          {contracts.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              {isPending ? "Loading contracts..." : "No contracts recorded."}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 py-3 text-left font-medium">Type</th>
+                    <th className="px-4 py-3 text-left font-medium">Start</th>
+                    <th className="px-4 py-3 text-left font-medium">End</th>
+                    <th className="px-4 py-3 text-center font-medium">Status</th>
+                    <th className="px-4 py-3 text-center font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {contracts.map((c: any) => (
+                    <tr key={c.id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3 font-medium">{c.type.replace("_", " ")}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{formatDate(c.startDate)}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{formatDate(c.endDate)}</td>
+                      <td className="px-4 py-3 text-center"><StatusBadge status={c.status} /></td>
+                      <td className="px-4 py-3 text-center">
+                        {c.status === "ACTIVE" && c.endDate && (
+                          <button
+                            onClick={() => {
+                              const newEnd = prompt("Enter new end date (YYYY-MM-DD):");
+                              if (newEnd) {
+                                startTransition(async () => {
+                                  const res = await renewContractAction(c.id, { newEndDate: newEnd });
+                                  if ("error" in res) toast.error(res.error);
+                                  else {
+                                    toast.success("Contract renewed.");
+                                    setContractsLoaded(false);
+                                    loadTabData(5);
+                                  }
+                                });
+                              }
+                            }}
+                            disabled={isPending}
+                            className="text-xs text-primary hover:text-primary/80 font-medium"
+                          >
+                            Renew
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 7: Promotions */}
+      {activeTab === 6 && (
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <h3 className="text-sm font-semibold">Promotion History</h3>
+          </div>
+          {promotions.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              {isPending ? "Loading promotions..." : "No promotion records."}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 py-3 text-left font-medium">Effective Date</th>
+                    <th className="px-4 py-3 text-left font-medium">Previous Rank</th>
+                    <th className="px-4 py-3 text-left font-medium">New Rank</th>
+                    <th className="px-4 py-3 text-left font-medium">New Grade</th>
+                    <th className="px-4 py-3 text-left font-medium">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {promotions.map((p: any) => (
+                    <tr key={p.id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3 font-medium">{formatDate(p.effectiveDate)}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{p.previousRank || "---"}</td>
+                      <td className="px-4 py-3 font-medium">{p.newRank}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{p.newGrade || "---"}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{p.reason || "---"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

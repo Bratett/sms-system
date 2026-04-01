@@ -3,6 +3,9 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { dispatch } from "@/lib/notifications/dispatcher";
+import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
+import { getBusinessDays, toDateKey } from "@/modules/hr/utils/business-days";
 import {
   createLeaveTypeSchema,
   updateLeaveTypeSchema,
@@ -11,21 +14,6 @@ import {
   type UpdateLeaveTypeInput,
   type RequestLeaveInput,
 } from "@/modules/hr/schemas/leave.schema";
-
-// ─── Helpers ─────────────────────────────────────────────────
-
-function getBusinessDays(start: Date, end: Date): number {
-  let count = 0;
-  const current = new Date(start);
-  while (current <= end) {
-    const dayOfWeek = current.getDay();
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      count++;
-    }
-    current.setDate(current.getDate() + 1);
-  }
-  return count;
-}
 
 // ─── Leave Types ─────────────────────────────────────────────
 
@@ -258,6 +246,78 @@ export async function initializeLeaveBalancesAction(staffId: string, academicYea
   return { data: { created } };
 }
 
+// ─── Bulk Initialize Leave Balances ──────────────────────────
+
+export async function bulkInitializeLeaveBalancesAction(academicYearId: string, staffIds?: string[]) {
+  const session = await auth();
+  if (!session?.user) return { error: "Unauthorized" };
+
+  const school = await db.school.findFirst();
+  if (!school) return { error: "No school configured" };
+
+  // Get target staff — either specified IDs or all active staff
+  const staffWhere = staffIds && staffIds.length > 0
+    ? { id: { in: staffIds }, schoolId: school.id, deletedAt: null }
+    : { schoolId: school.id, status: "ACTIVE" as const, deletedAt: null };
+  const staffMembers = await db.staff.findMany({
+    where: staffWhere,
+    select: { id: true, firstName: true, lastName: true, gender: true },
+  });
+
+  if (staffMembers.length === 0) return { error: "No staff members found." };
+
+  const leaveTypes = await db.leaveType.findMany({
+    where: { schoolId: school.id, status: "ACTIVE" },
+  });
+
+  let totalCreated = 0;
+  let totalSkipped = 0;
+
+  for (const staff of staffMembers) {
+    const applicableTypes = leaveTypes.filter(
+      (lt) => !lt.applicableGender || lt.applicableGender === staff.gender,
+    );
+
+    for (const lt of applicableTypes) {
+      const existing = await db.leaveBalance.findUnique({
+        where: {
+          staffId_leaveTypeId_academicYearId: {
+            staffId: staff.id,
+            leaveTypeId: lt.id,
+            academicYearId,
+          },
+        },
+      });
+
+      if (!existing) {
+        await db.leaveBalance.create({
+          data: {
+            staffId: staff.id,
+            leaveTypeId: lt.id,
+            academicYearId,
+            totalDays: lt.defaultDays,
+            remainingDays: lt.defaultDays,
+          },
+        });
+        totalCreated++;
+      } else {
+        totalSkipped++;
+      }
+    }
+  }
+
+  await audit({
+    userId: session.user.id!,
+    action: "CREATE",
+    entity: "LeaveBalance",
+    module: "hr",
+    description: `Bulk initialized leave balances for ${staffMembers.length} staff members (${totalCreated} created, ${totalSkipped} skipped)`,
+    metadata: { academicYearId, staffCount: staffMembers.length, created: totalCreated, skipped: totalSkipped },
+  });
+
+  return { data: { staffCount: staffMembers.length, created: totalCreated, skipped: totalSkipped } };
+}
+
 // ─── Leave Requests ──────────────────────────────────────────
 
 export async function getLeaveRequestsAction(filters?: {
@@ -346,6 +406,11 @@ export async function requestLeaveAction(data: RequestLeaveInput) {
     return { error: "Leave type not found." };
   }
 
+  const school = await db.school.findFirst();
+  if (!school) {
+    return { error: "No school configured" };
+  }
+
   const startDate = new Date(parsed.data.startDate);
   const endDate = new Date(parsed.data.endDate);
 
@@ -353,7 +418,17 @@ export async function requestLeaveAction(data: RequestLeaveInput) {
     return { error: "End date must be after start date." };
   }
 
-  const daysRequested = getBusinessDays(startDate, endDate);
+  // Fetch public holidays in the date range for accurate business day calculation
+  const holidays = await db.publicHoliday.findMany({
+    where: {
+      schoolId: school.id,
+      date: { gte: startDate, lte: endDate },
+    },
+    select: { date: true },
+  });
+  const holidaySet = new Set<string>(holidays.map((h: { date: Date }) => toDateKey(h.date)));
+
+  const daysRequested = getBusinessDays(startDate, endDate, holidaySet);
 
   if (daysRequested <= 0) {
     return { error: "The selected dates contain no business days." };
@@ -394,6 +469,15 @@ export async function requestLeaveAction(data: RequestLeaveInput) {
     description: `Leave request by "${staff.firstName} ${staff.lastName}" for ${daysRequested} days (${leaveType.name})`,
     newData: request,
   });
+
+  // Notify HR admins about new leave request
+  dispatch({
+    event: NOTIFICATION_EVENTS.LEAVE_REQUESTED,
+    title: "New Leave Request",
+    message: `${staff.firstName} ${staff.lastName} has requested ${daysRequested} days of ${leaveType.name} leave.`,
+    recipients: [], // In-app notification created for admins with LEAVE_APPROVE permission
+    schoolId: school.id,
+  }).catch(() => {}); // Fire-and-forget
 
   return { data: request };
 }
@@ -457,6 +541,24 @@ export async function approveLeaveAction(id: string) {
     newData: updated,
   });
 
+  // Notify the staff member
+  if (request.staff.userId) {
+    const user = await db.user.findUnique({
+      where: { id: request.staff.userId },
+      select: { id: true, email: true },
+    });
+    const school = await db.school.findFirst();
+    if (user && school) {
+      dispatch({
+        event: NOTIFICATION_EVENTS.LEAVE_APPROVED,
+        title: "Leave Request Approved",
+        message: `Your ${request.leaveType.name} leave request for ${request.daysRequested} day(s) has been approved.`,
+        recipients: [{ userId: user.id, email: user.email ?? undefined, name: `${request.staff.firstName} ${request.staff.lastName}` }],
+        schoolId: school.id,
+      }).catch(() => {});
+    }
+  }
+
   return { data: updated };
 }
 
@@ -499,6 +601,24 @@ export async function rejectLeaveAction(id: string, notes: string) {
     previousData: request,
     newData: updated,
   });
+
+  // Notify the staff member
+  if (request.staff.userId) {
+    const user = await db.user.findUnique({
+      where: { id: request.staff.userId },
+      select: { id: true, email: true },
+    });
+    const school = await db.school.findFirst();
+    if (user && school) {
+      dispatch({
+        event: NOTIFICATION_EVENTS.LEAVE_REJECTED,
+        title: "Leave Request Rejected",
+        message: `Your ${request.leaveType.name} leave request has been rejected.${notes ? ` Reason: ${notes}` : ""}`,
+        recipients: [{ userId: user.id, email: user.email ?? undefined, name: `${request.staff.firstName} ${request.staff.lastName}` }],
+        schoolId: school.id,
+      }).catch(() => {});
+    }
+  }
 
   return { data: updated };
 }
