@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 
 export async function getArrearsAction(filters?: {
   termId?: string;
@@ -108,9 +109,9 @@ export async function getArrearsAction(filters?: {
 
     const existing = studentArrearsMap.get(bill.studentId);
     if (existing) {
-      existing.totalBilled += bill.totalAmount;
-      existing.totalPaid += bill.paidAmount;
-      existing.balanceAmount += bill.balanceAmount;
+      existing.totalBilled += toNum(bill.totalAmount);
+      existing.totalPaid += toNum(bill.paidAmount);
+      existing.balanceAmount += toNum(bill.balanceAmount);
       if (bill.feeStructure?.termId && !existing.terms.includes(bill.feeStructure.termId)) {
         existing.terms.push(bill.feeStructure.termId);
       }
@@ -120,9 +121,9 @@ export async function getArrearsAction(filters?: {
         studentId: student.studentId,
         studentName: `${student.firstName} ${student.lastName}`,
         className,
-        totalBilled: bill.totalAmount,
-        totalPaid: bill.paidAmount,
-        balanceAmount: bill.balanceAmount,
+        totalBilled: toNum(bill.totalAmount),
+        totalPaid: toNum(bill.paidAmount),
+        balanceAmount: toNum(bill.balanceAmount),
         terms: bill.feeStructure?.termId ? [bill.feeStructure.termId] : [],
       });
     }
@@ -197,7 +198,7 @@ export async function getArrearsReportAction(termId?: string) {
   const studentMap = new Map(students.map((s) => [s.id, s]));
 
   // Calculate summary
-  const totalOutstanding = bills.reduce((sum, b) => sum + b.balanceAmount, 0);
+  const totalOutstanding = bills.reduce((sum, b) => sum + toNum(b.balanceAmount), 0);
   const totalStudents = studentIds.length;
 
   // Group by class
@@ -214,7 +215,7 @@ export async function getArrearsReportAction(termId?: string) {
     // By class
     const classEntry = byClass.get(className) ?? { className, count: 0, outstanding: 0 };
     classEntry.count++;
-    classEntry.outstanding += bill.balanceAmount;
+    classEntry.outstanding += toNum(bill.balanceAmount);
     byClass.set(className, classEntry);
 
     // By programme
@@ -224,7 +225,7 @@ export async function getArrearsReportAction(termId?: string) {
       outstanding: 0,
     };
     progEntry.count++;
-    progEntry.outstanding += bill.balanceAmount;
+    progEntry.outstanding += toNum(bill.balanceAmount);
     byProgramme.set(programmeId, progEntry);
   }
 
@@ -241,13 +242,13 @@ export async function getArrearsReportAction(termId?: string) {
 
     const existing = studentBalances.get(bill.studentId);
     if (existing) {
-      existing.outstanding += bill.balanceAmount;
+      existing.outstanding += toNum(bill.balanceAmount);
     } else {
       studentBalances.set(bill.studentId, {
         studentId: student.studentId,
         name: `${student.firstName} ${student.lastName}`,
         className,
-        outstanding: bill.balanceAmount,
+        outstanding: toNum(bill.balanceAmount),
       });
     }
   }

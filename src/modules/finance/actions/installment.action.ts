@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   createInstallmentPlanSchema,
   applyInstallmentPlanSchema,
@@ -182,12 +183,12 @@ export async function applyInstallmentPlanToBillAction(data: ApplyInstallmentPla
   }
 
   const termStartDate = new Date(parsed.data.termStartDate);
-  const outstandingAmount = bill.balanceAmount;
+  const outstandingAmount = toNum(bill.balanceAmount);
 
   const installments = await db.$transaction(async (tx) => {
     const created = [];
     for (const schedule of plan.schedules) {
-      const amount = Math.round((outstandingAmount * schedule.percentageOfTotal) / 100 * 100) / 100;
+      const amount = Math.round((outstandingAmount * toNum(schedule.percentageOfTotal)) / 100 * 100) / 100;
       const dueDate = new Date(termStartDate);
       dueDate.setDate(dueDate.getDate() + schedule.dueDaysFromStart);
 

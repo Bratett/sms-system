@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { toNum } from "@/lib/decimal";
 
 export async function getCollectionSummaryAction(termId?: string) {
   const session = await auth();
@@ -29,9 +30,9 @@ export async function getCollectionSummaryAction(termId?: string) {
     },
   });
 
-  const totalBilled = billAgg._sum.totalAmount ?? 0;
-  const totalCollected = billAgg._sum.paidAmount ?? 0;
-  const totalOutstanding = billAgg._sum.balanceAmount ?? 0;
+  const totalBilled = toNum(billAgg._sum.totalAmount);
+  const totalCollected = toNum(billAgg._sum.paidAmount);
+  const totalOutstanding = toNum(billAgg._sum.balanceAmount);
   const collectionRate = totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0;
 
   // Collection by payment method
@@ -51,7 +52,7 @@ export async function getCollectionSummaryAction(termId?: string) {
       total: 0,
     };
     existing.count++;
-    existing.total += p.amount;
+    existing.total += toNum(p.amount);
     methodBreakdown.set(p.paymentMethod, existing);
   }
 
@@ -74,7 +75,7 @@ export async function getCollectionSummaryAction(termId?: string) {
   const dailyTrend = new Map<string, number>();
   for (const p of recentPayments) {
     const day = p.receivedAt.toISOString().split("T")[0];
-    dailyTrend.set(day, (dailyTrend.get(day) ?? 0) + p.amount);
+    dailyTrend.set(day, (dailyTrend.get(day) ?? 0) + toNum(p.amount));
   }
 
   return {
@@ -161,9 +162,9 @@ export async function getRevenueByClassAction(termId?: string) {
       outstanding: 0,
     };
     existing.students.add(bill.studentId);
-    existing.billed += bill.totalAmount;
-    existing.collected += bill.paidAmount;
-    existing.outstanding += bill.balanceAmount;
+    existing.billed += toNum(bill.totalAmount);
+    existing.collected += toNum(bill.paidAmount);
+    existing.outstanding += toNum(bill.balanceAmount);
     classMap.set(className, existing);
   }
 
@@ -210,8 +211,8 @@ export async function getRevenueByFeeItemAction(termId?: string) {
   for (const item of billItems) {
     const name = item.feeItem.name;
     const existing = feeItemMap.get(name) ?? { name, totalBilled: 0, totalCollected: 0 };
-    existing.totalBilled += item.amount;
-    existing.totalCollected += item.paidAmount;
+    existing.totalBilled += toNum(item.amount);
+    existing.totalCollected += toNum(item.paidAmount);
     feeItemMap.set(name, existing);
   }
 
@@ -258,7 +259,7 @@ export async function getDailyCollectionTrendAction(termId?: string) {
   for (const p of payments) {
     const day = p.receivedAt.toISOString().split("T")[0];
     const existing = dailyTrend.get(day) ?? { date: day, amount: 0, count: 0 };
-    existing.amount += p.amount;
+    existing.amount += toNum(p.amount);
     existing.count++;
     dailyTrend.set(day, existing);
   }
@@ -332,13 +333,13 @@ export async function getDebtorListAction(termId?: string, limit?: number) {
 
     const existing = debtorMap.get(bill.studentId);
     if (existing) {
-      existing.outstanding += bill.balanceAmount;
+      existing.outstanding += toNum(bill.balanceAmount);
     } else {
       debtorMap.set(bill.studentId, {
         studentId: student.studentId,
         name: `${student.firstName} ${student.lastName}`,
         className,
-        outstanding: bill.balanceAmount,
+        outstanding: toNum(bill.balanceAmount),
       });
     }
   }
@@ -387,9 +388,9 @@ export async function getFinanceDashboardAction(termId?: string) {
     _count: true,
   });
 
-  const totalBilled = billAgg._sum.totalAmount ?? 0;
-  const totalCollected = billAgg._sum.paidAmount ?? 0;
-  const totalOutstanding = billAgg._sum.balanceAmount ?? 0;
+  const totalBilled = toNum(billAgg._sum.totalAmount);
+  const totalCollected = toNum(billAgg._sum.paidAmount);
+  const totalOutstanding = toNum(billAgg._sum.balanceAmount);
   const collectionRate = totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0;
 
   // Payment method breakdown
@@ -409,7 +410,7 @@ export async function getFinanceDashboardAction(termId?: string) {
       total: 0,
     };
     existing.count++;
-    existing.total += p.amount;
+    existing.total += toNum(p.amount);
     methodBreakdown.set(p.paymentMethod, existing);
   }
 
@@ -444,7 +445,7 @@ export async function getFinanceDashboardAction(termId?: string) {
     const student = rpStudentMap.get(p.studentBill.studentId);
     return {
       id: p.id,
-      amount: p.amount,
+      amount: toNum(p.amount),
       method: p.paymentMethod,
       date: p.receivedAt,
       studentName: student ? `${student.firstName} ${student.lastName}` : "Unknown",

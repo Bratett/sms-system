@@ -29,7 +29,7 @@ model Route {
   endPoint          String?
   distance          Float?
   estimatedDuration Int?
-  fee               Float?
+  fee               Decimal? @db.Decimal(18, 2)
   status            RouteStatus @default(ACTIVE)
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt

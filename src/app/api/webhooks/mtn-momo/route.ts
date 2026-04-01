@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPaymentProvider } from "@/lib/payment/registry";
 import { db } from "@/lib/db";
+import { generateOnlineReceiptNumber } from "@/lib/receipt";
+import { toNum } from "@/lib/decimal";
 
 /**
  * MTN Mobile Money Webhook Handler
@@ -91,9 +93,7 @@ async function handleSuccessfulPayment(data: {
     });
 
     // Generate receipt
-    const receiptCount = await tx.receipt.count();
-    const year = new Date().getFullYear();
-    const receiptNumber = `RCP/${year}/ON/${String(receiptCount + 1).padStart(4, "0")}`;
+    const receiptNumber = await generateOnlineReceiptNumber(tx);
 
     await tx.receipt.create({
       data: {
@@ -103,8 +103,8 @@ async function handleSuccessfulPayment(data: {
     });
 
     // Update bill amounts
-    const newPaidAmount = bill.paidAmount + amount;
-    const newBalance = bill.totalAmount - newPaidAmount;
+    const newPaidAmount = toNum(bill.paidAmount) + amount;
+    const newBalance = toNum(bill.totalAmount) - newPaidAmount;
 
     await tx.studentBill.update({
       where: { id: bill.id },

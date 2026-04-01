@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   createExpenseSchema,
   createExpenseCategorySchema,
@@ -162,13 +163,13 @@ export async function getExpenseSummaryAction(filters?: { termId?: string }) {
     include: { expenseCategory: { select: { name: true } } },
   });
 
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalExpenses = expenses.reduce((sum, e) => sum + toNum(e.amount), 0);
 
   const byCategory = new Map<string, { category: string; total: number; count: number }>();
   for (const e of expenses) {
     const cat = e.expenseCategory.name;
     const entry = byCategory.get(cat) ?? { category: cat, total: 0, count: 0 };
-    entry.total += e.amount;
+    entry.total += toNum(e.amount);
     entry.count++;
     byCategory.set(cat, entry);
   }

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 
 // ─── Purchase Requests ──────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ export async function getPurchaseRequestsAction(status?: string) {
 
   const data = requests.map((r) => {
     const estimatedTotal = r.items.reduce(
-      (sum, item) => sum + item.quantityRequested * (item.estimatedUnitPrice ?? 0),
+      (sum, item) => sum + item.quantityRequested * toNum(item.estimatedUnitPrice),
       0,
     );
 

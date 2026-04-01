@@ -12,6 +12,7 @@ import {
   rejectFeeWaiverAction,
 } from "@/modules/finance/actions/fee-waiver.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface Waiver {
   id: string;
   studentBillId: string;
@@ -19,8 +20,8 @@ interface Waiver {
   studentIdNumber: string;
   className: string;
   waiverType: string;
-  value: number;
-  calculatedAmount: number;
+  value: Monetary;
+  calculatedAmount: Monetary;
   reason: string;
   status: string;
   requestedBy: string;
@@ -50,8 +51,8 @@ const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
   REJECTED: { bg: "bg-red-100", text: "text-red-700" },
 };
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function WaiversClient({ waivers }: { waivers: Waiver[] }) {
@@ -81,7 +82,7 @@ export function WaiversClient({ waivers }: { waivers: Waiver[] }) {
     const approved = waivers.filter((w) => w.status === "APPROVED").length;
     const totalWaived = waivers
       .filter((w) => w.status === "APPROVED")
-      .reduce((sum, w) => sum + w.calculatedAmount, 0);
+      .reduce((sum, w) => sum + Number(w.calculatedAmount), 0);
     return { pending, approved, totalWaived };
   }, [waivers]);
 
@@ -107,7 +108,7 @@ export function WaiversClient({ waivers }: { waivers: Waiver[] }) {
     if (!selectedWaiver) return;
     startTransition(async () => {
       const result = await approveFeeWaiverAction(selectedWaiver.id, actionNotes || undefined);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -127,7 +128,7 @@ export function WaiversClient({ waivers }: { waivers: Waiver[] }) {
     }
     startTransition(async () => {
       const result = await rejectFeeWaiverAction(selectedWaiver!.id, actionNotes);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

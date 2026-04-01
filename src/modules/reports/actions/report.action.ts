@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { toNum } from "@/lib/decimal";
 
 // ─── Enrollment Report ──────────────────────────────────────────────
 
@@ -415,13 +416,14 @@ export async function getComprehensiveReportAction(termId?: string) {
       },
     });
 
+    const billedNum = toNum(totalBilled._sum.totalAmount);
+    const collectedNum = toNum(totalPaid._sum.amount);
     financeSummary = {
-      totalBilled: totalBilled._sum.totalAmount ?? 0,
-      totalCollected: totalPaid._sum.amount ?? 0,
+      totalBilled: billedNum,
+      totalCollected: collectedNum,
       collectionRate:
-        totalBilled._sum.totalAmount && totalBilled._sum.totalAmount > 0
-          ? Math.round(((totalPaid._sum.amount ?? 0) / totalBilled._sum.totalAmount) * 100 * 100) /
-            100
+        billedNum > 0
+          ? Math.round((collectedNum / billedNum) * 100 * 100) / 100
           : 0,
     };
   } catch {

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   createAllowanceSchema,
   createDeductionSchema,
@@ -257,7 +258,7 @@ export async function getPayrollPeriodsAction() {
     year: p.year,
     status: p.status,
     entriesCount: p.entries.length,
-    totalNetPay: p.entries.reduce((sum, e) => sum + e.netPay, 0),
+    totalNetPay: p.entries.reduce((sum, e) => sum + toNum(e.netPay), 0),
     createdAt: p.createdAt,
   }));
 
@@ -413,14 +414,14 @@ export async function generatePayrollAction(periodId: string) {
       // Calculate allowances
       const allowanceBreakdown = allowances.map((a) => ({
         name: a.name,
-        amount: a.type === "PERCENTAGE" ? (basicSalary * a.amount) / 100 : a.amount,
+        amount: a.type === "PERCENTAGE" ? (basicSalary * toNum(a.amount)) / 100 : toNum(a.amount),
       }));
       const totalAllowances = allowanceBreakdown.reduce((sum, a) => sum + a.amount, 0);
 
       // Calculate deductions
       const deductionBreakdown = deductions.map((d) => ({
         name: d.name,
-        amount: d.type === "PERCENTAGE" ? (basicSalary * d.amount) / 100 : d.amount,
+        amount: d.type === "PERCENTAGE" ? (basicSalary * toNum(d.amount)) / 100 : toNum(d.amount),
       }));
       const totalDeductions = deductionBreakdown.reduce((sum, d) => sum + d.amount, 0);
 

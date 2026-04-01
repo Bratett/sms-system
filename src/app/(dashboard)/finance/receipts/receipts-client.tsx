@@ -8,10 +8,11 @@ import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { getPaymentAction } from "@/modules/finance/actions/payment.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface PaymentRecord {
   id: string;
   studentId: string;
-  amount: number;
+  amount: Monetary;
   paymentMethod: string;
   referenceNumber: string | null;
   receivedBy: string;
@@ -33,7 +34,7 @@ interface Pagination {
 
 interface ReceiptDetail {
   id: string;
-  amount: number;
+  amount: Monetary;
   paymentMethod: string;
   referenceNumber: string | null;
   receivedAt: string | Date;
@@ -49,12 +50,12 @@ interface ReceiptDetail {
   } | null;
   studentBill?: {
     id: string;
-    totalAmount: number;
-    paidAmount: number;
-    balanceAmount: number;
+    totalAmount: Monetary;
+    paidAmount: Monetary;
+    balanceAmount: Monetary;
     billItems?: Array<{
       id: string;
-      amount: number;
+      amount: Monetary;
       feeItem: {
         id: string;
         name: string;
@@ -68,8 +69,8 @@ interface ReceiptDetail {
   };
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toFixed(2)}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toFixed(2)}`;
 }
 
 const methodLabels: Record<string, string> = {
@@ -320,7 +321,7 @@ export function ReceiptsClient({
                             {item.feeItem.code ?? "---"}
                           </td>
                           <td className="py-1.5 text-right">
-                            {item.amount.toFixed(2)}
+                            {Number(item.amount).toFixed(2)}
                           </td>
                         </tr>
                       ))}
@@ -351,7 +352,7 @@ export function ReceiptsClient({
                 <p>
                   <span className="font-semibold">Amount in Words:</span>{" "}
                   <span className="italic">
-                    Ghana Cedis {selectedReceipt.amount.toFixed(2)} only
+                    Ghana Cedis {Number(selectedReceipt.amount).toFixed(2)} only
                   </span>
                 </p>
                 <p>

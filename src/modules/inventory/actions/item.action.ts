@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import type { Prisma } from "@prisma/client";
 
 // ─── Items ──────────────────────────────────────────────────────────
@@ -77,7 +78,7 @@ export async function getItemsAction(filters?: {
     quantity: item.quantity,
     reorderLevel: item.reorderLevel,
     unitPrice: item.unitPrice,
-    value: item.quantity * item.unitPrice,
+    value: item.quantity * toNum(item.unitPrice),
     description: item.description,
     status: item.status,
     isLowStock: item.quantity <= item.reorderLevel,
@@ -132,7 +133,7 @@ export async function getItemAction(id: string) {
     quantity: item.quantity,
     reorderLevel: item.reorderLevel,
     unitPrice: item.unitPrice,
-    value: item.quantity * item.unitPrice,
+    value: item.quantity * toNum(item.unitPrice),
     description: item.description,
     status: item.status,
     isLowStock: item.quantity <= item.reorderLevel,

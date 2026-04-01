@@ -9,6 +9,7 @@ import {
 
 // ─── Types ──────────────────────────────────────────────────────────
 
+import type { Monetary } from "@/lib/monetary";
 interface StockLevelRow {
   id: string;
   name: string;
@@ -19,7 +20,7 @@ interface StockLevelRow {
   unit: string;
   quantity: number;
   reorderLevel: number;
-  unitPrice: number;
+  unitPrice: Monetary;
   totalValue: number;
   status: string;
 }
@@ -42,8 +43,8 @@ interface StoreOption {
   name: string;
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const statusBadge: Record<string, string> = {

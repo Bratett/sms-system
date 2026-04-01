@@ -17,7 +17,7 @@ export default async function GovernmentSubsidiesPage() {
 
   return (
     <GovernmentSubsidiesClient
-      subsidies={subsidiesResult.data ?? []}
+      subsidies={"data" in subsidiesResult ? subsidiesResult.data ?? [] : []}
       summary={summaryResult.data ?? null}
       academicYears={academicYearsResult.data ?? []}
       terms={termsResult.data ?? []}

@@ -17,6 +17,7 @@ import {
 
 // ─── Types ──────────────────────────────────────────────────────────
 
+import type { Monetary } from "@/lib/monetary";
 interface PayrollPeriod {
   id: string;
   month: number;
@@ -32,10 +33,10 @@ interface PayrollEntry {
   staffId: string;
   staffName: string;
   staffStaffId: string;
-  basicSalary: number;
-  totalAllowances: number;
-  totalDeductions: number;
-  netPay: number;
+  basicSalary: Monetary;
+  totalAllowances: Monetary;
+  totalDeductions: Monetary;
+  netPay: Monetary;
   details: {
     allowances: { name: string; amount: number }[];
     deductions: { name: string; amount: number }[];
@@ -46,7 +47,7 @@ interface AllowanceRow {
   id: string;
   name: string;
   type: string;
-  amount: number;
+  amount: Monetary;
   status: string;
 }
 
@@ -54,7 +55,7 @@ interface DeductionRow {
   id: string;
   name: string;
   type: string;
-  amount: number;
+  amount: Monetary;
   isStatutory: boolean;
   status: string;
 }
@@ -268,8 +269,8 @@ export function PayrollClient({
     });
   }
 
-  function formatCurrency(amount: number) {
-    return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2 })}`;
+  function formatCurrency(amount: Monetary) {
+    return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2 })}`;
   }
 
   return (

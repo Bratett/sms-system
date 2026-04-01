@@ -14,9 +14,10 @@ import {
   recordDisbursementAction,
 } from "@/modules/finance/actions/government-subsidy.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface Disbursement {
   id: string;
-  amount: number;
+  amount: Monetary;
   receivedAt: Date | string;
   bankReference: string | null;
   notes: string | null;
@@ -31,8 +32,8 @@ interface Subsidy {
   academicYearName: string;
   termId: string | null;
   termName: string | null;
-  expectedAmount: number;
-  receivedAmount: number;
+  expectedAmount: Monetary;
+  receivedAmount: Monetary;
   variance: number;
   status: string;
   referenceNumber: string | null;
@@ -61,8 +62,8 @@ const TYPE_STYLES: Record<string, { label: string; className: string }> = {
   OTHER_GOVERNMENT: { label: "Other", className: "bg-orange-100 text-orange-700" },
 };
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function GovernmentSubsidiesClient({
@@ -106,7 +107,7 @@ export function GovernmentSubsidiesClient({
     setFormData({
       name: subsidy.name, subsidyType: subsidy.subsidyType as SubsidyType,
       academicYearId: subsidy.academicYearId, termId: subsidy.termId ?? "",
-      expectedAmount: subsidy.expectedAmount, referenceNumber: subsidy.referenceNumber ?? "", notes: subsidy.notes ?? "",
+      expectedAmount: Number(subsidy.expectedAmount), referenceNumber: subsidy.referenceNumber ?? "", notes: subsidy.notes ?? "",
     });
     setShowCreateModal(true);
   }
@@ -152,8 +153,8 @@ export function GovernmentSubsidiesClient({
         bankReference: disbursementData.bankReference || undefined,
         notes: disbursementData.notes || undefined,
       });
-      if (result.error) { toast.error(result.error); return; }
-      toast.success(`Disbursement recorded. Remaining: ${formatCurrency(result.data!.remainingAmount)}`);
+      if ("error" in result) { toast.error(result.error); return; }
+      toast.success(`Disbursement recorded. Remaining: ${formatCurrency(result.data.remainingAmount)}`);
       setShowDisbursementModal(false);
       router.refresh();
     });
@@ -382,7 +383,7 @@ export function GovernmentSubsidiesClient({
               <button onClick={() => setShowDisbursementModal(false)} className="text-muted-foreground hover:text-foreground text-xl">&times;</button>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
-              {selectedSubsidy.name} — Outstanding: <span className="font-medium text-red-600">{formatCurrency(selectedSubsidy.expectedAmount - selectedSubsidy.receivedAmount)}</span>
+              {selectedSubsidy.name} — Outstanding: <span className="font-medium text-red-600">{formatCurrency(Number(selectedSubsidy.expectedAmount) - Number(selectedSubsidy.receivedAmount))}</span>
             </p>
             <form onSubmit={handleSubmitDisbursement} className="space-y-4">
               <div>

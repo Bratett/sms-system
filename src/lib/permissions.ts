@@ -425,6 +425,21 @@ export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
 export const ALL_PERMISSIONS = Object.values(PERMISSIONS);
 
+/**
+ * Check if a session user has the required permission.
+ * Returns an error object if unauthorized, or null if allowed.
+ */
+export function requirePermission(
+  session: { user?: { id?: string | null } } | null,
+  permission: Permission,
+): { error: string } | null {
+  if (!session?.user?.id) return { error: "Unauthorized" };
+  const perms = (session.user as unknown as { permissions?: string[] }).permissions;
+  if (!perms) return { error: "No permissions found" };
+  if (perms.includes("*") || perms.includes(permission)) return null;
+  return { error: "Insufficient permissions" };
+}
+
 // Default role-permission mappings
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
   super_admin: ALL_PERMISSIONS,

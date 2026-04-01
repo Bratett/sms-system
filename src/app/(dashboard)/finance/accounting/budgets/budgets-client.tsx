@@ -12,12 +12,13 @@ import {
   approveBudgetAction,
   getBudgetVsActualAction,
 } from "@/modules/accounting/actions/budget.action";
+import type { Monetary } from "@/lib/monetary";
 
 interface BudgetLine {
   id: string;
   expenseCategoryId: string;
-  allocatedAmount: number;
-  spentAmount: number;
+  allocatedAmount: Monetary;
+  spentAmount: Monetary;
   description: string | null;
   expenseCategory: { name: string };
 }
@@ -29,9 +30,9 @@ interface Budget {
   academicYearName: string;
   termId: string | null;
   termName: string | null;
-  totalAmount: number;
-  totalAllocated: number;
-  totalSpent: number;
+  totalAmount: Monetary;
+  totalAllocated: Monetary;
+  totalSpent: Monetary;
   utilization: number;
   status: string;
   lines: BudgetLine[];
@@ -43,8 +44,8 @@ interface Term { id: string; name: string; academicYearId: string; isCurrent: bo
 
 interface BudgetLineForm { expenseCategoryId: string; allocatedAmount: number; description: string; }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function BudgetsClient({

@@ -26,7 +26,7 @@ model FeeItem {
   feeStructureId String
   name           String  // e.g., Tuition, Boarding, Feeding, PTA, Exam Fee
   code           String?
-  amount         Float
+  amount         Decimal  @db.Decimal(18, 2)
   isOptional     Boolean @default(false)
   description    String?
 
@@ -42,9 +42,9 @@ model StudentBill {
   feeStructureId String
   termId         String
   academicYearId String
-  totalAmount    Float
-  paidAmount     Float      @default(0)
-  balanceAmount  Float
+  totalAmount    Decimal    @db.Decimal(18, 2)
+  paidAmount     Decimal    @default(0) @db.Decimal(18, 2)
+  balanceAmount  Decimal    @db.Decimal(18, 2)
   status         BillStatus @default(UNPAID)
   generatedAt    DateTime   @default(now())
   dueDate        DateTime?
@@ -71,9 +71,9 @@ model StudentBillItem {
   id            String @id @default(cuid())
   studentBillId String
   feeItemId     String
-  amount        Float
-  waivedAmount  Float  @default(0)
-  paidAmount    Float  @default(0)
+  amount        Decimal @db.Decimal(18, 2)
+  waivedAmount  Decimal @default(0) @db.Decimal(18, 2)
+  paidAmount    Decimal @default(0) @db.Decimal(18, 2)
 
   studentBill StudentBill @relation(fields: [studentBillId], references: [id], onDelete: Cascade)
   feeItem     FeeItem     @relation(fields: [feeItemId], references: [id], onDelete: Cascade)
@@ -86,7 +86,7 @@ model Payment {
   id             String        @id @default(cuid())
   studentBillId  String
   studentId      String
-  amount         Float
+  amount         Decimal       @db.Decimal(18, 2)
   paymentMethod  PaymentMethod
   referenceNumber String?
   receivedBy     String        // userId
@@ -123,7 +123,7 @@ model Scholarship {
   schoolId       String
   name           String
   type           ScholarshipType
-  value          Float           // percentage or fixed amount
+  value          Decimal         @db.Decimal(18, 2) // percentage or fixed amount
   criteria       String?
   academicYearId String?
   status         Status          @default(ACTIVE)
@@ -139,7 +139,7 @@ model StudentScholarship {
   id            String @id @default(cuid())
   studentId     String
   scholarshipId String
-  appliedAmount Float
+  appliedAmount Decimal @db.Decimal(18, 2)
   termId        String
   createdAt     DateTime @default(now())
 
@@ -229,7 +229,7 @@ model FeeTemplateItem {
   feeTemplateId String
   name          String
   code          String?
-  amount        Float
+  amount        Decimal @db.Decimal(18, 2)
   isOptional    Boolean @default(false)
   description   String?
 
@@ -261,7 +261,7 @@ model InstallmentSchedule {
   id                String @id @default(cuid())
   installmentPlanId String
   installmentNumber Int
-  percentageOfTotal Float  // e.g., 40.0 for 40%
+  percentageOfTotal Decimal @db.Decimal(5, 2) // e.g., 40.0 for 40%
   dueDaysFromStart  Int    // days from term start date
   label             String? // "1st Installment", "2nd Installment"
 
@@ -276,9 +276,9 @@ model StudentInstallment {
   studentBillId     String
   installmentPlanId String
   installmentNumber Int
-  amount            Float
+  amount            Decimal           @db.Decimal(18, 2)
   dueDate           DateTime
-  paidAmount        Float             @default(0)
+  paidAmount        Decimal           @default(0) @db.Decimal(18, 2)
   status            InstallmentStatus @default(PENDING)
   paidAt            DateTime?
 
@@ -306,9 +306,9 @@ model LatePenaltyRule {
   feeStructureId  String?     // null = applies to all active fee structures
   name            String
   type            PenaltyType
-  value           Float       // percentage or fixed amount
+  value           Decimal     @db.Decimal(18, 4) // percentage or fixed amount
   gracePeriodDays Int         @default(0)
-  maxPenalty      Float?      // cap on total penalty
+  maxPenalty      Decimal?    @db.Decimal(18, 2) // cap on total penalty
   isActive        Boolean     @default(true)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -323,7 +323,7 @@ model AppliedPenalty {
   id                String   @id @default(cuid())
   studentBillId     String
   latePenaltyRuleId String
-  amount            Float
+  amount            Decimal  @db.Decimal(18, 2)
   appliedAt         DateTime @default(now())
   waived            Boolean  @default(false)
   waivedBy          String?  // userId
@@ -354,8 +354,8 @@ model FeeWaiver {
   approvedBy        String?
   reason            String
   waiverType        WaiverType
-  value             Float        // percentage or fixed amount
-  calculatedAmount  Float        // actual GHS amount waived
+  value             Decimal      @db.Decimal(18, 2) // percentage or fixed amount
+  calculatedAmount  Decimal      @db.Decimal(18, 2) // actual GHS amount waived
   status            WaiverStatus @default(PENDING)
   requestedAt       DateTime     @default(now())
   reviewedAt        DateTime?
@@ -391,8 +391,8 @@ model GovernmentSubsidy {
   subsidyType     SubsidyType
   academicYearId  String
   termId          String?
-  expectedAmount  Float
-  receivedAmount  Float         @default(0)
+  expectedAmount  Decimal       @db.Decimal(18, 2)
+  receivedAmount  Decimal       @default(0) @db.Decimal(18, 2)
   status          SubsidyStatus @default(EXPECTED)
   referenceNumber String?       // Government reference / voucher number
   receivedAt      DateTime?
@@ -410,7 +410,7 @@ model GovernmentSubsidy {
 model SubsidyDisbursement {
   id                  String   @id @default(cuid())
   governmentSubsidyId String
-  amount              Float
+  amount              Decimal  @db.Decimal(18, 2)
   receivedAt          DateTime
   bankReference       String?
   recordedBy          String   // userId
@@ -445,9 +445,9 @@ model DonorFund {
   donorType       DonorType
   contactEmail    String?
   contactPhone    String?
-  totalPledged    Float
-  totalReceived   Float    @default(0)
-  totalDisbursed  Float    @default(0)
+  totalPledged    Decimal  @db.Decimal(18, 2)
+  totalReceived   Decimal  @default(0) @db.Decimal(18, 2)
+  totalDisbursed  Decimal  @default(0) @db.Decimal(18, 2)
   purpose         String?  // Restriction on fund usage
   startDate       DateTime?
   endDate         DateTime?
@@ -466,7 +466,7 @@ model DonorFundAllocation {
   donorFundId  String
   studentId    String
   termId       String
-  amount       Float
+  amount       Decimal @db.Decimal(18, 2)
   description  String?
   allocatedBy  String   // userId
   allocatedAt  DateTime @default(now())
@@ -495,11 +495,11 @@ model FinancialAidApplication {
   academicYearId    String
   termId            String
   aidType           AidType
-  requestedAmount   Float
-  approvedAmount    Float?
+  requestedAmount   Decimal        @db.Decimal(18, 2)
+  approvedAmount    Decimal?       @db.Decimal(18, 2)
   reason            String
   supportingDocs    String[]       // URLs to uploaded documents
-  householdIncome   Float?
+  householdIncome   Decimal?       @db.Decimal(18, 2)
   numberOfDependents Int?
   status            AidStatus      @default(SUBMITTED)
   submittedBy       String         // userId (parent or admin)
@@ -540,7 +540,7 @@ model OnlinePaymentTransaction {
   studentId       String
   provider        String                // paystack, flutterwave, mtn_momo, telecel_cash, etc.
   reference       String                @unique
-  amount          Float
+  amount          Decimal               @db.Decimal(18, 2)
   currency        String                @default("GHS")
   status          OnlinePaymentStatus   @default(INITIATED)
   providerReference String?
@@ -574,7 +574,7 @@ model PaymentLink {
   schoolId        String
   studentBillId   String
   code            String          @unique // short URL-safe code
-  amount          Float?          // null = pay any amount up to balance
+  amount          Decimal?        @db.Decimal(18, 2) // null = pay any amount up to balance
   description     String?
   expiresAt       DateTime?
   isOneTime       Boolean         @default(true)
@@ -618,9 +618,9 @@ model BankStatementEntry {
   transactionDate     DateTime
   description         String
   reference           String?
-  debitAmount         Float?
-  creditAmount        Float?
-  balance             Float?
+  debitAmount         Decimal?        @db.Decimal(18, 2)
+  creditAmount        Decimal?        @db.Decimal(18, 2)
+  balance             Decimal?        @db.Decimal(18, 2)
   matchedPaymentId    String?             // matched Payment record
   matchStatus         MatchStatus         @default(UNMATCHED)
   matchedAt           DateTime?

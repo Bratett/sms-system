@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPaymentProvider } from "@/lib/payment/registry";
 import { db } from "@/lib/db";
+import { generateOnlineReceiptNumber } from "@/lib/receipt";
+import { toNum } from "@/lib/decimal";
 
 /**
  * Flutterwave Webhook Handler
@@ -82,11 +84,11 @@ async function handleChargeCompleted(data: {
       },
     });
 
-    const newPaidAmount = bill.paidAmount + amount;
-    const newBalanceAmount = bill.totalAmount - newPaidAmount;
+    const newPaidAmount = toNum(bill.paidAmount) + amount;
+    const newBalanceAmount = toNum(bill.totalAmount) - newPaidAmount;
 
     let newStatus: "UNPAID" | "PARTIAL" | "PAID" | "OVERPAID";
-    if (newBalanceAmount <= 0 && newPaidAmount > bill.totalAmount) newStatus = "OVERPAID";
+    if (newBalanceAmount <= 0 && newPaidAmount > toNum(bill.totalAmount)) newStatus = "OVERPAID";
     else if (newBalanceAmount <= 0) newStatus = "PAID";
     else if (newPaidAmount > 0) newStatus = "PARTIAL";
     else newStatus = "UNPAID";
@@ -96,10 +98,9 @@ async function handleChargeCompleted(data: {
       data: { paidAmount: newPaidAmount, balanceAmount: Math.max(0, newBalanceAmount), status: newStatus },
     });
 
-    const year = new Date().getFullYear();
-    const count = await tx.receipt.count({ where: { receiptNumber: { startsWith: `RCP/${year}/` } } });
+    const receiptNumber = await generateOnlineReceiptNumber(tx);
     await tx.receipt.create({
-      data: { paymentId: payment.id, receiptNumber: `RCP/${year}/ON/${String(count + 1).padStart(4, "0")}` },
+      data: { paymentId: payment.id, receiptNumber },
     });
 
     await tx.auditLog.create({

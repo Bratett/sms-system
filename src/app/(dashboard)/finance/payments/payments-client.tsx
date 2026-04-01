@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 
+import type { Monetary } from "@/lib/monetary";
 interface Term {
   id: string;
   name: string;
@@ -36,7 +37,7 @@ interface Term {
 interface PaymentRecord {
   id: string;
   studentId: string;
-  amount: number;
+  amount: Monetary;
   paymentMethod: string;
   referenceNumber: string | null;
   receivedBy: string;
@@ -58,8 +59,8 @@ interface Pagination {
   totalPages: number;
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toFixed(2)}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toFixed(2)}`;
 }
 
 const methodColors: Record<string, string> = {
@@ -83,9 +84,9 @@ interface BillSearchResult {
   studentName: string;
   studentIdNumber: string;
   className: string;
-  totalAmount: number;
-  paidAmount: number;
-  balanceAmount: number;
+  totalAmount: Monetary;
+  paidAmount: Monetary;
+  balanceAmount: Monetary;
   status: string;
 }
 
@@ -174,7 +175,7 @@ export function PaymentsClient({
     setSelectedBill(bill);
     setPaymentForm((prev) => ({
       ...prev,
-      amount: bill.balanceAmount > 0 ? bill.balanceAmount.toFixed(2) : "",
+      amount: Number(bill.balanceAmount) > 0 ? Number(bill.balanceAmount).toFixed(2) : "",
     }));
   }
 

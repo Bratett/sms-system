@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { toNum } from "@/lib/decimal";
 
 export async function getFinanceReportAction(filters?: {
   termId?: string;
@@ -41,9 +42,9 @@ export async function getFinanceReportAction(filters?: {
     where: billWhere,
   });
 
-  const totalBilled = billingAgg._sum.totalAmount ?? 0;
-  const totalPaid = billingAgg._sum.paidAmount ?? 0;
-  const totalOutstanding = billingAgg._sum.balanceAmount ?? 0;
+  const totalBilled = toNum(billingAgg._sum.totalAmount);
+  const totalPaid = toNum(billingAgg._sum.paidAmount);
+  const totalOutstanding = toNum(billingAgg._sum.balanceAmount);
   const collectionRate =
     totalBilled > 0
       ? Math.round((totalPaid / totalBilled) * 100 * 100) / 100
@@ -72,7 +73,7 @@ export async function getFinanceReportAction(filters?: {
     const found = byMethodRaw.find((r) => r.paymentMethod === method);
     return {
       method,
-      totalAmount: found?._sum.amount ?? 0,
+      totalAmount: toNum(found?._sum.amount),
       count: found?._count._all ?? 0,
     };
   });
@@ -91,7 +92,7 @@ export async function getFinanceReportAction(filters?: {
   const categoryRevenue = new Map<string, number>();
   for (const item of billItems) {
     const name = item.feeItem.name;
-    categoryRevenue.set(name, (categoryRevenue.get(name) || 0) + item.amount);
+    categoryRevenue.set(name, (categoryRevenue.get(name) || 0) + toNum(item.amount));
   }
 
   const revenueByCategory = [...categoryRevenue.entries()]
@@ -135,9 +136,9 @@ export async function getFinanceReportAction(filters?: {
     return {
       studentName: student?.name ?? "Unknown",
       studentId: student?.studentId ?? "",
-      totalBilled: d.totalAmount,
-      totalPaid: d.paidAmount,
-      outstanding: d.balanceAmount,
+      totalBilled: toNum(d.totalAmount),
+      totalPaid: toNum(d.paidAmount),
+      outstanding: toNum(d.balanceAmount),
     };
   });
 
@@ -161,7 +162,7 @@ export async function getFinanceReportAction(filters?: {
   const dailyMap = new Map<string, number>();
   for (const p of recentPayments) {
     const dateKey = p.receivedAt.toISOString().split("T")[0];
-    dailyMap.set(dateKey, (dailyMap.get(dateKey) || 0) + p.amount);
+    dailyMap.set(dateKey, (dailyMap.get(dateKey) || 0) + toNum(p.amount));
   }
 
   const dailyCollectionTrend = [...dailyMap.entries()]

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 
 export async function runDepreciationAction(period: string) {
   const session = await auth();
@@ -30,7 +31,7 @@ export async function runDepreciationAction(period: string) {
     });
     if (existing) { skipped++; continue; }
 
-    if (asset.currentValue <= asset.salvageValue) { skipped++; continue; }
+    if (toNum(asset.currentValue) <= toNum(asset.salvageValue)) { skipped++; continue; }
 
     let depreciationAmount = 0;
     const usefulLife = asset.usefulLifeYears!;
@@ -38,26 +39,26 @@ export async function runDepreciationAction(period: string) {
     switch (asset.depreciationMethod) {
       case "STRAIGHT_LINE": {
         // Annual depreciation = (Purchase Price - Salvage Value) / Useful Life
-        const annualDep = (asset.purchasePrice - asset.salvageValue) / usefulLife;
+        const annualDep = (toNum(asset.purchasePrice) - toNum(asset.salvageValue)) / usefulLife;
         depreciationAmount = annualDep;
         break;
       }
       case "REDUCING_BALANCE": {
         // Rate = 1 - (Salvage / Purchase)^(1/Life)
-        const rate = 1 - Math.pow(asset.salvageValue / Math.max(asset.purchasePrice, 1), 1 / usefulLife);
-        depreciationAmount = asset.currentValue * rate;
+        const rate = 1 - Math.pow(toNum(asset.salvageValue) / Math.max(toNum(asset.purchasePrice), 1), 1 / usefulLife);
+        depreciationAmount = toNum(asset.currentValue) * rate;
         break;
       }
     }
 
     // Don't depreciate below salvage value
-    const maxDepreciation = asset.currentValue - asset.salvageValue;
+    const maxDepreciation = toNum(asset.currentValue) - toNum(asset.salvageValue);
     depreciationAmount = Math.min(depreciationAmount, maxDepreciation);
     depreciationAmount = Math.round(depreciationAmount * 100) / 100;
 
     if (depreciationAmount <= 0) { skipped++; continue; }
 
-    const closingValue = asset.currentValue - depreciationAmount;
+    const closingValue = toNum(asset.currentValue) - depreciationAmount;
 
     await db.$transaction(async (tx) => {
       await tx.assetDepreciation.create({
@@ -97,9 +98,9 @@ export async function getDepreciationScheduleAction(assetId: string) {
 
   return {
     data: {
-      asset: { id: asset.id, name: asset.name, assetNumber: asset.assetNumber, purchasePrice: asset.purchasePrice, currentValue: asset.currentValue, salvageValue: asset.salvageValue, depreciationMethod: asset.depreciationMethod, usefulLifeYears: asset.usefulLifeYears },
+      asset: { id: asset.id, name: asset.name, assetNumber: asset.assetNumber, purchasePrice: toNum(asset.purchasePrice), currentValue: toNum(asset.currentValue), salvageValue: toNum(asset.salvageValue), depreciationMethod: asset.depreciationMethod, usefulLifeYears: asset.usefulLifeYears },
       records: asset.depreciationRecords,
-      totalDepreciation: asset.purchasePrice - asset.currentValue,
+      totalDepreciation: toNum(asset.purchasePrice) - toNum(asset.currentValue),
     },
   };
 }
@@ -124,14 +125,14 @@ export async function getDepreciationSummaryAction() {
     assetNumber: a.assetNumber,
     name: a.name,
     categoryName: a.category.name,
-    purchasePrice: a.purchasePrice,
-    currentValue: a.currentValue,
-    salvageValue: a.salvageValue,
-    accumulatedDepreciation: a.purchasePrice - a.currentValue,
+    purchasePrice: toNum(a.purchasePrice),
+    currentValue: toNum(a.currentValue),
+    salvageValue: toNum(a.salvageValue),
+    accumulatedDepreciation: toNum(a.purchasePrice) - toNum(a.currentValue),
     depreciationMethod: a.depreciationMethod,
     usefulLifeYears: a.usefulLifeYears,
     lastDepreciationPeriod: a.depreciationRecords[0]?.period ?? null,
-    percentDepreciated: a.purchasePrice > 0 ? ((a.purchasePrice - a.currentValue) / a.purchasePrice) * 100 : 0,
+    percentDepreciated: toNum(a.purchasePrice) > 0 ? ((toNum(a.purchasePrice) - toNum(a.currentValue)) / toNum(a.purchasePrice)) * 100 : 0,
   }));
 
   const totalPurchaseValue = data.reduce((sum, a) => sum + a.purchasePrice, 0);

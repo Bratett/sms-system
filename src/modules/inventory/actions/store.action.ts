@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 
 // ─── Stores ─────────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@ export async function getStoresAction() {
   const data = stores.map((store) => {
     const itemCount = store.items.length;
     const totalValue = store.items.reduce(
-      (sum, item) => sum + item.quantity * item.unitPrice,
+      (sum, item) => sum + item.quantity * toNum(item.unitPrice),
       0,
     );
     const lowStockCount = store.items.filter(

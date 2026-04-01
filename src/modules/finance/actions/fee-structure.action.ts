@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   createFeeStructureSchema,
   updateFeeStructureSchema,
@@ -74,7 +75,7 @@ export async function getFeeStructuresAction(filters?: {
     termName: termMap.get(fs.termId) ?? "Unknown",
     academicYearName: yearMap.get(fs.academicYearId) ?? "Unknown",
     programmeName: fs.programmeId ? progMap.get(fs.programmeId) ?? "Unknown" : null,
-    totalAmount: fs.feeItems.reduce((sum, item) => sum + item.amount, 0),
+    totalAmount: fs.feeItems.reduce((sum, item) => sum + toNum(item.amount), 0),
     itemCount: fs.feeItems.length,
     billCount: fs._count.bills,
   }));
@@ -122,10 +123,10 @@ export async function getFeeStructureAction(id: string) {
       : Promise.resolve(null),
   ]);
 
-  const totalAmount = feeStructure.feeItems.reduce((sum, item) => sum + item.amount, 0);
+  const totalAmount = feeStructure.feeItems.reduce((sum, item) => sum + toNum(item.amount), 0);
   const optionalTotal = feeStructure.feeItems
     .filter((item) => item.isOptional)
-    .reduce((sum, item) => sum + item.amount, 0);
+    .reduce((sum, item) => sum + toNum(item.amount), 0);
 
   return {
     data: {

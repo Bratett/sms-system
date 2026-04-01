@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { toNum } from "@/lib/decimal";
 
 export async function getInventoryReportAction() {
   const session = await auth();
@@ -33,7 +34,7 @@ export async function getInventoryReportAction() {
 
   const totalItems = items.length;
   const totalValue = items.reduce(
-    (sum, item) => sum + item.quantity * item.unitPrice,
+    (sum, item) => sum + item.quantity * toNum(item.unitPrice),
     0
   );
 

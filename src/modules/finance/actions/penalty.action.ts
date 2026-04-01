@@ -3,6 +3,8 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
+import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import {
   createLatePenaltyRuleSchema,
   updateLatePenaltyRuleSchema,
@@ -13,6 +15,8 @@ import {
 export async function getLatePenaltyRulesAction(filters?: { feeStructureId?: string; isActive?: boolean }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.PENALTIES_READ);
+  if (permErr) return permErr;
 
   const school = await db.school.findFirst();
   if (!school) return { error: "School not found" };
@@ -52,6 +56,8 @@ export async function getLatePenaltyRulesAction(filters?: { feeStructureId?: str
 export async function createLatePenaltyRuleAction(data: CreateLatePenaltyRuleInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.PENALTIES_CREATE);
+  if (permErr) return permErr;
 
   const parsed = createLatePenaltyRuleSchema.safeParse(data);
   if (!parsed.success) {
@@ -88,13 +94,18 @@ export async function createLatePenaltyRuleAction(data: CreateLatePenaltyRuleInp
 export async function updateLatePenaltyRuleAction(ruleId: string, data: UpdateLatePenaltyRuleInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.PENALTIES_CREATE);
+  if (permErr) return permErr;
 
   const parsed = updateLatePenaltyRuleSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
 
-  const rule = await db.latePenaltyRule.findUnique({ where: { id: ruleId } });
+  const school = await db.school.findFirst();
+  if (!school) return { error: "School not found" };
+
+  const rule = await db.latePenaltyRule.findFirst({ where: { id: ruleId, schoolId: school.id } });
   if (!rule) return { error: "Late penalty rule not found" };
 
   const updated = await db.latePenaltyRule.update({
@@ -117,9 +128,14 @@ export async function updateLatePenaltyRuleAction(ruleId: string, data: UpdateLa
 export async function deleteLatePenaltyRuleAction(ruleId: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.PENALTIES_CREATE);
+  if (permErr) return permErr;
 
-  const rule = await db.latePenaltyRule.findUnique({
-    where: { id: ruleId },
+  const school = await db.school.findFirst();
+  if (!school) return { error: "School not found" };
+
+  const rule = await db.latePenaltyRule.findFirst({
+    where: { id: ruleId, schoolId: school.id },
     include: { _count: { select: { penalties: true } } },
   });
   if (!rule) return { error: "Late penalty rule not found" };
@@ -128,7 +144,7 @@ export async function deleteLatePenaltyRuleAction(ruleId: string) {
     return { error: "Cannot delete a rule that has applied penalties. Deactivate it instead." };
   }
 
-  await db.latePenaltyRule.delete({ where: { id: ruleId } });
+  await db.latePenaltyRule.deleteMany({ where: { id: ruleId, schoolId: school.id } });
 
   await audit({
     userId: session.user.id!,
@@ -145,6 +161,8 @@ export async function deleteLatePenaltyRuleAction(ruleId: string) {
 export async function applyPenaltiesAction(feeStructureId?: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.PENALTIES_APPLY);
+  if (permErr) return permErr;
 
   const school = await db.school.findFirst();
   if (!school) return { error: "School not found" };
@@ -189,52 +207,56 @@ export async function applyPenaltiesAction(feeStructureId?: string) {
       // Check grace period
       if (daysPastDue <= rule.gracePeriodDays) continue;
 
+      // Existing penalties for this rule+bill (include waived to avoid re-application)
+      const existingForRule = bill.penalties.filter((p) => p.latePenaltyRuleId === rule.id);
+
+      // For non-daily types, check if already applied (including waived)
+      if (rule.type === "PERCENTAGE" || rule.type === "FIXED_AMOUNT") {
+        if (existingForRule.length > 0) {
+          skipped++;
+          continue;
+        }
+      }
+
       // Calculate penalty amount
       let penaltyAmount = 0;
-      const outstandingBalance = bill.balanceAmount;
+      const outstandingBalance = toNum(bill.balanceAmount);
 
       switch (rule.type) {
         case "PERCENTAGE":
-          penaltyAmount = outstandingBalance * (rule.value / 100);
+          penaltyAmount = outstandingBalance * (toNum(rule.value) / 100);
           break;
         case "FIXED_AMOUNT":
-          penaltyAmount = rule.value;
+          penaltyAmount = toNum(rule.value);
           break;
         case "DAILY_PERCENTAGE": {
           const effectiveDays = daysPastDue - rule.gracePeriodDays;
-          penaltyAmount = outstandingBalance * (rule.value / 100) * effectiveDays;
+          // Only compute for days not yet covered by existing penalties
+          const newDays = effectiveDays - existingForRule.length;
+          if (newDays <= 0) { skipped++; continue; }
+          penaltyAmount = outstandingBalance * (toNum(rule.value) / 100) * newDays;
           break;
         }
         case "DAILY_FIXED": {
           const effectiveDays = daysPastDue - rule.gracePeriodDays;
-          penaltyAmount = rule.value * effectiveDays;
+          // Only compute for days not yet covered by existing penalties
+          const newDays = effectiveDays - existingForRule.length;
+          if (newDays <= 0) { skipped++; continue; }
+          penaltyAmount = toNum(rule.value) * newDays;
           break;
         }
       }
 
-      // Apply max penalty cap
+      // Apply max penalty cap (include waived penalties in total)
       if (rule.maxPenalty !== null && rule.maxPenalty !== undefined) {
-        const existingPenaltyTotal = bill.penalties
-          .filter((p) => p.latePenaltyRuleId === rule.id && !p.waived)
-          .reduce((sum, p) => sum + p.amount, 0);
+        const existingPenaltyTotal = existingForRule.reduce((sum, p) => sum + toNum(p.amount), 0);
 
-        const remainingAllowance = rule.maxPenalty - existingPenaltyTotal;
+        const remainingAllowance = toNum(rule.maxPenalty) - existingPenaltyTotal;
         if (remainingAllowance <= 0) {
           skipped++;
           continue;
         }
         penaltyAmount = Math.min(penaltyAmount, remainingAllowance);
-      }
-
-      // For non-daily types, check if already applied
-      if (rule.type === "PERCENTAGE" || rule.type === "FIXED_AMOUNT") {
-        const alreadyApplied = bill.penalties.some(
-          (p) => p.latePenaltyRuleId === rule.id && !p.waived
-        );
-        if (alreadyApplied) {
-          skipped++;
-          continue;
-        }
       }
 
       penaltyAmount = Math.round(penaltyAmount * 100) / 100;
@@ -279,6 +301,8 @@ export async function applyPenaltiesAction(feeStructureId?: string) {
 export async function waivePenaltyAction(penaltyId: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.PENALTIES_WAIVE);
+  if (permErr) return permErr;
 
   const penalty = await db.appliedPenalty.findUnique({
     where: { id: penaltyId },
@@ -313,7 +337,7 @@ export async function waivePenaltyAction(penaltyId: string) {
     entity: "AppliedPenalty",
     entityId: penaltyId,
     module: "finance",
-    description: `Waived penalty of GHS ${penalty.amount.toFixed(2)}`,
+    description: `Waived penalty of GHS ${toNum(penalty.amount).toFixed(2)}`,
   });
 
   return { data: { success: true } };

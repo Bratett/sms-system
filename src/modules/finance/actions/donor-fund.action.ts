@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   createDonorFundSchema,
   updateDonorFundSchema,
@@ -33,8 +34,8 @@ export async function getDonorFundsAction(filters?: { isActive?: boolean }) {
   const data = funds.map((fund) => ({
     ...fund,
     allocationCount: fund._count.allocations,
-    availableBalance: fund.totalReceived - fund.totalDisbursed,
-    pledgeUtilization: fund.totalPledged > 0 ? (fund.totalReceived / fund.totalPledged) * 100 : 0,
+    availableBalance: toNum(fund.totalReceived) - toNum(fund.totalDisbursed),
+    pledgeUtilization: toNum(fund.totalPledged) > 0 ? (toNum(fund.totalReceived) / toNum(fund.totalPledged)) * 100 : 0,
   }));
 
   return { data };
@@ -169,7 +170,7 @@ export async function allocateDonorFundAction(data: AllocateDonorFundInput) {
   if (!fund) return { error: "Donor fund not found" };
   if (!fund.isActive) return { error: "Donor fund is inactive" };
 
-  const availableBalance = fund.totalReceived - fund.totalDisbursed;
+  const availableBalance = toNum(fund.totalReceived) - toNum(fund.totalDisbursed);
   if (parsed.data.amount > availableBalance) {
     return { error: `Insufficient fund balance. Available: GHS ${availableBalance.toFixed(2)}` };
   }

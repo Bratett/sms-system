@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   createBudgetSchema,
   type CreateBudgetInput,
@@ -37,8 +38,8 @@ export async function getBudgetsAction(filters?: { academicYearId?: string; stat
   const termMap = new Map(terms.map((t) => [t.id, t.name]));
 
   const data = budgets.map((b) => {
-    const totalAllocated = b.lines.reduce((sum, l) => sum + l.allocatedAmount, 0);
-    const totalSpent = b.lines.reduce((sum, l) => sum + l.spentAmount, 0);
+    const totalAllocated = b.lines.reduce((sum, l) => sum + toNum(l.allocatedAmount), 0);
+    const totalSpent = b.lines.reduce((sum, l) => sum + toNum(l.spentAmount), 0);
     return {
       ...b,
       academicYearName: ayMap.get(b.academicYearId) ?? "Unknown",
@@ -124,16 +125,20 @@ export async function getBudgetVsActualAction(budgetId: string) {
   });
   if (!budget) return { error: "Budget not found" };
 
-  const data = budget.lines.map((line) => ({
-    category: line.expenseCategory.name,
-    categoryCode: line.expenseCategory.code,
-    allocated: line.allocatedAmount,
-    spent: line.spentAmount,
-    remaining: line.allocatedAmount - line.spentAmount,
-    utilization: line.allocatedAmount > 0 ? (line.spentAmount / line.allocatedAmount) * 100 : 0,
-    variance: line.allocatedAmount - line.spentAmount,
-    isOverBudget: line.spentAmount > line.allocatedAmount,
-  }));
+  const data = budget.lines.map((line) => {
+    const allocated = toNum(line.allocatedAmount);
+    const spent = toNum(line.spentAmount);
+    return {
+      category: line.expenseCategory.name,
+      categoryCode: line.expenseCategory.code,
+      allocated,
+      spent,
+      remaining: allocated - spent,
+      utilization: allocated > 0 ? (spent / allocated) * 100 : 0,
+      variance: allocated - spent,
+      isOverBudget: spent > allocated,
+    };
+  });
 
   return {
     data: {

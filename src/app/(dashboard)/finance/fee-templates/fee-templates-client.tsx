@@ -14,12 +14,13 @@ import {
   createFeeStructureFromTemplateAction,
 } from "@/modules/finance/actions/fee-template.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface FeeTemplateItem {
   id: string;
   feeTemplateId: string;
   name: string;
   code: string | null;
-  amount: number;
+  amount: Monetary;
   isOptional: boolean;
   description: string | null;
 }
@@ -82,8 +83,8 @@ interface CreateStructureFormData {
   adjustments: { itemName: string; newAmount: number }[];
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const emptyItem: FeeItemFormData = {
@@ -150,7 +151,7 @@ export function FeeTemplatesClient({
         ? template.items.map((item) => ({
             name: item.name,
             code: item.code ?? "",
-            amount: item.amount,
+            amount: Number(item.amount),
             isOptional: item.isOptional,
             description: item.description ?? "",
           }))
@@ -246,7 +247,7 @@ export function FeeTemplatesClient({
       termId: terms.find((t) => t.isCurrent)?.id ?? "",
       adjustments: template.items.map((item) => ({
         itemName: item.name,
-        newAmount: item.amount,
+        newAmount: Number(item.amount),
       })),
     });
     setShowStructureModal(true);

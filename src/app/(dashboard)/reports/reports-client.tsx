@@ -4,6 +4,7 @@ import Link from "next/link";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
+import type { Monetary } from "@/lib/monetary";
 interface ComprehensiveReport {
   enrollment: {
     total: number;
@@ -31,8 +32,8 @@ interface ComprehensiveReport {
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 // ─── Component ──────────────────────────────────────────────────────

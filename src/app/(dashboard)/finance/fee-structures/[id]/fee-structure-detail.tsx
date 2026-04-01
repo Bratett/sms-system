@@ -13,12 +13,13 @@ import {
   activateFeeStructureAction,
 } from "@/modules/finance/actions/fee-structure.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface FeeItem {
   id: string;
   feeStructureId: string;
   name: string;
   code: string | null;
-  amount: number;
+  amount: Monetary;
   isOptional: boolean;
   description: string | null;
 }
@@ -41,8 +42,8 @@ interface FeeStructureData {
   feeItems: FeeItem[];
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toFixed(2)}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toFixed(2)}`;
 }
 
 export function FeeStructureDetail({

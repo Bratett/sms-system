@@ -15,6 +15,7 @@ import {
 
 // ─── Types ──────────────────────────────────────────────────────────
 
+import type { Monetary } from "@/lib/monetary";
 interface PurchaseRequestRow {
   id: string;
   storeId: string;
@@ -36,7 +37,7 @@ interface PurchaseOrderRow {
   purchaseRequestId: string | null;
   supplierId: string;
   supplierName: string;
-  totalAmount: number;
+  totalAmount: Monetary;
   status: string;
   itemCount: number;
   orderedBy: string;
@@ -51,7 +52,7 @@ interface ItemOption {
   name: string;
   quantity: number;
   unit: string;
-  unitPrice: number;
+  unitPrice: Monetary;
 }
 
 interface StoreOption {
@@ -64,8 +65,8 @@ interface SupplierOption {
   name: string;
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatDate(date: Date | string): string {
@@ -149,7 +150,7 @@ export function ProcurementClient({
     if (field === "storeItemId") {
       const item = allItems.find((i) => i.id === value);
       if (item) {
-        updated[idx].estimatedUnitPrice = item.unitPrice;
+        updated[idx].estimatedUnitPrice = Number(item.unitPrice);
       }
     }
     setRequestItems(updated);
@@ -238,7 +239,7 @@ export function ProcurementClient({
     if (field === "storeItemId") {
       const item = allItems.find((i) => i.id === value);
       if (item) {
-        updated[idx].unitPrice = item.unitPrice;
+        updated[idx].unitPrice = Number(item.unitPrice);
       }
     }
     setOrderItems(updated);

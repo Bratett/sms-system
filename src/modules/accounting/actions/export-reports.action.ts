@@ -16,7 +16,7 @@ export async function exportTrialBalanceAction(periodEnd: Date, format: ExportFo
   if (!session?.user) return { error: "Unauthorized" };
 
   const result = await generateTrialBalanceAction(periodEnd);
-  if (result.error || !result.data) return { error: result.error ?? "Failed to generate report" };
+  if ("error" in result) return { error: result.error };
 
   const data = result.data.lines
     .filter((l) => l.debit > 0 || l.credit > 0)
@@ -50,7 +50,7 @@ export async function exportBalanceSheetAction(periodEnd: Date, format: ExportFo
   if (!session?.user) return { error: "Unauthorized" };
 
   const result = await generateBalanceSheetAction(periodEnd);
-  if (result.error || !result.data) return { error: result.error ?? "Failed to generate report" };
+  if ("error" in result) return { error: result.error };
 
   const rows: Record<string, unknown>[] = [];
 
@@ -96,7 +96,7 @@ export async function exportIncomeStatementAction(periodStart: Date, periodEnd: 
   if (!session?.user) return { error: "Unauthorized" };
 
   const result = await generateIncomeStatementAction(periodStart, periodEnd);
-  if (result.error || !result.data) return { error: result.error ?? "Failed to generate report" };
+  if ("error" in result) return { error: result.error };
 
   const rows: Record<string, unknown>[] = [];
 
@@ -135,7 +135,7 @@ export async function exportCashFlowAction(periodStart: Date, periodEnd: Date, f
   if (!session?.user) return { error: "Unauthorized" };
 
   const result = await generateCashFlowAction(periodStart, periodEnd);
-  if (result.error || !result.data) return { error: result.error ?? "Failed to generate report" };
+  if ("error" in result) return { error: result.error };
 
   const rows: Record<string, unknown>[] = [
     { category: "Operating Activities", item: "Inflows", amount: result.data.operating.inflows },

@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { generateBillsAction, getBillsAction } from "@/modules/finance/actions/billing.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface FeeStructure {
   id: string;
   name: string;
@@ -27,9 +28,9 @@ interface Term {
 interface Bill {
   id: string;
   studentId: string;
-  totalAmount: number;
-  paidAmount: number;
-  balanceAmount: number;
+  totalAmount: Monetary;
+  paidAmount: Monetary;
+  balanceAmount: Monetary;
   status: string;
   studentName: string;
   studentIdNumber: string;
@@ -43,8 +44,8 @@ interface Pagination {
   totalPages: number;
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toFixed(2)}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toFixed(2)}`;
 }
 
 const billStatusColors: Record<string, string> = {
@@ -97,9 +98,9 @@ export function BillingClient({
   const summary = useMemo(() => {
     return filteredBills.reduce(
       (acc, bill) => ({
-        totalBilled: acc.totalBilled + bill.totalAmount,
-        totalPaid: acc.totalPaid + bill.paidAmount,
-        totalOutstanding: acc.totalOutstanding + bill.balanceAmount,
+        totalBilled: acc.totalBilled + Number(bill.totalAmount),
+        totalPaid: acc.totalPaid + Number(bill.paidAmount),
+        totalOutstanding: acc.totalOutstanding + Number(bill.balanceAmount),
       }),
       { totalBilled: 0, totalPaid: 0, totalOutstanding: 0 }
     );

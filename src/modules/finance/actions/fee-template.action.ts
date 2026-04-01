@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   createFeeTemplateSchema,
   updateFeeTemplateSchema,
@@ -44,7 +45,7 @@ export async function getFeeTemplatesAction(filters?: { isActive?: boolean }) {
     ...t,
     programmeName: t.programmeId ? progMap.get(t.programmeId) ?? null : null,
     itemCount: t.items.length,
-    totalAmount: t.items.reduce((sum, item) => sum + item.amount, 0),
+    totalAmount: t.items.reduce((sum, item) => sum + toNum(item.amount), 0),
   }));
 
   return { data };
@@ -209,7 +210,7 @@ export async function createFeeStructureFromTemplateAction(data: CreateFromTempl
         feeStructureId: structure.id,
         name: item.name,
         code: item.code,
-        amount: adjustmentMap.get(item.name) ?? item.amount,
+        amount: adjustmentMap.get(item.name) ?? toNum(item.amount),
         isOptional: item.isOptional,
         description: item.description,
       })),

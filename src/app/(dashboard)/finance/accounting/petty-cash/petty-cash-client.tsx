@@ -12,13 +12,14 @@ import {
   getPettyCashTransactionsAction,
 } from "@/modules/accounting/actions/petty-cash.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface PettyCashFund {
   id: string;
   name: string;
   custodianId: string;
   custodianName: string;
-  authorizedLimit: number;
-  currentBalance: number;
+  authorizedLimit: Monetary;
+  currentBalance: Monetary;
   isActive: boolean;
   transactionCount: number;
   utilizationRate: number;
@@ -28,15 +29,15 @@ interface PettyCashFund {
 interface Transaction {
   id: string;
   type: string;
-  amount: number;
+  amount: Monetary;
   description: string;
   receiptNumber: string | null;
   date: Date | string;
   recordedByName: string;
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const TRANSACTION_TYPES = [
@@ -125,7 +126,7 @@ export function PettyCashClient({ funds }: { funds: PettyCashFund[] }) {
   }
 
   function handleRequestReplenishment(fund: PettyCashFund) {
-    const replenishAmount = fund.authorizedLimit - fund.currentBalance;
+    const replenishAmount = Number(fund.authorizedLimit) - Number(fund.currentBalance);
     if (replenishAmount <= 0) {
       toast.info("Fund is already at its authorized limit.");
       return;
@@ -156,8 +157,8 @@ export function PettyCashClient({ funds }: { funds: PettyCashFund[] }) {
     });
   }
 
-  const totalAuthorized = funds.reduce((sum, f) => sum + f.authorizedLimit, 0);
-  const totalBalance = funds.reduce((sum, f) => sum + f.currentBalance, 0);
+  const totalAuthorized = funds.reduce((sum, f) => sum + Number(f.authorizedLimit), 0);
+  const totalBalance = funds.reduce((sum, f) => sum + Number(f.currentBalance), 0);
 
   return (
     <div className="space-y-6">
@@ -197,7 +198,7 @@ export function PettyCashClient({ funds }: { funds: PettyCashFund[] }) {
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {funds.map((fund) => {
-            const balancePct = fund.authorizedLimit > 0 ? (fund.currentBalance / fund.authorizedLimit) * 100 : 0;
+            const balancePct = Number(fund.authorizedLimit) > 0 ? (Number(fund.currentBalance) / Number(fund.authorizedLimit)) * 100 : 0;
             const barColor = balancePct > 50 ? "bg-green-500" : balancePct > 20 ? "bg-yellow-500" : "bg-red-500";
 
             return (

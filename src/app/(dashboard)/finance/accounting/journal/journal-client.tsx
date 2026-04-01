@@ -12,11 +12,12 @@ import {
   reverseJournalTransactionAction,
 } from "@/modules/accounting/actions/journal.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface JournalEntry {
   id: string;
   debitAccountId: string;
   creditAccountId: string;
-  amount: number;
+  amount: Monetary;
   narration: string | null;
   debitAccount: { code: string; name: string };
   creditAccount: { code: string; name: string };
@@ -30,7 +31,7 @@ interface JournalTransaction {
   status: string;
   createdByName: string;
   approvedByName: string | null;
-  totalAmount: number;
+  totalAmount: Monetary;
   entries: JournalEntry[];
 }
 
@@ -51,8 +52,8 @@ interface EntryLine {
   narration: string;
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {

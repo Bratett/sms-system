@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { toNum } from "@/lib/decimal";
 
 // ─── Helper: get student record by userId ─────────────────────────────
 
@@ -54,7 +55,7 @@ export async function getStudentPortalDataAction() {
     },
     select: { balanceAmount: true },
   });
-  const feeBalance = bills.reduce((sum, b) => sum + b.balanceAmount, 0);
+  const feeBalance = bills.reduce((sum, b) => sum + toNum(b.balanceAmount), 0);
 
   // Recent results: get latest term result
   const currentTerm = await db.term.findFirst({
@@ -406,7 +407,7 @@ export async function getMyFeesAction() {
     payments: bill.payments,
   }));
 
-  const totalBalance = bills.reduce((sum, b) => sum + b.balanceAmount, 0);
+  const totalBalance = bills.reduce((sum, b) => sum + toNum(b.balanceAmount), 0);
 
   return {
     data: {

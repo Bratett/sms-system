@@ -10,6 +10,7 @@ import {
   createAccountAction,
   updateAccountAction,
 } from "@/modules/accounting/actions/chart-of-accounts.action";
+import type { Monetary } from "@/lib/monetary";
 
 interface AccountBase {
   id: string;
@@ -19,7 +20,7 @@ interface AccountBase {
   name: string;
   description: string | null;
   normalBalance: string;
-  currentBalance: number;
+  currentBalance: Monetary;
   isActive: boolean;
   isSystemAccount: boolean;
   schoolId: string;
@@ -44,8 +45,8 @@ interface AccountCategory {
   accounts: (AccountBase & { children: AccountBase[] })[];
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const BALANCE_STYLES: Record<string, string> = {

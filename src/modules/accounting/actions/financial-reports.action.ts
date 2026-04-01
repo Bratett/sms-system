@@ -3,6 +3,8 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
+import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import {
   generateReportSchema,
   type GenerateReportInput,
@@ -11,6 +13,8 @@ import {
 export async function generateTrialBalanceAction(periodEnd: Date) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  if (permErr) return permErr;
 
   const school = await db.school.findFirst();
   if (!school) return { error: "School not found" };
@@ -21,24 +25,48 @@ export async function generateTrialBalanceAction(periodEnd: Date) {
     orderBy: { code: "asc" },
   });
 
+  // Compute balances from journal entries up to periodEnd instead of using live currentBalance
+  const entries = await db.journalEntry.findMany({
+    where: {
+      journalTransaction: {
+        schoolId: school.id,
+        status: "POSTED",
+        date: { lte: periodEnd },
+      },
+    },
+    select: { debitAccountId: true, creditAccountId: true, amount: true },
+  });
+
+  // Aggregate debit and credit totals per account
+  const debitTotals = new Map<string, number>();
+  const creditTotals = new Map<string, number>();
+  for (const entry of entries) {
+    debitTotals.set(entry.debitAccountId, (debitTotals.get(entry.debitAccountId) ?? 0) + toNum(entry.amount));
+    creditTotals.set(entry.creditAccountId, (creditTotals.get(entry.creditAccountId) ?? 0) + toNum(entry.amount));
+  }
+
   let totalDebits = 0;
   let totalCredits = 0;
 
   const lines = accounts.map((acc) => {
-    const isDebitNormal = acc.normalBalance === "DEBIT";
-    const debitBalance = isDebitNormal && acc.currentBalance > 0 ? acc.currentBalance : (!isDebitNormal && acc.currentBalance < 0 ? Math.abs(acc.currentBalance) : 0);
-    const creditBalance = !isDebitNormal && acc.currentBalance >= 0 ? acc.currentBalance : (isDebitNormal && acc.currentBalance < 0 ? Math.abs(acc.currentBalance) : 0);
+    const totalDebit = debitTotals.get(acc.id) ?? 0;
+    const totalCredit = creditTotals.get(acc.id) ?? 0;
+    const netBalance = totalDebit - totalCredit; // positive = net debit
 
-    totalDebits += debitBalance;
-    totalCredits += creditBalance;
+    // Place net balance on the appropriate side based on sign
+    const debit = netBalance > 0 ? netBalance : 0;
+    const credit = netBalance < 0 ? Math.abs(netBalance) : 0;
+
+    totalDebits += debit;
+    totalCredits += credit;
 
     return {
       accountCode: acc.code,
       accountName: acc.name,
       categoryName: acc.category.name,
       categoryType: acc.category.type,
-      debit: debitBalance,
-      credit: creditBalance,
+      debit,
+      credit,
     };
   });
 
@@ -59,6 +87,8 @@ export async function generateTrialBalanceAction(periodEnd: Date) {
 export async function generateBalanceSheetAction(periodEnd: Date) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  if (permErr) return permErr;
 
   const school = await db.school.findFirst();
   if (!school) return { error: "School not found" };
@@ -73,19 +103,19 @@ export async function generateBalanceSheetAction(periodEnd: Date) {
   const liabilities = accounts.filter((a) => a.category.type === "LIABILITY");
   const equity = accounts.filter((a) => a.category.type === "EQUITY");
 
-  const totalAssets = assets.reduce((sum, a) => sum + Math.abs(a.currentBalance), 0);
-  const totalLiabilities = liabilities.reduce((sum, a) => sum + Math.abs(a.currentBalance), 0);
-  const totalEquity = equity.reduce((sum, a) => sum + Math.abs(a.currentBalance), 0);
+  const totalAssets = assets.reduce((sum, a) => sum + Math.abs(toNum(a.currentBalance)), 0);
+  const totalLiabilities = liabilities.reduce((sum, a) => sum + Math.abs(toNum(a.currentBalance)), 0);
+  const totalEquity = equity.reduce((sum, a) => sum + Math.abs(toNum(a.currentBalance)), 0);
 
   // Calculate net income for the period (Revenue - Expenses)
   const revenue = accounts.filter((a) => a.category.type === "REVENUE");
   const expenses = accounts.filter((a) => a.category.type === "EXPENSE");
-  const totalRevenue = revenue.reduce((sum, a) => sum + Math.abs(a.currentBalance), 0);
-  const totalExpenses = expenses.reduce((sum, a) => sum + Math.abs(a.currentBalance), 0);
+  const totalRevenue = revenue.reduce((sum, a) => sum + Math.abs(toNum(a.currentBalance)), 0);
+  const totalExpenses = expenses.reduce((sum, a) => sum + Math.abs(toNum(a.currentBalance)), 0);
   const netIncome = totalRevenue - totalExpenses;
 
   const mapAccounts = (accs: typeof accounts) =>
-    accs.map((a) => ({ code: a.code, name: a.name, balance: Math.abs(a.currentBalance) }));
+    accs.map((a) => ({ code: a.code, name: a.name, balance: Math.abs(toNum(a.currentBalance)) }));
 
   return {
     data: {
@@ -102,6 +132,8 @@ export async function generateBalanceSheetAction(periodEnd: Date) {
 export async function generateIncomeStatementAction(periodStart: Date, periodEnd: Date) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  if (permErr) return permErr;
 
   const school = await db.school.findFirst();
   if (!school) return { error: "School not found" };
@@ -129,14 +161,14 @@ export async function generateIncomeStatementAction(periodStart: Date, periodEnd
     if (entry.creditAccount.category.type === "REVENUE") {
       const key = entry.creditAccountId;
       const existing = accountTotals.get(key) ?? { code: entry.creditAccount.code, name: entry.creditAccount.name, type: "REVENUE", total: 0 };
-      existing.total += entry.amount;
+      existing.total += toNum(entry.amount);
       accountTotals.set(key, existing);
     }
     // Debit to expense account = expense
     if (entry.debitAccount.category.type === "EXPENSE") {
       const key = entry.debitAccountId;
       const existing = accountTotals.get(key) ?? { code: entry.debitAccount.code, name: entry.debitAccount.name, type: "EXPENSE", total: 0 };
-      existing.total += entry.amount;
+      existing.total += toNum(entry.amount);
       accountTotals.set(key, existing);
     }
   }
@@ -162,6 +194,8 @@ export async function generateIncomeStatementAction(periodStart: Date, periodEnd
 export async function generateCashFlowAction(periodStart: Date, periodEnd: Date) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  if (permErr) return permErr;
 
   const school = await db.school.findFirst();
   if (!school) return { error: "School not found" };
@@ -205,18 +239,22 @@ export async function generateCashFlowAction(periodStart: Date, periodEnd: Date)
     const isCashDebit = cashAccountIds.includes(entry.debitAccountId);
     const refType = entry.journalTransaction.referenceType?.toLowerCase() ?? "";
 
-    // Classify as operating or investing
+    // Classify based on the non-cash leg's category (cash/bank accounts are assets,
+    // so checking the cash leg would always flag as investing)
+    const nonCashCategory = isCashDebit
+      ? entry.creditAccount.category.type
+      : entry.debitAccount.category.type;
     const isInvesting = refType.includes("asset") || refType.includes("depreciation") ||
-      entry.debitAccount.category.type === "ASSET" || entry.creditAccount.category.type === "ASSET";
+      nonCashCategory === "ASSET";
 
     if (isCashDebit) {
       // Cash coming in
-      if (isInvesting) investingInflows += entry.amount;
-      else operatingInflows += entry.amount;
+      if (isInvesting) investingInflows += toNum(entry.amount);
+      else operatingInflows += toNum(entry.amount);
     } else {
       // Cash going out
-      if (isInvesting) investingOutflows += entry.amount;
-      else operatingOutflows += entry.amount;
+      if (isInvesting) investingOutflows += toNum(entry.amount);
+      else operatingOutflows += toNum(entry.amount);
     }
   }
 
@@ -238,6 +276,8 @@ export async function generateCashFlowAction(periodStart: Date, periodEnd: Date)
 export async function generateBoardSummaryAction(periodStart: Date, periodEnd: Date) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  if (permErr) return permErr;
 
   const school = await db.school.findFirst();
   if (!school) return { error: "School not found" };
@@ -246,30 +286,30 @@ export async function generateBoardSummaryAction(periodStart: Date, periodEnd: D
   const bills = await db.studentBill.findMany({
     where: { feeStructure: { schoolId: school.id } },
   });
-  const totalBilled = bills.reduce((sum, b) => sum + b.totalAmount, 0);
-  const totalCollected = bills.reduce((sum, b) => sum + b.paidAmount, 0);
+  const totalBilled = bills.reduce((sum, b) => sum + toNum(b.totalAmount), 0);
+  const totalCollected = bills.reduce((sum, b) => sum + toNum(b.paidAmount), 0);
   const collectionRate = totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0;
 
   // Expense summary
   const expenses = await db.expense.findMany({
     where: { schoolId: school.id, status: { in: ["APPROVED", "PAID"] }, date: { gte: periodStart, lte: periodEnd } },
   });
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalExpenses = expenses.reduce((sum, e) => sum + toNum(e.amount), 0);
 
   // Government subsidies
   const subsidies = await db.governmentSubsidy.findMany({
     where: { schoolId: school.id },
   });
-  const subsidyExpected = subsidies.reduce((sum, s) => sum + s.expectedAmount, 0);
-  const subsidyReceived = subsidies.reduce((sum, s) => sum + s.receivedAmount, 0);
+  const subsidyExpected = subsidies.reduce((sum, s) => sum + toNum(s.expectedAmount), 0);
+  const subsidyReceived = subsidies.reduce((sum, s) => sum + toNum(s.receivedAmount), 0);
 
   // Budget utilization
   const activeBudgets = await db.budget.findMany({
     where: { schoolId: school.id, status: "ACTIVE" },
     include: { lines: true },
   });
-  const budgetAllocated = activeBudgets.reduce((sum, b) => sum + b.totalAmount, 0);
-  const budgetSpent = activeBudgets.reduce((sum, b) => b.lines.reduce((s, l) => s + l.spentAmount, 0) + sum, 0);
+  const budgetAllocated = activeBudgets.reduce((sum, b) => sum + toNum(b.totalAmount), 0);
+  const budgetSpent = activeBudgets.reduce((sum, b) => b.lines.reduce((s, l) => s + toNum(l.spentAmount), 0) + sum, 0);
 
   return {
     data: {

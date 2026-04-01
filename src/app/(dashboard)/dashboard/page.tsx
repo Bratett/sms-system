@@ -76,7 +76,7 @@ export default async function DashboardPage() {
           value={stats.finance.collectionRate > 0 ? `${stats.finance.collectionRate}%` : "--"}
           label="Fee Collection"
           secondary={
-            stats.finance.totalCollected > 0
+            Number(stats.finance.totalCollected) > 0
               ? `GHS ${formatCurrency(stats.finance.totalCollected)} collected`
               : "No bills this term"
           }
@@ -210,10 +210,10 @@ export default async function DashboardPage() {
       </div>
 
       {/* ── Row 4: Charts + Stats ─────────────────────────── */}
-      {(stats.students.active > 0 || stats.finance.totalBilled > 0) && (
+      {(stats.students.active > 0 || Number(stats.finance.totalBilled) > 0) && (
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Fee Collection with Chart */}
-          {stats.finance.totalBilled > 0 && (
+          {Number(stats.finance.totalBilled) > 0 && (
             <div className="rounded-xl border border-border bg-card p-6">
               <h3 className="text-base font-semibold">Fee Collection — Current Term</h3>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -238,8 +238,8 @@ export default async function DashboardPage() {
               </div>
               <div className="mt-4">
                 <FeeCollectionChart
-                  collected={stats.finance.totalCollected}
-                  outstanding={stats.finance.outstanding}
+                  collected={Number(stats.finance.totalCollected)}
+                  outstanding={Number(stats.finance.outstanding)}
                 />
               </div>
               <div className="mt-4">
@@ -436,8 +436,8 @@ function formatRelative(date: Date | string): string {
   }
 }
 
-function formatCurrency(amount: number): string {
-  return amount.toLocaleString("en-GH", {
+function formatCurrency(amount: number | unknown): string {
+  return Number(amount).toLocaleString("en-GH", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

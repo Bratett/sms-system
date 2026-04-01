@@ -11,6 +11,7 @@ import {
 
 // ─── Types ──────────────────────────────────────────────────────────
 
+import type { Monetary } from "@/lib/monetary";
 interface ItemRow {
   id: string;
   storeId: string;
@@ -22,8 +23,8 @@ interface ItemRow {
   unit: string;
   quantity: number;
   reorderLevel: number;
-  unitPrice: number;
-  value: number;
+  unitPrice: Monetary;
+  value: Monetary;
   description: string | null;
   status: string;
   isLowStock: boolean;
@@ -40,8 +41,8 @@ interface CategoryOption {
   name: string;
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 // ─── Component ──────────────────────────────────────────────────────
@@ -131,7 +132,7 @@ export function ItemsClient({
         unit: item.unit,
         quantity: item.quantity,
         reorderLevel: item.reorderLevel,
-        unitPrice: item.unitPrice,
+        unitPrice: Number(item.unitPrice),
         description: item.description ?? "",
       });
     } else {

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { toNum } from "@/lib/decimal";
 import {
   createJournalTransactionSchema,
   type CreateJournalTransactionInput,
@@ -71,7 +72,7 @@ export async function getJournalTransactionsAction(filters?: {
     ...t,
     createdByName: userMap.get(t.createdBy) ?? "Unknown",
     approvedByName: t.approvedBy ? userMap.get(t.approvedBy) ?? null : null,
-    totalAmount: t.entries.reduce((sum, e) => sum + e.amount, 0),
+    totalAmount: t.entries.reduce((sum, e) => sum + toNum(e.amount), 0),
   }));
 
   return { data, pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };

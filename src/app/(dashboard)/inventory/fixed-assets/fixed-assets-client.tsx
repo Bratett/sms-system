@@ -15,10 +15,11 @@ import {
 } from "@/modules/inventory/actions/fixed-asset.action";
 import { recordMaintenanceAction } from "@/modules/inventory/actions/asset-maintenance.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface Asset {
   id: string; assetNumber: string; name: string; description: string | null;
-  categoryName: string; location: string | null; purchasePrice: number;
-  currentValue: number; accumulatedDepreciation: number; condition: string;
+  categoryName: string; location: string | null; purchasePrice: Monetary;
+  currentValue: Monetary; accumulatedDepreciation: number; condition: string;
   status: string; depreciationMethod: string; createdAt: Date | string;
 }
 
@@ -34,8 +35,8 @@ const CONDITION_STYLES: Record<string, string> = {
   UNSERVICEABLE: "bg-red-100 text-red-700",
 };
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function FixedAssetsClient({

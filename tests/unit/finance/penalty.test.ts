@@ -60,8 +60,8 @@ describe("Penalty Actions", () => {
 
   describe("deleteLatePenaltyRuleAction", () => {
     it("should reject if rule has applied penalties", async () => {
-      prismaMock.latePenaltyRule.findUnique.mockResolvedValue({
-        id: "rule-1", name: "Test", _count: { penalties: 3 },
+      prismaMock.latePenaltyRule.findFirst.mockResolvedValue({
+        id: "rule-1", name: "Test", schoolId: "default-school", _count: { penalties: 3 },
       } as never);
 
       const result = await deleteLatePenaltyRuleAction("rule-1");

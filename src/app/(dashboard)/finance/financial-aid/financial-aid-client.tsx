@@ -11,6 +11,7 @@ import {
   markUnderReviewAction,
 } from "@/modules/finance/actions/financial-aid.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface Application {
   id: string;
   studentId: string;
@@ -18,15 +19,15 @@ interface Application {
   studentIdNumber: string;
   className: string;
   aidType: string;
-  requestedAmount: number;
-  approvedAmount: number | null;
+  requestedAmount: Monetary;
+  approvedAmount: Monetary | null;
   reason: string;
   status: string;
   termName: string;
   academicYearName: string;
   submittedByName: string;
   reviewedByName: string | null;
-  householdIncome: number | null;
+  householdIncome: Monetary | null;
   numberOfDependents: number | null;
   reviewNotes: string | null;
   createdAt: Date | string;
@@ -55,8 +56,8 @@ const STATUS_STYLES: Record<string, { label: string; className: string }> = {
   DISBURSED: { label: "Disbursed", className: "bg-blue-100 text-blue-700" },
 };
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function FinancialAidClient({
@@ -91,8 +92,8 @@ export function FinancialAidClient({
   }, [applications, statusFilter]);
 
   const pendingCount = applications.filter((a) => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW").length;
-  const totalRequested = applications.reduce((sum, a) => sum + a.requestedAmount, 0);
-  const totalApproved = applications.filter((a) => a.status === "APPROVED" || a.status === "DISBURSED").reduce((sum, a) => sum + (a.approvedAmount ?? 0), 0);
+  const totalRequested = applications.reduce((sum, a) => sum + Number(a.requestedAmount), 0);
+  const totalApproved = applications.filter((a) => a.status === "APPROVED" || a.status === "DISBURSED").reduce((sum, a) => sum + Number(a.approvedAmount ?? 0), 0);
 
   function handleSubmitCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -114,7 +115,7 @@ export function FinancialAidClient({
 
   function handleOpenReview(app: Application) {
     setSelectedApp(app);
-    setReviewData({ approvedAmount: app.requestedAmount, reviewNotes: "" });
+    setReviewData({ approvedAmount: Number(app.requestedAmount), reviewNotes: "" });
     if (app.status === "SUBMITTED") {
       startTransition(async () => {
         await markUnderReviewAction(app.id);

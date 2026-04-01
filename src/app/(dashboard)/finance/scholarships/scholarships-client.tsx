@@ -14,11 +14,12 @@ import {
   applyScholarshipAction,
 } from "@/modules/finance/actions/scholarship.action";
 
+import type { Monetary } from "@/lib/monetary";
 interface Scholarship {
   id: string;
   name: string;
   type: string;
-  value: number;
+  value: Monetary;
   criteria: string | null;
   academicYearId: string | null;
   status: string;
@@ -55,8 +56,8 @@ interface ApplyFormData {
   termId: string;
 }
 
-function formatCurrency(amount: number): string {
-  return `GHS ${amount.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: Monetary): string {
+  return `GHS ${Number(amount).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function ScholarshipsClient({
@@ -106,7 +107,7 @@ export function ScholarshipsClient({
     setFormData({
       name: scholarship.name,
       type: scholarship.type as "PERCENTAGE" | "FIXED_AMOUNT",
-      value: scholarship.value,
+      value: Number(scholarship.value),
       criteria: scholarship.criteria ?? "",
       academicYearId: scholarship.academicYearId ?? "",
     });
