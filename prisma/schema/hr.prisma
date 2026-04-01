@@ -34,9 +34,6 @@ model Staff {
   contracts StaffContract[]
   loans StaffLoan[]
   promotions StaffPromotion[]
-  trainingEnrollments TrainingEnrollment[]
-  overtimeRecords OvertimeRecord[]
-  exitClearance ExitClearance[]
 
   @@index([schoolId])
   @@index([staffId])
