@@ -122,6 +122,35 @@ function getSeverityBarColor(severity: string) {
   return map[severity] ?? "bg-blue-500";
 }
 
+function HorizontalBars({
+  data,
+  colorFn,
+}: {
+  data: Record<string, number>;
+  colorFn?: (key: string) => string;
+}) {
+  const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+  const max = Math.max(...entries.map(([, v]) => v), 1);
+  return (
+    <div className="space-y-2">
+      {entries.map(([key, value]) => (
+        <div key={key} className="flex items-center gap-3">
+          <span className="w-32 text-xs text-muted-foreground truncate" title={formatLabel(key)}>
+            {formatLabel(key)}
+          </span>
+          <div className="flex-1 h-5 bg-muted rounded overflow-hidden">
+            <div
+              className={`h-full rounded ${colorFn ? colorFn(key) : "bg-primary"}`}
+              style={{ width: `${(value / max) * 100}%` }}
+            />
+          </div>
+          <span className="w-10 text-xs font-medium text-right">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Component ──────────────────────────────────────────────────────
 
 export function AnalyticsClient({ overview }: { overview: Overview }) {
@@ -206,37 +235,6 @@ export function AnalyticsClient({ overview }: { overview: Overview }) {
       }
       setLoadingSickBay(false);
     });
-  }
-
-  // ─── Horizontal Bar Helper ──────────────────────────────────────
-
-  function HorizontalBars({
-    data,
-    colorFn,
-  }: {
-    data: Record<string, number>;
-    colorFn?: (key: string) => string;
-  }) {
-    const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
-    const max = Math.max(...entries.map(([, v]) => v), 1);
-    return (
-      <div className="space-y-2">
-        {entries.map(([key, value]) => (
-          <div key={key} className="flex items-center gap-3">
-            <span className="w-32 text-xs text-muted-foreground truncate" title={formatLabel(key)}>
-              {formatLabel(key)}
-            </span>
-            <div className="flex-1 h-5 bg-muted rounded overflow-hidden">
-              <div
-                className={`h-full rounded ${colorFn ? colorFn(key) : "bg-primary"}`}
-                style={{ width: `${(value / max) * 100}%` }}
-              />
-            </div>
-            <span className="w-10 text-xs font-medium text-right">{value}</span>
-          </div>
-        ))}
-      </div>
-    );
   }
 
   return (
