@@ -189,9 +189,9 @@ export function AnalyticsClient({ overview }: { overview: Overview }) {
     setLoadingExeat(true);
     startTransition(async () => {
       const result = await getExeatAnalyticsAction();
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
-      } else if (result.data) {
+      } else {
         setExeat(result.data);
       }
       setLoadingExeat(false);
@@ -202,9 +202,9 @@ export function AnalyticsClient({ overview }: { overview: Overview }) {
     setLoadingRollCall(true);
     startTransition(async () => {
       const result = await getRollCallAnalyticsAction();
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
-      } else if (result.data) {
+      } else {
         setRollCall(result.data);
       }
       setLoadingRollCall(false);
@@ -215,9 +215,9 @@ export function AnalyticsClient({ overview }: { overview: Overview }) {
     setLoadingIncidents(true);
     startTransition(async () => {
       const result = await getIncidentAnalyticsAction();
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
-      } else if (result.data) {
+      } else {
         setIncidents(result.data);
       }
       setLoadingIncidents(false);
@@ -228,9 +228,9 @@ export function AnalyticsClient({ overview }: { overview: Overview }) {
     setLoadingSickBay(true);
     startTransition(async () => {
       const result = await getSickBayAnalyticsAction();
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
-      } else if (result.data) {
+      } else {
         setSickBay(result.data);
       }
       setLoadingSickBay(false);

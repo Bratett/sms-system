@@ -3,6 +3,9 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { dispatch } from "@/lib/notifications/dispatcher";
+import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
+import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import { createMaintenanceSchema } from "../schemas";
 
 // ─── Maintenance Requests ─────────────────────────────────────────
@@ -20,6 +23,8 @@ export async function getMaintenanceRequestsAction(filters?: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.MAINTENANCE_READ);
+  if (permErr) return permErr;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
@@ -165,6 +170,8 @@ export async function createMaintenanceRequestAction(data: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.MAINTENANCE_CREATE);
+  if (permErr) return permErr;
 
   const parsed = createMaintenanceSchema.safeParse(data);
   if (!parsed.success) {
@@ -210,6 +217,16 @@ export async function createMaintenanceRequestAction(data: {
     newData: request,
   });
 
+  if (parsed.data.priority === "URGENT") {
+    dispatch({
+      event: NOTIFICATION_EVENTS.MAINTENANCE_URGENT,
+      title: "Urgent Maintenance Request",
+      message: `Urgent maintenance request: ${parsed.data.title}`,
+      recipients: [],
+      schoolId: school.id,
+    }).catch(() => {});
+  }
+
   return { data: request };
 }
 
@@ -218,6 +235,8 @@ export async function assignMaintenanceAction(id: string, staffId: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.MAINTENANCE_ASSIGN);
+  if (permErr) return permErr;
 
   const request = await db.maintenanceRequest.findUnique({ where: { id } });
   if (!request) {
@@ -268,6 +287,8 @@ export async function updateMaintenanceStatusAction(
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.MAINTENANCE_UPDATE);
+  if (permErr) return permErr;
 
   const request = await db.maintenanceRequest.findUnique({ where: { id } });
   if (!request) {
@@ -322,6 +343,8 @@ export async function resolveMaintenanceAction(id: string, notes: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.MAINTENANCE_UPDATE);
+  if (permErr) return permErr;
 
   const request = await db.maintenanceRequest.findUnique({ where: { id } });
   if (!request) {
@@ -360,6 +383,8 @@ export async function getMaintenanceStatsAction() {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.MAINTENANCE_READ);
+  if (permErr) return permErr;
 
   // Count by status
   const [open, assigned, inProgress, resolved, closed] = await Promise.all([

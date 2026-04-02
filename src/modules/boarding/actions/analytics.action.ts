@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 
 // ─── Occupancy Trends ──────────────────────────────────────────────
 
@@ -10,6 +11,8 @@ export async function getOccupancyTrendsAction(range?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.HOSTELS_READ);
+  if (permErr) return permErr;
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -67,6 +70,8 @@ export async function getExeatAnalyticsAction(filters?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.HOSTELS_READ);
+  if (permErr) return permErr;
 
   const where: Record<string, unknown> = {};
   if (filters?.termId) where.termId = filters.termId;
@@ -175,6 +180,8 @@ export async function getRollCallAnalyticsAction(filters?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.HOSTELS_READ);
+  if (permErr) return permErr;
 
   const days = filters?.days ?? 30;
   const since = new Date();
@@ -268,6 +275,8 @@ export async function getIncidentAnalyticsAction(filters?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.HOSTELS_READ);
+  if (permErr) return permErr;
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -354,6 +363,8 @@ export async function getSickBayAnalyticsAction(filters?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.HOSTELS_READ);
+  if (permErr) return permErr;
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -435,6 +446,8 @@ export async function getSickBayAnalyticsAction(filters?: {
 export async function getBoardingOverviewAction() {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  const permErr = requirePermission(session, PERMISSIONS.HOSTELS_READ);
+  if (permErr) return permErr;
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };

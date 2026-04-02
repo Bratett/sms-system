@@ -40,6 +40,9 @@ import {
   Truck,
   ShoppingCart,
   AlertTriangle,
+  HeartPulse,
+  UserCheck,
+  Wrench,
   MessageSquare,
   Megaphone,
   ChevronDown,
@@ -53,6 +56,11 @@ import {
   ShieldCheck,
   Brain,
   FileStack,
+  ArrowRightLeft,
+  KeyRound,
+  ScanSearch,
+  PieChart,
+  TrendingDown,
   type LucideIcon,
 } from "lucide-react";
 
@@ -90,6 +98,9 @@ const iconMap: Record<string, LucideIcon> = {
   Truck,
   ShoppingCart,
   AlertTriangle,
+  HeartPulse,
+  UserCheck,
+  Wrench,
   MessageSquare,
   Megaphone,
   Clock,
@@ -99,6 +110,11 @@ const iconMap: Record<string, LucideIcon> = {
   ShieldCheck,
   Brain,
   FileStack,
+  ArrowRightLeft,
+  KeyRound,
+  ScanSearch,
+  PieChart,
+  TrendingDown,
 };
 
 function SidebarItem({

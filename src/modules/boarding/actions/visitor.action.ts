@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import { checkInVisitorSchema } from "../schemas";
 
 // ─── Visitors ──────────────────────────────────────────────────────
@@ -20,6 +21,8 @@ export async function getVisitorsAction(filters?: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BOARDING_VISITORS_READ);
+  if (permErr) return permErr;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
@@ -148,6 +151,8 @@ export async function checkInVisitorAction(data: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BOARDING_VISITORS_CREATE);
+  if (permErr) return permErr;
 
   const parsed = checkInVisitorSchema.safeParse(data);
   if (!parsed.success) {
@@ -193,6 +198,8 @@ export async function checkOutVisitorAction(id: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BOARDING_VISITORS_CREATE);
+  if (permErr) return permErr;
 
   const visitor = await db.boardingVisitor.findUnique({ where: { id } });
   if (!visitor) {
@@ -231,6 +238,8 @@ export async function getActiveVisitorsAction() {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BOARDING_VISITORS_READ);
+  if (permErr) return permErr;
 
   const visitors = await db.boardingVisitor.findMany({
     where: { status: "CHECKED_IN" },
@@ -299,6 +308,8 @@ export async function getStudentVisitHistoryAction(studentId: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BOARDING_VISITORS_READ);
+  if (permErr) return permErr;
 
   const visitors = await db.boardingVisitor.findMany({
     where: { studentId },
@@ -359,6 +370,8 @@ export async function getVisitorStatsAction(filters?: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BOARDING_VISITORS_READ);
+  if (permErr) return permErr;
 
   const where: Record<string, unknown> = {};
   if (filters?.hostelId) where.hostelId = filters.hostelId;

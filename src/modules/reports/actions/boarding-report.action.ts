@@ -154,6 +154,56 @@ export async function getBoardingReportAction(filters?: {
     status: e.status,
   }));
 
+  // ─── New feature data ──────────────────────────────────────────────
+
+  const [
+    activeIncidents,
+    resolvedIncidents,
+    currentSickBay,
+    totalSickBayAdmissions,
+    activeVisitors,
+    totalVisitors,
+    pendingTransfers,
+    completedTransfers,
+    openMaintenance,
+    resolvedMaintenance,
+    totalInspections,
+  ] = await Promise.all([
+    db.boardingIncident.count({
+      where: { schoolId: school.id, status: { in: ["REPORTED", "INVESTIGATING"] } },
+    }),
+    db.boardingIncident.count({
+      where: { schoolId: school.id, status: "RESOLVED" },
+    }),
+    db.sickBayAdmission.count({
+      where: { schoolId: school.id, status: { in: ["ADMITTED", "UNDER_OBSERVATION"] } },
+    }),
+    db.sickBayAdmission.count({
+      where: { schoolId: school.id },
+    }),
+    db.boardingVisitor.count({
+      where: { schoolId: school.id, status: "CHECKED_IN" },
+    }),
+    db.boardingVisitor.count({
+      where: { schoolId: school.id },
+    }),
+    db.bedTransfer.count({
+      where: { schoolId: school.id, status: "PENDING" },
+    }),
+    db.bedTransfer.count({
+      where: { schoolId: school.id, status: "COMPLETED" },
+    }),
+    db.maintenanceRequest.count({
+      where: { schoolId: school.id, status: { in: ["OPEN", "ASSIGNED", "IN_PROGRESS"] } },
+    }),
+    db.maintenanceRequest.count({
+      where: { schoolId: school.id, status: "RESOLVED" },
+    }),
+    db.hostelInspection.count({
+      where: { schoolId: school.id },
+    }),
+  ]);
+
   return {
     data: {
       totalHostels,
@@ -165,6 +215,13 @@ export async function getBoardingReportAction(filters?: {
       overdueExeatCount,
       recentExeats: recentExeatList,
       bedAllocationByGender: bedsByGender,
+      // Enhanced data
+      incidents: { active: activeIncidents, resolved: resolvedIncidents },
+      sickBay: { current: currentSickBay, totalAdmissions: totalSickBayAdmissions },
+      visitors: { active: activeVisitors, total: totalVisitors },
+      transfers: { pending: pendingTransfers, completed: completedTransfers },
+      maintenance: { open: openMaintenance, resolved: resolvedMaintenance },
+      inspections: { total: totalInspections },
     },
   };
 }

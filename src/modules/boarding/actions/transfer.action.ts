@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import { requestTransferSchema } from "../schemas";
 
 // ─── Transfers ─────────────────────────────────────────────────────
@@ -18,6 +19,8 @@ export async function getTransfersAction(filters?: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BED_TRANSFERS_READ);
+  if (permErr) return permErr;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
@@ -146,6 +149,8 @@ export async function requestTransferAction(
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BED_TRANSFERS_CREATE);
+  if (permErr) return permErr;
 
   const parsed = requestTransferSchema.safeParse(data);
   if (!parsed.success) {
@@ -228,6 +233,8 @@ export async function approveTransferAction(id: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BED_TRANSFERS_APPROVE);
+  if (permErr) return permErr;
 
   const transfer = await db.bedTransfer.findUnique({ where: { id } });
   if (!transfer) {
@@ -265,6 +272,8 @@ export async function executeTransferAction(id: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BED_TRANSFERS_APPROVE);
+  if (permErr) return permErr;
 
   const transfer = await db.bedTransfer.findUnique({ where: { id } });
   if (!transfer) {
@@ -351,6 +360,8 @@ export async function rejectTransferAction(id: string, reason: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BED_TRANSFERS_APPROVE);
+  if (permErr) return permErr;
 
   const transfer = await db.bedTransfer.findUnique({ where: { id } });
   if (!transfer) {
@@ -387,6 +398,8 @@ export async function getStudentTransferHistoryAction(studentId: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BED_TRANSFERS_READ);
+  if (permErr) return permErr;
 
   const transfers = await db.bedTransfer.findMany({
     where: { studentId },
