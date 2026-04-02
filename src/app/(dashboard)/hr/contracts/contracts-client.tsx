@@ -88,10 +88,10 @@ export function ContractsClient({
         page: newPage,
         pageSize,
       });
-      if (result.data) {
+      if ("data" in result && result.data) {
         setContracts(result.data as ContractRow[]);
-        setTotal(result.total ?? 0);
-        setPage(result.page ?? 1);
+        setTotal("total" in result ? result.total ?? 0 : 0);
+        setPage("page" in result ? result.page ?? 1 : 1);
       }
     });
   }

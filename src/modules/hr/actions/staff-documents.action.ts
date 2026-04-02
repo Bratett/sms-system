@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { deleteFile } from "@/lib/storage/r2";
 import { z } from "zod";
 
@@ -34,6 +35,7 @@ type UploadStaffDocumentInput = z.infer<typeof uploadStaffDocumentSchema>;
 export async function getStaffDocumentsAction(staffId: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_DOCUMENTS_READ)) return { error: "Insufficient permissions" };
 
   const documents = await db.document.findMany({
     where: {
@@ -49,6 +51,7 @@ export async function getStaffDocumentsAction(staffId: string) {
 export async function uploadStaffDocumentAction(data: UploadStaffDocumentInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_DOCUMENTS_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = uploadStaffDocumentSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -91,6 +94,7 @@ export async function uploadStaffDocumentAction(data: UploadStaffDocumentInput) 
 export async function deleteStaffDocumentAction(documentId: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_DOCUMENTS_DELETE)) return { error: "Insufficient permissions" };
 
   const document = await db.document.findUnique({ where: { id: documentId } });
   if (!document) return { error: "Document not found." };

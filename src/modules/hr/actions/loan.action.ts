@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { z } from "zod";
 
 // ─── Schemas ────────────────────────────────────────────────
@@ -30,6 +31,7 @@ export async function getLoansAction(filters?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LOAN_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -63,6 +65,7 @@ export async function getLoansAction(filters?: {
 export async function createLoanAction(data: CreateLoanInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LOAN_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = createLoanSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -125,6 +128,7 @@ export async function createLoanAction(data: CreateLoanInput) {
 export async function approveLoanAction(loanId: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LOAN_APPROVE)) return { error: "Insufficient permissions" };
 
   const loan = await db.staffLoan.findUnique({ where: { id: loanId } });
   if (!loan) return { error: "Loan not found." };
@@ -156,6 +160,7 @@ export async function approveLoanAction(loanId: string) {
 export async function cancelLoanAction(loanId: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LOAN_APPROVE)) return { error: "Insufficient permissions" };
 
   const loan = await db.staffLoan.findUnique({ where: { id: loanId } });
   if (!loan) return { error: "Loan not found." };
@@ -183,6 +188,7 @@ export async function cancelLoanAction(loanId: string) {
 export async function getLoanRepaymentsAction(loanId: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LOAN_READ)) return { error: "Insufficient permissions" };
 
   const repayments = await db.loanRepayment.findMany({
     where: { loanId },

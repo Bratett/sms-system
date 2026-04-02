@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { z } from "zod";
 
 // ─── Schemas ────────────────────────────────────────────────
@@ -24,6 +25,7 @@ type PromoteStaffInput = z.infer<typeof promoteStaffSchema>;
 export async function promoteStaffAction(data: PromoteStaffInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.PROMOTION_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = promoteStaffSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -93,6 +95,7 @@ export async function promoteStaffAction(data: PromoteStaffInput) {
 export async function getPromotionHistoryAction(staffId: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.PROMOTION_READ)) return { error: "Insufficient permissions" };
 
   const promotions = await db.staffPromotion.findMany({
     where: { staffId },
@@ -108,6 +111,7 @@ export async function getAllPromotionsAction(filters?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.PROMOTION_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };

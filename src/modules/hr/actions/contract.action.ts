@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { z } from "zod";
 
 // ─── Schemas ────────────────────────────────────────────────
@@ -34,6 +35,7 @@ type RenewContractInput = z.infer<typeof renewContractSchema>;
 export async function getStaffContractsAction(staffId: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.CONTRACT_READ)) return { error: "Insufficient permissions" };
 
   const contracts = await db.staffContract.findMany({
     where: { staffId },
@@ -51,6 +53,7 @@ export async function getAllContractsAction(filters?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.CONTRACT_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -83,6 +86,7 @@ export async function getAllContractsAction(filters?: {
 export async function createContractAction(data: CreateContractInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.CONTRACT_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = createContractSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -124,6 +128,7 @@ export async function createContractAction(data: CreateContractInput) {
 export async function renewContractAction(contractId: string, data: RenewContractInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.CONTRACT_UPDATE)) return { error: "Insufficient permissions" };
 
   const parsed = renewContractSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -168,6 +173,7 @@ export async function renewContractAction(contractId: string, data: RenewContrac
 export async function getExpiringContractsAction(daysAhead: number = 30) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.CONTRACT_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };

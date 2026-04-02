@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
 
 // ─── Staff Turnover Report ──────────────────────────────────
@@ -9,6 +10,7 @@ import { toNum } from "@/lib/decimal";
 export async function getStaffTurnoverReportAction(dateFrom: string, dateTo: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -57,6 +59,7 @@ export async function getStaffTurnoverReportAction(dateFrom: string, dateTo: str
 export async function getLeaveUtilizationReportAction(academicYearId?: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LEAVE_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -102,6 +105,7 @@ export async function getLeaveUtilizationReportAction(academicYearId?: string) {
 export async function getPayrollSummaryReportAction(year: number) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -141,6 +145,7 @@ export async function getPayrollSummaryReportAction(year: number) {
 export async function getStaffDemographicsReportAction() {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -201,6 +206,7 @@ export async function getStaffDemographicsReportAction() {
 export async function getAttendanceTrendReportAction(month: number, year: number) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_ATTENDANCE_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };

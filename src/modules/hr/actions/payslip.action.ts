@@ -7,6 +7,7 @@ import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import { renderPdfToBuffer } from "@/lib/pdf/generator";
 import { Payslip, type PayslipProps } from "@/lib/pdf/templates/payslip";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { uploadFile, generateFileKey } from "@/lib/storage/r2";
 
 // ─── Generate Single Payslip PDF ────────────────────────────
@@ -14,6 +15,7 @@ import { uploadFile, generateFileKey } from "@/lib/storage/r2";
 export async function generatePayslipPdfAction(staffId: string, payrollPeriodId: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
 
   const entry = await db.payrollEntry.findFirst({
     where: { staffId, payrollPeriodId },
@@ -101,6 +103,7 @@ export async function generatePayslipPdfAction(staffId: string, payrollPeriodId:
 export async function bulkGeneratePayslipsAction(payrollPeriodId: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.PAYROLL_APPROVE)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };

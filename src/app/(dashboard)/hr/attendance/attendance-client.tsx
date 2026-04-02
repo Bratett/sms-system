@@ -166,7 +166,7 @@ export function AttendanceClient({
         getDailyAttendanceOverviewAction(newDate),
       ]);
 
-      const records = (attendanceResult.data ?? []).map((r) => ({
+      const records = ("data" in attendanceResult && attendanceResult.data ? attendanceResult.data : []).map((r: { id: string; staffId: string; status: string; remarks: string | null }) => ({
         id: r.id,
         staffId: r.staffId,
         status: r.status,
@@ -175,7 +175,7 @@ export function AttendanceClient({
 
       setEntries(buildEntryMap(initialStaff, records));
       setOverview(
-        overviewResult.data ?? {
+        ("data" in overviewResult && overviewResult.data) ? overviewResult.data : {
           date: newDate,
           totalActive: 0,
           recorded: 0,
@@ -242,21 +242,21 @@ export function AttendanceClient({
         records,
       });
 
-      if (result.error) {
+      if ("error" in result && result.error) {
         toast.error(result.error);
         return;
       }
 
+      const saved = "saved" in result ? result.saved : 0;
+      const errs = "errors" in result && result.errors ? result.errors : [];
       toast.success(
-        `Attendance saved for ${result.saved} staff member${result.saved !== 1 ? "s" : ""}.` +
-          (result.errors && result.errors.length > 0
-            ? ` ${result.errors.length} error(s) occurred.`
-            : "")
+        `Attendance saved for ${saved} staff member${saved !== 1 ? "s" : ""}.` +
+          (errs.length > 0 ? ` ${errs.length} error(s) occurred.` : "")
       );
 
       // Refresh overview
       const overviewResult = await getDailyAttendanceOverviewAction(selectedDate);
-      if (overviewResult.data) {
+      if ("data" in overviewResult && overviewResult.data) {
         setOverview(overviewResult.data);
       }
       router.refresh();

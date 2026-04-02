@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { dispatch } from "@/lib/notifications/dispatcher";
 import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
 
@@ -17,6 +18,7 @@ export async function reportStaffDisciplinaryAction(data: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_DISCIPLINE_CREATE)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -70,6 +72,7 @@ export async function getStaffDisciplinaryRecordsAction(filters?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_DISCIPLINE_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -107,6 +110,7 @@ export async function resolveStaffDisciplinaryAction(
 ) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_DISCIPLINE_CREATE)) return { error: "Insufficient permissions" };
 
   const previous = await db.staffDisciplinary.findUnique({ where: { id } });
   if (!previous) return { error: "Record not found" };

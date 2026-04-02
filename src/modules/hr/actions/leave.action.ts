@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { dispatch } from "@/lib/notifications/dispatcher";
 import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
 import { getBusinessDays, toDateKey } from "@/modules/hr/utils/business-days";
@@ -19,9 +20,8 @@ import {
 
 export async function getLeaveTypesAction() {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LEAVE_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) {
@@ -47,9 +47,8 @@ export async function getLeaveTypesAction() {
 
 export async function createLeaveTypeAction(data: CreateLeaveTypeInput) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = createLeaveTypeSchema.safeParse(data);
   if (!parsed.success) {
@@ -100,9 +99,8 @@ export async function createLeaveTypeAction(data: CreateLeaveTypeInput) {
 
 export async function updateLeaveTypeAction(id: string, data: UpdateLeaveTypeInput) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = updateLeaveTypeSchema.safeParse(data);
   if (!parsed.success) {
@@ -145,9 +143,8 @@ export async function updateLeaveTypeAction(id: string, data: UpdateLeaveTypeInp
 
 export async function deleteLeaveTypeAction(id: string) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
 
   const existing = await db.leaveType.findUnique({
     where: { id },
@@ -183,9 +180,8 @@ export async function deleteLeaveTypeAction(id: string) {
 
 export async function initializeLeaveBalancesAction(staffId: string, academicYearId: string) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) {
@@ -251,6 +247,7 @@ export async function initializeLeaveBalancesAction(staffId: string, academicYea
 export async function bulkInitializeLeaveBalancesAction(academicYearId: string, staffIds?: string[]) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -327,9 +324,8 @@ export async function getLeaveRequestsAction(filters?: {
   pageSize?: number;
 }) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LEAVE_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) {
@@ -387,9 +383,8 @@ export async function getLeaveRequestsAction(filters?: {
 
 export async function requestLeaveAction(data: RequestLeaveInput) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = requestLeaveSchema.safeParse(data);
   if (!parsed.success) {
@@ -484,9 +479,8 @@ export async function requestLeaveAction(data: RequestLeaveInput) {
 
 export async function approveLeaveAction(id: string) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LEAVE_APPROVE)) return { error: "Insufficient permissions" };
 
   const request = await db.leaveRequest.findUnique({
     where: { id },
@@ -564,9 +558,8 @@ export async function approveLeaveAction(id: string) {
 
 export async function rejectLeaveAction(id: string, notes: string) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LEAVE_APPROVE)) return { error: "Insufficient permissions" };
 
   const request = await db.leaveRequest.findUnique({
     where: { id },
@@ -625,9 +618,8 @@ export async function rejectLeaveAction(id: string, notes: string) {
 
 export async function cancelLeaveAction(id: string) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.LEAVE_APPROVE)) return { error: "Insufficient permissions" };
 
   const request = await db.leaveRequest.findUnique({
     where: { id },
