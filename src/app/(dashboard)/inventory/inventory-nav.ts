@@ -1,0 +1,17 @@
+export const inventoryNavItems = [
+  { label: "Dashboard", href: "/inventory" },
+  { label: "Items", href: "/inventory/items" },
+  { label: "Stores", href: "/inventory/stores" },
+  { label: "Stock Movement", href: "/inventory/stock-movement" },
+  { label: "Transfers", href: "/inventory/transfers" },
+  { label: "Requisitions", href: "/inventory/requisitions" },
+  { label: "Stock Takes", href: "/inventory/stock-takes" },
+  { label: "Procurement", href: "/inventory/procurement" },
+  { label: "Suppliers", href: "/inventory/suppliers" },
+  { label: "Fixed Assets", href: "/inventory/fixed-assets" },
+  { label: "Asset Checkouts", href: "/inventory/asset-checkouts" },
+  { label: "Asset Audits", href: "/inventory/asset-audits" },
+  { label: "Depreciation", href: "/inventory/depreciation" },
+  { label: "Analytics", href: "/inventory/analytics" },
+  { label: "Reports", href: "/inventory/reports" },
+];

@@ -6,6 +6,10 @@ import {
   getStockLevelReportAction,
   getStockMovementReportAction,
 } from "@/modules/inventory/actions/inventory-report.action";
+import {
+  exportStockReportAction,
+  exportMovementReportAction,
+} from "@/modules/inventory/actions/export.action";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -96,6 +100,45 @@ export function ReportsClient({
     });
   }
 
+  // ─── Export ─────────────────────────────────────────────────────
+
+  function handleExport() {
+    startTransition(async () => {
+      let result;
+      let filename;
+      if (activeTab === "levels") {
+        result = await exportStockReportAction(storeFilter || undefined);
+        filename = "stock-levels-report.csv";
+      } else {
+        result = await exportMovementReportAction({ storeId: storeFilter || undefined });
+        filename = "stock-movements-report.csv";
+      }
+      if (result.error) { toast.error(result.error); return; }
+      if (!result.data || result.data.length === 0) { toast.error("No data to export."); return; }
+
+      // Convert to CSV
+      const headers = Object.keys(result.data[0]);
+      const csvRows = [
+        headers.join(","),
+        ...result.data.map((row: Record<string, unknown>) =>
+          headers.map((h) => {
+            const val = String(row[h] ?? "");
+            return val.includes(",") ? `"${val}"` : val;
+          }).join(",")
+        ),
+      ];
+      const csv = csvRows.join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Report exported successfully.");
+    });
+  }
+
   // Totals for stock levels
   const totalValue = stockLevels.reduce((sum, item) => sum + item.totalValue, 0);
 
@@ -151,11 +194,11 @@ export function ReportsClient({
         </button>
         <div className="ml-auto">
           <button
-            disabled
-            className="rounded-md border px-4 py-2 text-sm text-muted-foreground"
-            title="Export coming soon"
+            onClick={handleExport}
+            disabled={isPending}
+            className="rounded-md border px-4 py-2 text-sm hover:bg-accent"
           >
-            Export
+            {isPending ? "Exporting..." : "Export CSV"}
           </button>
         </div>
       </div>

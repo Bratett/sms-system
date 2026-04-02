@@ -12,6 +12,7 @@ import {
   updatePurchaseOrderStatusAction,
   receiveGoodsAction,
 } from "@/modules/inventory/actions/procurement.action";
+import { rateSupplierAction } from "@/modules/inventory/actions/supplier-rating.action";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -119,6 +120,10 @@ export function ProcurementClient({
     Array<{ storeItemId: string; itemName: string; quantityReceived: number; condition: string }>
   >([]);
   const [receiveNotes, setReceiveNotes] = useState("");
+
+  // ─── Supplier Rating Modal ─────────────────────────────────────
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [ratingData, setRatingData] = useState({ supplierId: "", supplierName: "", purchaseOrderId: "", deliveryScore: 5, qualityScore: 5, pricingScore: 5, comments: "" });
 
   // Filtered items for request
   const requestStoreItems = allItems.filter((i) => i.storeId === requestStoreId);
@@ -353,7 +358,40 @@ export function ProcurementClient({
       }
       toast.success("Goods received and stock updated.");
       setShowReceiveForm(false);
+
+      // Prompt for supplier rating
+      if (receivePO) {
+        setRatingData({
+          supplierId: receivePO.supplierId,
+          supplierName: receivePO.supplierName,
+          purchaseOrderId: receivePO.id,
+          deliveryScore: 5,
+          qualityScore: 5,
+          pricingScore: 5,
+          comments: "",
+        });
+        setShowRatingModal(true);
+      }
+
       router.refresh();
+    });
+  }
+
+  // ─── Supplier Rating Handler ─────────────────────────────────────
+
+  function handleSubmitRating() {
+    startTransition(async () => {
+      const result = await rateSupplierAction({
+        supplierId: ratingData.supplierId,
+        purchaseOrderId: ratingData.purchaseOrderId,
+        deliveryScore: ratingData.deliveryScore,
+        qualityScore: ratingData.qualityScore,
+        pricingScore: ratingData.pricingScore,
+        comments: ratingData.comments || undefined,
+      });
+      if (result.error) { toast.error(result.error); return; }
+      toast.success("Supplier rated successfully.");
+      setShowRatingModal(false);
     });
   }
 
@@ -852,6 +890,77 @@ export function ProcurementClient({
                 className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
               >
                 {isPending ? "Processing..." : "Receive Goods"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ─── Supplier Rating Modal ──────────────────────────────────── */}
+      {showRatingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg">
+            <h2 className="mb-1 text-lg font-semibold">Rate Supplier</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              How was your experience with {ratingData.supplierName}?
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium">Delivery Score (1-5)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={ratingData.deliveryScore}
+                  onChange={(e) => setRatingData({ ...ratingData, deliveryScore: Math.min(5, Math.max(1, parseInt(e.target.value) || 1)) })}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Quality Score (1-5)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={ratingData.qualityScore}
+                  onChange={(e) => setRatingData({ ...ratingData, qualityScore: Math.min(5, Math.max(1, parseInt(e.target.value) || 1)) })}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Pricing Score (1-5)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={ratingData.pricingScore}
+                  onChange={(e) => setRatingData({ ...ratingData, pricingScore: Math.min(5, Math.max(1, parseInt(e.target.value) || 1)) })}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Comments</label>
+                <textarea
+                  value={ratingData.comments}
+                  onChange={(e) => setRatingData({ ...ratingData, comments: e.target.value })}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  rows={3}
+                  placeholder="Optional feedback about this supplier"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={() => setShowRatingModal(false)}
+                className="rounded-md border px-4 py-2 text-sm hover:bg-accent"
+              >
+                Skip
+              </button>
+              <button
+                onClick={handleSubmitRating}
+                disabled={isPending}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {isPending ? "Submitting..." : "Submit Rating"}
               </button>
             </div>
           </div>
