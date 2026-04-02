@@ -110,12 +110,12 @@ export function TransfersClient({
         page,
         pageSize: pagination.pageSize,
       });
-      if (result.data) {
+      if ("data" in result) {
         setTransfers(result.data as TransferRow[]);
-        const total = result.total ?? 0;
-        const ps = result.pageSize ?? pagination.pageSize;
+        const total = ("total" in result ? result.total : null) ?? 0;
+        const ps = ("pageSize" in result ? result.pageSize : null) ?? pagination.pageSize;
         setPagination({
-          page: result.page ?? page,
+          page: ("page" in result ? result.page : null) ?? page,
           pageSize: ps,
           total,
           totalPages: Math.ceil(total / ps),
@@ -129,7 +129,7 @@ export function TransfersClient({
   function handleApprove(id: string) {
     startTransition(async () => {
       const result = await approveTransferAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Transfer approved successfully.");
@@ -143,7 +143,7 @@ export function TransfersClient({
 
     startTransition(async () => {
       const result = await executeTransferAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Transfer executed successfully. Student has been moved.");
@@ -161,7 +161,7 @@ export function TransfersClient({
 
     startTransition(async () => {
       const result = await rejectTransferAction(rejectModal.transferId, rejectionReason);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Transfer rejected.");

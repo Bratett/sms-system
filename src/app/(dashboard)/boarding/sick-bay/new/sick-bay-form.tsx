@@ -57,7 +57,7 @@ export function SickBayForm({ hostels }: { hostels: HostelOption[] }) {
         severity: form.severity,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Student admitted to sick bay.");

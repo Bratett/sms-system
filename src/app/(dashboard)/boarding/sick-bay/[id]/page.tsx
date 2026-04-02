@@ -106,8 +106,8 @@ export default function SickBayDetailPage() {
     startTransition(async () => {
       setLoading(true);
       const result = await getSickBayAdmissionAction(id);
-      if (result.error || !result.data) {
-        setError(result.error || "Admission not found.");
+      if ("error" in result || !("data" in result)) {
+        setError("error" in result ? result.error : "Admission not found.");
       } else {
         setAdmission(result.data);
       }
@@ -131,7 +131,7 @@ export default function SickBayDetailPage() {
     const notes = prompt("Discharge notes (optional):");
     startTransition(async () => {
       const result = await dischargeSickBayAction(id, notes || undefined);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Student discharged from sick bay.");
@@ -147,7 +147,7 @@ export default function SickBayDetailPage() {
     }
     startTransition(async () => {
       const result = await referSickBayAction(id, referredTo, referNotes || undefined);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Student referred successfully.");
@@ -162,7 +162,7 @@ export default function SickBayDetailPage() {
   function handleUpdateStatus(status: "ADMITTED" | "UNDER_OBSERVATION") {
     startTransition(async () => {
       const result = await updateSickBayAdmissionAction(id, { status });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Status updated to ${status.replace(/_/g, " ")}.`);
@@ -188,7 +188,7 @@ export default function SickBayDetailPage() {
         dosage: medForm.dosage,
         notes: medForm.notes || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Medication logged.");

@@ -86,7 +86,7 @@ export function InspectionForm({ hostels }: { hostels: HostelOption[] }) {
         followUpRequired: form.followUpRequired,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Inspection recorded successfully.");

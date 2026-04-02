@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import { createInspectionSchema } from "../schemas";
 
 // ─── Hostel Inspections ──────────────────────────────────────────
@@ -19,6 +20,8 @@ export async function getInspectionsAction(filters?: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.HOSTEL_INSPECTIONS_READ);
+  if (permErr) return permErr;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
@@ -131,6 +134,8 @@ export async function createInspectionAction(data: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.HOSTEL_INSPECTIONS_CREATE);
+  if (permErr) return permErr;
 
   const parsed = createInspectionSchema.safeParse(data);
   if (!parsed.success) {
@@ -178,6 +183,8 @@ export async function getInspectionAction(id: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.HOSTEL_INSPECTIONS_READ);
+  if (permErr) return permErr;
 
   const inspection = await db.hostelInspection.findUnique({
     where: { id },
@@ -241,6 +248,8 @@ export async function getInspectionTrendsAction(hostelId: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.HOSTEL_INSPECTIONS_READ);
+  if (permErr) return permErr;
 
   const inspections = await db.hostelInspection.findMany({
     where: { hostelId },

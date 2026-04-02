@@ -104,7 +104,7 @@ export function IncidentForm({ hostels }: { hostels: HostelOption[] }) {
         description: form.description,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Incident reported successfully.");

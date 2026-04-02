@@ -143,9 +143,9 @@ export function MaintenanceClient({
         page,
         pageSize: pagination.pageSize,
       });
-      if (result.data) {
+      if ("data" in result) {
         setRequests(result.data);
-        if (result.pagination) {
+        if ("pagination" in result && result.pagination) {
           setPagination(result.pagination);
         }
       }
@@ -161,7 +161,7 @@ export function MaintenanceClient({
     }
     startTransition(async () => {
       const result = await assignMaintenanceAction(assignModal.requestId, assignStaffId.trim());
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Request ${assignModal.requestNumber} assigned successfully.`);
@@ -175,7 +175,7 @@ export function MaintenanceClient({
   function handleStartWork(id: string) {
     startTransition(async () => {
       const result = await updateMaintenanceStatusAction(id, "IN_PROGRESS");
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Work started on request.");
@@ -191,7 +191,7 @@ export function MaintenanceClient({
     }
     startTransition(async () => {
       const result = await resolveMaintenanceAction(resolveModal.requestId, resolveNotes.trim());
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Request ${resolveModal.requestNumber} resolved.`);
@@ -205,7 +205,7 @@ export function MaintenanceClient({
   function handleClose(id: string) {
     startTransition(async () => {
       const result = await updateMaintenanceStatusAction(id, "CLOSED");
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Request closed.");

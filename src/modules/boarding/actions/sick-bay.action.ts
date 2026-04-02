@@ -3,6 +3,9 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { dispatch } from "@/lib/notifications/dispatcher";
+import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
+import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import { admitToSickBaySchema, addMedicationSchema } from "../schemas";
 
 // ─── Sick Bay Admissions (List) ────────────────────────────────────
@@ -19,6 +22,8 @@ export async function getSickBayAdmissionsAction(filters?: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_READ);
+  if (permErr) return permErr;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
@@ -137,6 +142,8 @@ export async function getSickBayAdmissionAction(id: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_READ);
+  if (permErr) return permErr;
 
   const admission = await db.sickBayAdmission.findUnique({
     where: { id },
@@ -242,6 +249,8 @@ export async function admitToSickBayAction(data: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_CREATE);
+  if (permErr) return permErr;
 
   const parsed = admitToSickBaySchema.safeParse(data);
   if (!parsed.success) {
@@ -287,6 +296,14 @@ export async function admitToSickBayAction(data: {
     newData: admission,
   });
 
+  dispatch({
+    event: NOTIFICATION_EVENTS.SICK_BAY_ADMITTED,
+    title: "Student Admitted to Sick Bay",
+    message: `A student has been admitted to sick bay with ${parsed.data.severity} severity.`,
+    recipients: [],
+    schoolId: school.id,
+  }).catch(() => {});
+
   return { data: admission };
 }
 
@@ -304,6 +321,8 @@ export async function updateSickBayAdmissionAction(
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_UPDATE);
+  if (permErr) return permErr;
 
   const admission = await db.sickBayAdmission.findUnique({ where: { id } });
   if (!admission) {
@@ -346,6 +365,8 @@ export async function dischargeSickBayAction(id: string, notes?: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_DISCHARGE);
+  if (permErr) return permErr;
 
   const admission = await db.sickBayAdmission.findUnique({ where: { id } });
   if (!admission) {
@@ -377,6 +398,14 @@ export async function dischargeSickBayAction(id: string, notes?: string) {
     newData: { status: "DISCHARGED" },
   });
 
+  dispatch({
+    event: NOTIFICATION_EVENTS.SICK_BAY_DISCHARGED,
+    title: "Student Discharged from Sick Bay",
+    message: `A student has been discharged from sick bay.`,
+    recipients: [],
+    schoolId: admission.schoolId,
+  }).catch(() => {});
+
   return { data: updated };
 }
 
@@ -391,6 +420,8 @@ export async function referSickBayAction(
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_DISCHARGE);
+  if (permErr) return permErr;
 
   const admission = await db.sickBayAdmission.findUnique({ where: { id } });
   if (!admission) {
@@ -423,6 +454,14 @@ export async function referSickBayAction(
     newData: { status: "REFERRED", referredTo },
   });
 
+  dispatch({
+    event: NOTIFICATION_EVENTS.SICK_BAY_REFERRED,
+    title: "Student Referred to External Facility",
+    message: `A student has been referred to ${referredTo}.`,
+    recipients: [],
+    schoolId: admission.schoolId,
+  }).catch(() => {});
+
   return { data: updated };
 }
 
@@ -438,6 +477,8 @@ export async function addMedicationLogAction(data: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_UPDATE);
+  if (permErr) return permErr;
 
   const parsed = addMedicationSchema.safeParse(data);
   if (!parsed.success) {
@@ -486,6 +527,8 @@ export async function getSickBayStatsAction() {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_READ);
+  if (permErr) return permErr;
 
   const [
     currentlyAdmitted,

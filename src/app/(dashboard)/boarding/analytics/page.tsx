@@ -10,7 +10,7 @@ export default async function BoardingAnalyticsPage() {
   }
 
   const overviewResult = await getBoardingOverviewAction();
-  const overview = overviewResult.data ?? {
+  const overview = ("data" in overviewResult ? overviewResult.data : null) ?? {
     totalHostels: 0,
     totalBeds: 0,
     occupiedBeds: 0,

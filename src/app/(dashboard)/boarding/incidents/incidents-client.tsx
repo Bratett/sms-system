@@ -142,9 +142,9 @@ export function IncidentsClient({
         page,
         pageSize: pagination.pageSize,
       });
-      if (result.data) {
+      if ("data" in result) {
         setIncidents(result.data);
-        if (result.pagination) {
+        if ("pagination" in result && result.pagination) {
           setPagination(result.pagination);
         }
       }
@@ -156,7 +156,7 @@ export function IncidentsClient({
   function handleUpdateStatus(id: string, status: string) {
     startTransition(async () => {
       const result = await updateIncidentAction(id, { status });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Incident status updated to ${status.replace(/_/g, " ").toLowerCase()}.`);

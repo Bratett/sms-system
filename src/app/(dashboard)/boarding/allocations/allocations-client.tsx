@@ -181,7 +181,7 @@ export function AllocationsClient({
         termId: allocateForm.termId,
         academicYearId: allocateForm.academicYearId,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Student allocated to bed successfully.");
@@ -196,7 +196,7 @@ export function AllocationsClient({
 
     startTransition(async () => {
       const result = await vacateBedAction(allocationId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Bed vacated successfully.");

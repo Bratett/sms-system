@@ -131,7 +131,7 @@ export function RollCallClient({ hostels }: { hostels: HostelOption[] }) {
         records,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         const msg = result.data?.isUpdate

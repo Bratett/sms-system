@@ -149,7 +149,7 @@ export function HostelsClient({ hostels: initialHostels }: { hostels: HostelRow[
           wardenId: hostelForm.wardenId || undefined,
           description: hostelForm.description || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
         } else {
           toast.success("Hostel updated successfully.");
@@ -164,7 +164,7 @@ export function HostelsClient({ hostels: initialHostels }: { hostels: HostelRow[
           wardenId: hostelForm.wardenId || undefined,
           description: hostelForm.description || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
         } else {
           toast.success("Hostel created successfully.");
@@ -180,7 +180,7 @@ export function HostelsClient({ hostels: initialHostels }: { hostels: HostelRow[
 
     startTransition(async () => {
       const result = await deleteHostelAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Hostel deleted successfully.");
@@ -210,7 +210,7 @@ export function HostelsClient({ hostels: initialHostels }: { hostels: HostelRow[
         floor: dormForm.floor || undefined,
         capacity: dormForm.capacity,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Dormitory created successfully.");
@@ -233,7 +233,7 @@ export function HostelsClient({ hostels: initialHostels }: { hostels: HostelRow[
 
     startTransition(async () => {
       const result = await deleteDormitoryAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Dormitory deleted.");
@@ -267,7 +267,7 @@ export function HostelsClient({ hostels: initialHostels }: { hostels: HostelRow[
 
     startTransition(async () => {
       const result = await createBedsAction(bedParentDormId, bedForm.count, bedForm.prefix);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`${bedForm.count} beds created successfully.`);
@@ -291,7 +291,7 @@ export function HostelsClient({ hostels: initialHostels }: { hostels: HostelRow[
 
     startTransition(async () => {
       const result = await deleteBedAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Bed deleted.");

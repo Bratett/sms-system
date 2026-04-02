@@ -67,7 +67,7 @@ export function VisitorCheckInForm({ hostels }: { hostels: HostelOption[] }) {
         notes: form.notes || undefined,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Visitor checked in successfully.");

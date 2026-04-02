@@ -3,6 +3,9 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { dispatch } from "@/lib/notifications/dispatcher";
+import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
+import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import { reportIncidentSchema, updateIncidentSchema } from "../schemas";
 
 // ─── Boarding Incidents ────────────────────────────────────────────
@@ -20,6 +23,8 @@ export async function getIncidentsAction(filters?: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BOARDING_INCIDENTS_READ);
+  if (permErr) return permErr;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
@@ -143,6 +148,8 @@ export async function getIncidentAction(id: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BOARDING_INCIDENTS_READ);
+  if (permErr) return permErr;
 
   const incident = await db.boardingIncident.findUnique({
     where: { id },
@@ -251,6 +258,8 @@ export async function reportIncidentAction(data: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BOARDING_INCIDENTS_CREATE);
+  if (permErr) return permErr;
 
   const parsed = reportIncidentSchema.safeParse(data);
   if (!parsed.success) {
@@ -298,6 +307,24 @@ export async function reportIncidentAction(data: {
     newData: incident,
   });
 
+  dispatch({
+    event: NOTIFICATION_EVENTS.BOARDING_INCIDENT_REPORTED,
+    title: "Boarding Incident Reported",
+    message: `Boarding incident reported: ${parsed.data.title}`,
+    recipients: [],
+    schoolId: school.id,
+  }).catch(() => {});
+
+  if (parsed.data.severity === "CRITICAL") {
+    dispatch({
+      event: NOTIFICATION_EVENTS.BOARDING_INCIDENT_CRITICAL,
+      title: "Critical Boarding Incident",
+      message: `Critical incident reported: ${parsed.data.title}`,
+      recipients: [],
+      schoolId: school.id,
+    }).catch(() => {});
+  }
+
   return { data: incident };
 }
 
@@ -314,6 +341,8 @@ export async function updateIncidentAction(
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BOARDING_INCIDENTS_UPDATE);
+  if (permErr) return permErr;
 
   const parsed = updateIncidentSchema.safeParse(data);
   if (!parsed.success) {
@@ -366,6 +395,8 @@ export async function escalateIncidentAction(id: string) {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BOARDING_INCIDENTS_ESCALATE);
+  if (permErr) return permErr;
 
   const incident = await db.boardingIncident.findUnique({ where: { id } });
   if (!incident) {
@@ -430,6 +461,8 @@ export async function getIncidentStatsAction(filters?: {
   if (!session?.user) {
     return { error: "Unauthorized" };
   }
+  const permErr = requirePermission(session, PERMISSIONS.BOARDING_INCIDENTS_READ);
+  if (permErr) return permErr;
 
   const where: Record<string, unknown> = {};
   if (filters?.hostelId) where.hostelId = filters.hostelId;

@@ -20,10 +20,10 @@ export default async function BoardingPage() {
     getBoardingOverviewAction(),
   ]);
 
-  const hostels = hostelsResult.data ?? [];
-  const occupancy = occupancyResult.data ?? [];
-  const overdueExeats = overdueResult.data ?? [];
-  const exeatStats = exeatStatsResult.data ?? {
+  const hostels = ("data" in hostelsResult ? hostelsResult.data : null) ?? [];
+  const occupancy = ("data" in occupancyResult ? occupancyResult.data : null) ?? [];
+  const overdueExeats = ("data" in overdueResult ? overdueResult.data : null) ?? [];
+  const exeatStats = ("data" in exeatStatsResult ? exeatStatsResult.data : null) ?? {
     total: 0,
     requested: 0,
     housemasterApproved: 0,
@@ -34,7 +34,7 @@ export default async function BoardingPage() {
     overdue: 0,
     cancelled: 0,
   };
-  const overview = overviewResult.data ?? {
+  const overview = ("data" in overviewResult ? overviewResult.data : null) ?? {
     totalHostels: 0, totalBeds: 0, occupiedBeds: 0, availableBeds: 0, occupancyRate: 0,
     activeExeats: 0, overdueExeats: 0, currentSickBay: 0, activeVisitors: 0,
     pendingTransfers: 0, openMaintenance: 0, activeIncidents: 0,
