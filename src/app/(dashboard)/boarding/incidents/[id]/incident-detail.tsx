@@ -140,7 +140,7 @@ export function IncidentDetail({ incident }: { incident: IncidentData }) {
   function handleEscalate() {
     startTransition(async () => {
       const result = await escalateIncidentAction(incident.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Incident escalated to discipline module.");

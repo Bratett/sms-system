@@ -12,10 +12,10 @@ export default async function TransfersPage() {
 
   const result = await getTransfersAction({ page: 1, pageSize: 20 });
 
-  const transfers = result.data ?? [];
-  const total = result.total ?? 0;
-  const page = result.page ?? 1;
-  const pageSize = result.pageSize ?? 20;
+  const transfers = ("data" in result ? result.data : null) ?? [];
+  const total = ("total" in result ? result.total : null) ?? 0;
+  const page = ("page" in result ? result.page : null) ?? 1;
+  const pageSize = ("pageSize" in result ? result.pageSize : null) ?? 20;
 
   return (
     <div className="space-y-6">

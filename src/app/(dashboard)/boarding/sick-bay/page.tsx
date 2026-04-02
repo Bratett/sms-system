@@ -18,14 +18,14 @@ export default async function SickBayPage() {
     getSickBayStatsAction(),
   ]);
 
-  const admissions = admissionsResult.data ?? [];
-  const pagination = admissionsResult.pagination ?? {
+  const admissions = ("data" in admissionsResult ? admissionsResult.data : null) ?? [];
+  const pagination = ("pagination" in admissionsResult ? admissionsResult.pagination : null) ?? {
     page: 1,
     pageSize: 20,
     total: 0,
     totalPages: 0,
   };
-  const stats = statsResult.data ?? {
+  const stats = ("data" in statsResult ? statsResult.data : null) ?? {
     currentlyAdmitted: 0,
     underObservation: 0,
     totalDischarged: 0,

@@ -12,8 +12,8 @@ export default async function InspectionsPage() {
 
   const result = await getInspectionsAction({ page: 1, pageSize: 20 });
 
-  const inspections = result.data ?? [];
-  const pagination = result.pagination ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 };
+  const inspections = ("data" in result ? result.data : null) ?? [];
+  const pagination = ("pagination" in result ? result.pagination : null) ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 };
 
   return (
     <div className="space-y-6">

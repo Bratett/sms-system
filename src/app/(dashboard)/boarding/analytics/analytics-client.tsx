@@ -176,7 +176,7 @@ export function AnalyticsClient({ overview }: { overview: Overview }) {
     setLoadingOccupancy(true);
     startTransition(async () => {
       const result = await getOccupancyTrendsAction();
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else if (result.data) {
         setOccupancy(result.data);

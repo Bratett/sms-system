@@ -89,9 +89,9 @@ export function VisitorsClient({
         page,
         pageSize: pagination.pageSize,
       });
-      if (result.data) {
+      if ("data" in result) {
         setVisitors(result.data as VisitorRow[]);
-        if (result.pagination) {
+        if ("pagination" in result && result.pagination) {
           setPagination(result.pagination);
         }
       }
@@ -103,7 +103,7 @@ export function VisitorsClient({
   function handleCheckOut(id: string) {
     startTransition(async () => {
       const result = await checkOutVisitorAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Visitor checked out successfully.");

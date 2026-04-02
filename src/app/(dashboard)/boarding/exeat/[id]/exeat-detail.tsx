@@ -116,7 +116,7 @@ export function ExeatDetail({ exeat }: { exeat: ExeatData }) {
         result = await rejectExeatAction(exeat.id, showActionModal.role, comments || undefined);
       }
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(showActionModal.action === "approve" ? "Exeat approved." : "Exeat rejected.");
@@ -130,7 +130,7 @@ export function ExeatDetail({ exeat }: { exeat: ExeatData }) {
   function handleDeparture() {
     startTransition(async () => {
       const result = await recordDepartureAction(exeat.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Departure recorded.");
@@ -142,7 +142,7 @@ export function ExeatDetail({ exeat }: { exeat: ExeatData }) {
   function handleReturn() {
     startTransition(async () => {
       const result = await recordReturnAction(exeat.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Return recorded.");

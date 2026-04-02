@@ -15,9 +15,9 @@ export default async function IncidentsPage() {
     getIncidentStatsAction(),
   ]);
 
-  const incidents = incidentsResult.data ?? [];
-  const pagination = incidentsResult.pagination ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 };
-  const stats = statsResult.data ?? {
+  const incidents = ("data" in incidentsResult ? incidentsResult.data : null) ?? [];
+  const pagination = ("pagination" in incidentsResult ? incidentsResult.pagination : null) ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 };
+  const stats = ("data" in statsResult ? statsResult.data : null) ?? {
     total: 0,
     byStatus: {
       reported: 0,

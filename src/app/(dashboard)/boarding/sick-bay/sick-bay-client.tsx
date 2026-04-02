@@ -115,9 +115,9 @@ export function SickBayClient({
         page,
         pageSize: pagination.pageSize,
       });
-      if (result.data) {
+      if ("data" in result) {
         setAdmissions(result.data);
-        if (result.pagination) {
+        if ("pagination" in result && result.pagination) {
           setPagination(result.pagination);
         }
       }
@@ -130,7 +130,7 @@ export function SickBayClient({
     const notes = prompt("Discharge notes (optional):");
     startTransition(async () => {
       const result = await dischargeSickBayAction(id, notes || undefined);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Student discharged from sick bay.");
@@ -152,7 +152,7 @@ export function SickBayClient({
         referredTo,
         referNotes || undefined,
       );
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Student referred successfully.");

@@ -66,7 +66,7 @@ export function ExeatForm({ terms }: { terms: TermOption[] }) {
         guardianPhone: form.guardianPhone || undefined,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Exeat request created successfully.");

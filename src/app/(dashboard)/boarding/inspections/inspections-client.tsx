@@ -95,9 +95,9 @@ export function InspectionsClient({
         page,
         pageSize: pagination.pageSize,
       });
-      if (result.data) {
+      if ("data" in result) {
         setInspections(result.data);
-        if (result.pagination) {
+        if ("pagination" in result && result.pagination) {
           setPagination(result.pagination);
         }
       }

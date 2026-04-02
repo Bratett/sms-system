@@ -15,9 +15,9 @@ export default async function VisitorsPage() {
     getVisitorStatsAction(),
   ]);
 
-  const visitors = visitorsResult.data ?? [];
-  const pagination = visitorsResult.pagination ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 };
-  const stats = statsResult.data ?? {
+  const visitors = ("data" in visitorsResult ? visitorsResult.data : null) ?? [];
+  const pagination = ("pagination" in visitorsResult ? visitorsResult.pagination : null) ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 };
+  const stats = ("data" in statsResult ? statsResult.data : null) ?? {
     activeVisitors: 0,
     todayTotal: 0,
     weekTotal: 0,

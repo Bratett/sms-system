@@ -141,7 +141,7 @@ export function ExeatClient({
         result = await rejectExeatAction(actionModal.exeatId, actionModal.role, actionComments || undefined);
       }
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(
@@ -159,7 +159,7 @@ export function ExeatClient({
   function handleRecordDeparture(id: string) {
     startTransition(async () => {
       const result = await recordDepartureAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Departure recorded.");
@@ -171,7 +171,7 @@ export function ExeatClient({
   function handleRecordReturn(id: string) {
     startTransition(async () => {
       const result = await recordReturnAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Return recorded.");

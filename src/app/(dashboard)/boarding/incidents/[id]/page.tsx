@@ -21,12 +21,12 @@ export default async function IncidentDetailPage({
   const { id } = await params;
   const result = await getIncidentAction(id);
 
-  if (result.error || !result.data) {
+  if ("error" in result || !("data" in result)) {
     return (
       <div className="space-y-6">
         <PageHeader title="Incident Not Found" />
         <p className="text-muted-foreground">
-          {result.error || "The incident record could not be found."}
+          {"error" in result ? result.error : "The incident record could not be found."}
         </p>
         <Link
           href="/boarding/incidents"

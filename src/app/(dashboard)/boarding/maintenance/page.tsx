@@ -18,9 +18,9 @@ export default async function MaintenancePage() {
     getMaintenanceStatsAction(),
   ]);
 
-  const requests = requestsResult.data ?? [];
-  const pagination = requestsResult.pagination ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 };
-  const stats = statsResult.data ?? {
+  const requests = ("data" in requestsResult ? requestsResult.data : null) ?? [];
+  const pagination = ("pagination" in requestsResult ? requestsResult.pagination : null) ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 };
+  const stats = ("data" in statsResult ? statsResult.data : null) ?? {
     open: 0,
     assigned: 0,
     inProgress: 0,

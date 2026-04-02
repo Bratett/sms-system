@@ -109,7 +109,7 @@ export function MaintenanceForm({ hostels }: { hostels: HostelOption[] }) {
         priority: form.priority,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Maintenance request submitted successfully.");
