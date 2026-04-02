@@ -74,6 +74,14 @@ export const PERMISSIONS = {
   ATTENDANCE_UPDATE: "academics:attendance:update",
   ATTENDANCE_EXPORT: "academics:attendance:export",
 
+  // Attendance Policies & Alerts
+  ATTENDANCE_POLICY_CREATE: "academics:attendance-policy:create",
+  ATTENDANCE_POLICY_READ: "academics:attendance-policy:read",
+  ATTENDANCE_POLICY_UPDATE: "academics:attendance-policy:update",
+  ATTENDANCE_POLICY_DELETE: "academics:attendance-policy:delete",
+  ATTENDANCE_ALERTS_READ: "academics:attendance-alerts:read",
+  ATTENDANCE_ALERTS_MANAGE: "academics:attendance-alerts:manage",
+
   // Marks
   MARKS_CREATE: "academics:marks:create",
   MARKS_READ: "academics:marks:read",
@@ -436,6 +444,24 @@ export const PERMISSIONS = {
 
   // Timetable Generate
   TIMETABLE_GENERATE: "timetable:slots:generate",
+
+  // Timetable - Substitutions
+  SUBSTITUTION_CREATE: "timetable:substitutions:create",
+  SUBSTITUTION_READ: "timetable:substitutions:read",
+  SUBSTITUTION_APPROVE: "timetable:substitutions:approve",
+  SUBSTITUTION_DELETE: "timetable:substitutions:delete",
+
+  // Timetable - Teacher Availability
+  TEACHER_AVAILABILITY_CREATE: "timetable:availability:create",
+  TEACHER_AVAILABILITY_READ: "timetable:availability:read",
+  TEACHER_AVAILABILITY_UPDATE: "timetable:availability:update",
+  TEACHER_AVAILABILITY_DELETE: "timetable:availability:delete",
+
+  // Timetable - Versions
+  TIMETABLE_VERSION_CREATE: "timetable:versions:create",
+  TIMETABLE_VERSION_READ: "timetable:versions:read",
+  TIMETABLE_VERSION_PUBLISH: "timetable:versions:publish",
+  TIMETABLE_VERSION_RESTORE: "timetable:versions:restore",
 
   // Bulk Operations
   BULK_OPERATIONS: "academics:bulk:execute",

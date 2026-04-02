@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { getAttendanceSummaryAction } from "@/modules/attendance/actions/attendance.action";
+import { exportAttendanceSummaryAction } from "@/modules/attendance/actions/attendance-export.action";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -139,13 +140,66 @@ export function AttendanceReportsClient({
           </div>
           <div className="rounded-md border border-border bg-card p-3 text-center">
             <p className="text-xs text-muted-foreground">Export</p>
-            <button
-              disabled
-              className="mt-1 rounded-md border border-input px-3 py-1 text-xs font-medium text-muted-foreground cursor-not-allowed"
-              title="Export functionality coming soon"
-            >
-              Export CSV
-            </button>
+            <div className="mt-1 flex gap-1 justify-center">
+              <button
+                onClick={() => {
+                  startTransition(async () => {
+                    const result = await exportAttendanceSummaryAction({
+                      classArmId: selectedClassArmId,
+                      termId: selectedTermId,
+                      format: "csv",
+                    });
+                    if (result.error) {
+                      toast.error(result.error);
+                    } else if (result.data) {
+                      const blob = new Blob(
+                        [Uint8Array.from(atob(result.data.base64), (c) => c.charCodeAt(0))],
+                        { type: result.data.contentType },
+                      );
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = result.data.filename;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }
+                  });
+                }}
+                disabled={isPending || summaryData.length === 0}
+                className="rounded-md border border-input px-3 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
+              >
+                CSV
+              </button>
+              <button
+                onClick={() => {
+                  startTransition(async () => {
+                    const result = await exportAttendanceSummaryAction({
+                      classArmId: selectedClassArmId,
+                      termId: selectedTermId,
+                      format: "xlsx",
+                    });
+                    if (result.error) {
+                      toast.error(result.error);
+                    } else if (result.data) {
+                      const blob = new Blob(
+                        [Uint8Array.from(atob(result.data.base64), (c) => c.charCodeAt(0))],
+                        { type: result.data.contentType },
+                      );
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = result.data.filename;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }
+                  });
+                }}
+                disabled={isPending || summaryData.length === 0}
+                className="rounded-md border border-input px-3 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
+              >
+                XLSX
+              </button>
+            </div>
           </div>
         </div>
       )}

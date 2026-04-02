@@ -5,6 +5,7 @@ model Room {
   building  String?
   capacity  Int?
   type      RoomType @default(CLASSROOM)
+  features  String[] @default([])  // e.g. ["projector", "computers", "lab_bench"]
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -30,8 +31,9 @@ model Period {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  timetableSlots TimetableSlot[]
+  school              School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  timetableSlots      TimetableSlot[]
+  attendanceRegisters AttendanceRegister[]
 
   @@unique([schoolId, order])
   @@index([schoolId])
@@ -58,7 +60,8 @@ model TimetableSlot {
   subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   teacher      User         @relation("TeacherTimetableSlots", fields: [teacherId], references: [id], onDelete: Cascade)
   period       Period       @relation(fields: [periodId], references: [id], onDelete: Cascade)
-  room         Room?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  room          Room?                  @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  substitutions TimetableSubstitution[]
 
   @@unique([classArmId, periodId, dayOfWeek, termId])
   @@index([teacherId, periodId, dayOfWeek, termId])
@@ -114,4 +117,108 @@ enum PeriodType {
   BREAK
   ASSEMBLY
   FREE
+}
+
+// ─── Substitution Management ──────────────────────────────────────────
+
+model TimetableSubstitution {
+  id                  String             @id @default(cuid())
+  schoolId            String
+  timetableSlotId     String
+  originalTeacherId   String
+  substituteTeacherId String
+  date                DateTime
+  reason              String?
+  status              SubstitutionStatus @default(PENDING)
+  approvedBy          String?
+  approvedAt          DateTime?
+  createdBy           String
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  school        School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  timetableSlot TimetableSlot @relation(fields: [timetableSlotId], references: [id], onDelete: Cascade)
+
+  @@unique([timetableSlotId, date])
+  @@index([schoolId])
+  @@index([schoolId, date])
+  @@index([originalTeacherId])
+  @@index([substituteTeacherId])
+  @@index([status])
+}
+
+enum SubstitutionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+// ─── Teacher Availability & Preferences ───────────────────────────────
+
+model TeacherAvailability {
+  id         String  @id @default(cuid())
+  schoolId   String
+  teacherId  String
+  dayOfWeek  Int     // 1=Monday, 7=Sunday
+  periodId   String
+  termId     String
+  isAvailable Boolean @default(true)
+  reason     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, dayOfWeek, periodId, termId])
+  @@index([schoolId])
+  @@index([teacherId, termId])
+}
+
+model TeacherPreference {
+  id                    String @id @default(cuid())
+  schoolId              String
+  teacherId             String
+  termId                String
+  maxPeriodsPerDay      Int?
+  maxConsecutivePeriods  Int?
+  preferredPeriodIds    Json?  // String[] of preferred period IDs
+  avoidPeriodIds        Json?  // String[] of period IDs to avoid
+  notes                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, termId])
+  @@index([schoolId])
+  @@index([teacherId])
+}
+
+// ─── Timetable Versioning ─────────────────────────────────────────────
+
+model TimetableVersion {
+  id             String                 @id @default(cuid())
+  schoolId       String
+  termId         String
+  academicYearId String
+  name           String
+  status         TimetableVersionStatus @default(DRAFT)
+  slots          Json                   // snapshot of all TimetableSlot data
+  createdBy      String
+  publishedAt    DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([schoolId, termId])
+  @@index([status])
+}
+
+enum TimetableVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
 }

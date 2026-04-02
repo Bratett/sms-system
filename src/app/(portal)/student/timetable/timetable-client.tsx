@@ -2,38 +2,142 @@
 
 import { PageHeader } from "@/components/layout/page-header";
 
-export function TimetableClient() {
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+interface PeriodInfo {
+  name: string;
+  startTime: string;
+  endTime: string;
+  order: number;
+  type: string;
+}
+
+interface TimetableEntry {
+  id: string;
+  dayOfWeek: number;
+  period: PeriodInfo;
+  subject: { name: string; code: string | null };
+  teacher: string | null;
+  room: string | null;
+}
+
+export function TimetableClient({
+  timetable,
+  periods,
+}: {
+  timetable: TimetableEntry[];
+  periods: PeriodInfo[];
+}) {
+  // Build a lookup: key = `${dayOfWeek}-${period.order}`
+  const slotMap = new Map<string, TimetableEntry>();
+  for (const entry of timetable) {
+    slotMap.set(`${entry.dayOfWeek}-${entry.period.order}`, entry);
+  }
+
+  const activePeriods = periods
+    .filter((p) => p.type !== "FREE" || timetable.some((t) => t.period.order === p.order))
+    .sort((a, b) => a.order - b.order);
+
+  if (timetable.length === 0) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="My Timetable"
+          description="View your class schedule and timetable."
+        />
+        <div className="rounded-lg border border-dashed border-gray-300 bg-white p-12 text-center">
+          <p className="text-sm text-gray-500">
+            No timetable has been published for your class yet. Please check with your class teacher.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="My Timetable"
-        description="View your class schedule and timetable."
+        description="View your weekly class schedule."
       />
 
-      <div className="rounded-lg border border-dashed border-gray-300 bg-white p-12 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-teal-50">
-          <svg
-            className="h-8 w-8 text-teal-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"
-            />
-          </svg>
-        </div>
-        <h3 className="text-lg font-semibold text-gray-900">Coming Soon</h3>
-        <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
-          The timetable feature is currently under development. You will be able to view your weekly
-          class schedule, including subjects, teachers, and room assignments.
-        </p>
-        <p className="mt-4 text-xs text-gray-400">
-          Please check with your class teacher for your current timetable.
-        </p>
+      {/* Weekly Grid */}
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="min-w-full divide-y">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+                Period
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+                Time
+              </th>
+              {DAYS.map((day) => (
+                <th
+                  key={day}
+                  className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground"
+                >
+                  {day}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y bg-card">
+            {activePeriods.map((period) => {
+              const isBreak = period.type === "BREAK" || period.type === "ASSEMBLY";
+              return (
+                <tr key={period.order} className={isBreak ? "bg-muted/30" : ""}>
+                  <td className="px-4 py-3 text-sm font-medium whitespace-nowrap">
+                    {period.name}
+                    {isBreak && (
+                      <span className="ml-2 inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
+                        {period.type}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                    {period.startTime} - {period.endTime}
+                  </td>
+                  {DAYS.map((_, dayIndex) => {
+                    const dayOfWeek = dayIndex + 1;
+                    const entry = slotMap.get(`${dayOfWeek}-${period.order}`);
+
+                    if (isBreak) {
+                      return (
+                        <td
+                          key={dayIndex}
+                          className="px-2 py-2 text-center text-xs text-muted-foreground"
+                        >
+                          {dayIndex === 0 ? period.name : ""}
+                        </td>
+                      );
+                    }
+
+                    return (
+                      <td key={dayIndex} className="px-2 py-2 text-sm">
+                        {entry ? (
+                          <div className="rounded-md border bg-primary/5 p-2 text-xs">
+                            <div className="font-semibold text-primary">
+                              {entry.subject.code || entry.subject.name}
+                            </div>
+                            {entry.teacher && (
+                              <div className="text-muted-foreground">{entry.teacher}</div>
+                            )}
+                            {entry.room && (
+                              <div className="text-muted-foreground">{entry.room}</div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="p-2 text-xs text-muted-foreground">-</div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );

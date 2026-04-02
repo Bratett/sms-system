@@ -10,6 +10,7 @@ const parentLinks = [
   { href: "/parent/children", label: "My Children" },
   { href: "/parent/fees", label: "Fees" },
   { href: "/parent/results", label: "Results" },
+  { href: "/parent/attendance", label: "Attendance" },
   { href: "/parent/messages", label: "Messages" },
 ];
 
@@ -17,11 +18,14 @@ const studentLinks = [
   { href: "/student", label: "Dashboard" },
   { href: "/student/results", label: "My Results" },
   { href: "/student/timetable", label: "Timetable" },
+  { href: "/student/attendance", label: "Attendance" },
   { href: "/student/exeat", label: "Exeat" },
 ];
 
 const staffLinks = [
   { href: "/staff", label: "Dashboard" },
+  { href: "/staff/daily-schedule", label: "Today" },
+  { href: "/staff/timetable", label: "My Timetable" },
   { href: "/staff/profile", label: "My Profile" },
   { href: "/staff/leave", label: "My Leave" },
   { href: "/staff/payslips", label: "My Payslips" },
