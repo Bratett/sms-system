@@ -14,6 +14,8 @@ import {
   disposeAssetAction,
 } from "@/modules/inventory/actions/fixed-asset.action";
 import { recordMaintenanceAction } from "@/modules/inventory/actions/asset-maintenance.action";
+import { checkoutAssetAction } from "@/modules/inventory/actions/asset-checkout.action";
+import { addInsuranceAction, addWarrantyAction } from "@/modules/inventory/actions/asset-insurance.action";
 
 import type { Monetary } from "@/lib/monetary";
 interface Asset {
@@ -46,6 +48,9 @@ export function FixedAssetsClient({
   const [isPending, startTransition] = useTransition();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showInsuranceModal, setShowInsuranceModal] = useState(false);
+  const [showWarrantyModal, setShowWarrantyModal] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [filterCategory, setFilterCategory] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -60,6 +65,19 @@ export function FixedAssetsClient({
   const [maintenanceData, setMaintenanceData] = useState({
     date: new Date().toISOString().split("T")[0], type: "SERVICE" as string,
     description: "", cost: "", performedBy: "", nextDueDate: "",
+  });
+
+  const [checkoutData, setCheckoutData] = useState({
+    checkedOutTo: "", purpose: "", expectedReturnDate: "",
+  });
+
+  const [insuranceData, setInsuranceData] = useState({
+    provider: "", policyNumber: "", coverageAmount: "", premium: "",
+    startDate: "", endDate: "",
+  });
+
+  const [warrantyData, setWarrantyData] = useState({
+    provider: "", warrantyType: "", startDate: "", endDate: "", terms: "",
   });
 
   function handleSubmitCreate(e: React.FormEvent) {
@@ -114,6 +132,80 @@ export function FixedAssetsClient({
       if (result.error) { toast.error(result.error); return; }
       toast.success("Maintenance recorded");
       setShowMaintenanceModal(false);
+      router.refresh();
+    });
+  }
+
+  function handleOpenCheckout(asset: Asset) {
+    setSelectedAsset(asset);
+    setCheckoutData({ checkedOutTo: "", purpose: "", expectedReturnDate: "" });
+    setShowCheckoutModal(true);
+  }
+
+  function handleSubmitCheckout(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedAsset) return;
+    startTransition(async () => {
+      const result = await checkoutAssetAction({
+        fixedAssetId: selectedAsset.id,
+        checkedOutTo: checkoutData.checkedOutTo,
+        purpose: checkoutData.purpose || undefined,
+        expectedReturn: checkoutData.expectedReturnDate || undefined,
+      });
+      if (result.error) { toast.error(result.error); return; }
+      toast.success("Asset checked out successfully");
+      setShowCheckoutModal(false);
+      router.refresh();
+    });
+  }
+
+  function handleOpenInsurance(asset: Asset) {
+    setSelectedAsset(asset);
+    setInsuranceData({ provider: "", policyNumber: "", coverageAmount: "", premium: "", startDate: "", endDate: "" });
+    setShowInsuranceModal(true);
+  }
+
+  function handleSubmitInsurance(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedAsset) return;
+    startTransition(async () => {
+      const result = await addInsuranceAction({
+        fixedAssetId: selectedAsset.id,
+        provider: insuranceData.provider,
+        policyNumber: insuranceData.policyNumber,
+        coverageAmount: insuranceData.coverageAmount ? parseFloat(insuranceData.coverageAmount) : undefined,
+        premium: insuranceData.premium ? parseFloat(insuranceData.premium) : undefined,
+        startDate: insuranceData.startDate,
+        endDate: insuranceData.endDate,
+      });
+      if (result.error) { toast.error(result.error); return; }
+      toast.success("Insurance added successfully");
+      setShowInsuranceModal(false);
+      router.refresh();
+    });
+  }
+
+  function handleOpenWarranty(asset: Asset) {
+    setSelectedAsset(asset);
+    setWarrantyData({ provider: "", warrantyType: "", startDate: "", endDate: "", terms: "" });
+    setShowWarrantyModal(true);
+  }
+
+  function handleSubmitWarranty(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedAsset) return;
+    startTransition(async () => {
+      const result = await addWarrantyAction({
+        fixedAssetId: selectedAsset.id,
+        provider: warrantyData.provider,
+        warrantyType: warrantyData.warrantyType || undefined,
+        startDate: warrantyData.startDate,
+        endDate: warrantyData.endDate,
+        terms: warrantyData.terms || undefined,
+      });
+      if (result.error) { toast.error(result.error); return; }
+      toast.success("Warranty added successfully");
+      setShowWarrantyModal(false);
       router.refresh();
     });
   }
@@ -212,6 +304,9 @@ export function FixedAssetsClient({
                         {asset.status === "ACTIVE" && (
                           <>
                             <button onClick={() => handleOpenMaintenance(asset)} className="text-xs text-blue-600 hover:underline">Maintain</button>
+                            <button onClick={() => handleOpenCheckout(asset)} className="text-xs text-indigo-600 hover:underline">Checkout</button>
+                            <button onClick={() => handleOpenInsurance(asset)} className="text-xs text-teal-600 hover:underline">Insurance</button>
+                            <button onClick={() => handleOpenWarranty(asset)} className="text-xs text-amber-600 hover:underline">Warranty</button>
                             <ConfirmDialog title="Dispose Asset" description={`Write off "${asset.name}" (${asset.assetNumber})?`} onConfirm={() => handleDispose(asset)} variant="destructive"
                               trigger={<button className="text-xs text-red-500 hover:text-red-700">Dispose</button>}
                             />
@@ -353,6 +448,131 @@ export function FixedAssetsClient({
                 <button type="button" onClick={() => setShowMaintenanceModal(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted">Cancel</button>
                 <button type="submit" disabled={isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
                   {isPending ? "Recording..." : "Record"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Checkout Modal */}
+      {showCheckoutModal && selectedAsset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg bg-card p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Checkout Asset</h2>
+              <button onClick={() => setShowCheckoutModal(false)} className="text-muted-foreground hover:text-foreground text-xl">&times;</button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">{selectedAsset.name} ({selectedAsset.assetNumber})</p>
+            <form onSubmit={handleSubmitCheckout} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Checked Out To *</label>
+                <input type="text" value={checkoutData.checkedOutTo} onChange={(e) => setCheckoutData({ ...checkoutData, checkedOutTo: e.target.value })} required className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" placeholder="Name of person or department" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Purpose</label>
+                <textarea value={checkoutData.purpose} onChange={(e) => setCheckoutData({ ...checkoutData, purpose: e.target.value })} rows={2} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" placeholder="Reason for checkout" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Expected Return Date</label>
+                <input type="date" value={checkoutData.expectedReturnDate} onChange={(e) => setCheckoutData({ ...checkoutData, expectedReturnDate: e.target.value })} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-border">
+                <button type="button" onClick={() => setShowCheckoutModal(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted">Cancel</button>
+                <button type="submit" disabled={isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                  {isPending ? "Checking out..." : "Checkout"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Insurance Modal */}
+      {showInsuranceModal && selectedAsset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg bg-card p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Add Insurance</h2>
+              <button onClick={() => setShowInsuranceModal(false)} className="text-muted-foreground hover:text-foreground text-xl">&times;</button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">{selectedAsset.name} ({selectedAsset.assetNumber})</p>
+            <form onSubmit={handleSubmitInsurance} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Provider *</label>
+                <input type="text" value={insuranceData.provider} onChange={(e) => setInsuranceData({ ...insuranceData, provider: e.target.value })} required className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" placeholder="Insurance provider name" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Policy Number *</label>
+                <input type="text" value={insuranceData.policyNumber} onChange={(e) => setInsuranceData({ ...insuranceData, policyNumber: e.target.value })} required className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" placeholder="e.g. POL-2026-001" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Coverage Amount (GHS)</label>
+                  <input type="number" value={insuranceData.coverageAmount} onChange={(e) => setInsuranceData({ ...insuranceData, coverageAmount: e.target.value })} min="0" step="0.01" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Premium (GHS)</label>
+                  <input type="number" value={insuranceData.premium} onChange={(e) => setInsuranceData({ ...insuranceData, premium: e.target.value })} min="0" step="0.01" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Start Date</label>
+                  <input type="date" value={insuranceData.startDate} onChange={(e) => setInsuranceData({ ...insuranceData, startDate: e.target.value })} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">End Date</label>
+                  <input type="date" value={insuranceData.endDate} onChange={(e) => setInsuranceData({ ...insuranceData, endDate: e.target.value })} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-border">
+                <button type="button" onClick={() => setShowInsuranceModal(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted">Cancel</button>
+                <button type="submit" disabled={isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                  {isPending ? "Adding..." : "Add Insurance"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Warranty Modal */}
+      {showWarrantyModal && selectedAsset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg bg-card p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Add Warranty</h2>
+              <button onClick={() => setShowWarrantyModal(false)} className="text-muted-foreground hover:text-foreground text-xl">&times;</button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">{selectedAsset.name} ({selectedAsset.assetNumber})</p>
+            <form onSubmit={handleSubmitWarranty} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Provider *</label>
+                <input type="text" value={warrantyData.provider} onChange={(e) => setWarrantyData({ ...warrantyData, provider: e.target.value })} required className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" placeholder="Warranty provider name" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Warranty Type</label>
+                <input type="text" value={warrantyData.warrantyType} onChange={(e) => setWarrantyData({ ...warrantyData, warrantyType: e.target.value })} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" placeholder="e.g. Extended, Manufacturer" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Start Date</label>
+                  <input type="date" value={warrantyData.startDate} onChange={(e) => setWarrantyData({ ...warrantyData, startDate: e.target.value })} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">End Date</label>
+                  <input type="date" value={warrantyData.endDate} onChange={(e) => setWarrantyData({ ...warrantyData, endDate: e.target.value })} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Terms</label>
+                <textarea value={warrantyData.terms} onChange={(e) => setWarrantyData({ ...warrantyData, terms: e.target.value })} rows={3} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" placeholder="Warranty terms and conditions" />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-border">
+                <button type="button" onClick={() => setShowWarrantyModal(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted">Cancel</button>
+                <button type="submit" disabled={isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                  {isPending ? "Adding..." : "Add Warranty"}
                 </button>
               </div>
             </form>

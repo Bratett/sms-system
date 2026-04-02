@@ -43,6 +43,9 @@ const quickLinks = [
   { title: "Stock Movement", description: "Track stock in/out and adjustments", href: "/inventory/stock-movement" },
   { title: "Suppliers", description: "Supplier directory", href: "/inventory/suppliers" },
   { title: "Procurement", description: "Purchase requests and orders", href: "/inventory/procurement" },
+  { title: "Fixed Assets", description: "Register and track fixed assets", href: "/inventory/fixed-assets" },
+  { title: "Asset Checkouts", description: "Check out and return assets", href: "/inventory/asset-checkouts" },
+  { title: "Asset Audits", description: "Physical asset verification", href: "/inventory/asset-audits" },
   { title: "Reports", description: "Inventory reports and analytics", href: "/inventory/reports" },
 ];
 

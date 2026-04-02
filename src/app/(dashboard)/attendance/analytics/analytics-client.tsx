@@ -3,6 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import {
   getAttendanceByDayAction,
+  getAttendanceByPeriodAction,
   getAttendanceTrendAction,
   getChronicAbsenteeismAction,
 } from "@/modules/attendance/actions/attendance-analytics.action";
@@ -48,18 +49,21 @@ export function AnalyticsClient({ terms }: { terms: TermOption[] }) {
   const currentTerm = terms.find((t) => t.isCurrent);
   const [selectedTermId, setSelectedTermId] = useState(currentTerm?.id ?? "");
   const [dayStats, setDayStats] = useState<DayStat[]>([]);
+  const [periodStats, setPeriodStats] = useState<Array<{ periodId: string; periodName: string; attendanceRate: number; totalRecords: number }>>([]);
   const [trendStats, setTrendStats] = useState<TrendStat[]>([]);
   const [absenteeism, setAbsenteeism] = useState<AbsenteeismData | null>(null);
 
   function loadData(termId: string) {
     if (!termId) return;
     startTransition(async () => {
-      const [dayResult, trendResult, absentResult] = await Promise.all([
+      const [dayResult, periodResult, trendResult, absentResult] = await Promise.all([
         getAttendanceByDayAction(termId),
+        getAttendanceByPeriodAction(termId),
         getAttendanceTrendAction(termId),
         getChronicAbsenteeismAction(termId),
       ]);
       if (dayResult.data) setDayStats(dayResult.data);
+      if (periodResult.data) setPeriodStats(periodResult.data);
       if (trendResult.data) setTrendStats(trendResult.data);
       if (absentResult.data) setAbsenteeism(absentResult.data);
     });
@@ -126,6 +130,33 @@ export function AnalyticsClient({ terms }: { terms: TermOption[] }) {
                     </div>
                     <div className="mt-1 text-sm font-bold">{d.attendanceRate}%</div>
                     <div className="text-xs text-muted-foreground">{d.totalRecords} records</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Attendance by Period */}
+          {periodStats.length > 0 && (
+            <div className="rounded-lg border bg-card p-4">
+              <h3 className="mb-3 font-semibold">Attendance Rate by Period</h3>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+                {periodStats.map((p) => (
+                  <div key={p.periodId} className="text-center">
+                    <div className="text-xs text-muted-foreground">{p.periodName}</div>
+                    <div className="mt-1 flex items-end justify-center">
+                      <div
+                        className={`w-12 rounded-t ${
+                          p.attendanceRate >= 90
+                            ? "bg-green-500"
+                            : p.attendanceRate >= 75
+                              ? "bg-yellow-500"
+                              : "bg-red-500"
+                        }`}
+                        style={{ height: `${Math.max(p.attendanceRate * 0.6, 8)}px` }}
+                      />
+                    </div>
+                    <div className="mt-1 text-sm font-bold">{p.attendanceRate}%</div>
                   </div>
                 ))}
               </div>

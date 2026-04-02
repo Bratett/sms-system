@@ -65,6 +65,17 @@ export const NOTIFICATION_EVENTS = {
 
   // Inventory
   LOW_STOCK_ALERT: "low_stock_alert",
+  INVENTORY_OUT_OF_STOCK: "inventory_out_of_stock",
+  INVENTORY_EXPIRY_WARNING: "inventory_expiry_warning",
+  INVENTORY_TRANSFER_REQUESTED: "inventory_transfer_requested",
+  INVENTORY_TRANSFER_APPROVED: "inventory_transfer_approved",
+  INVENTORY_REQUISITION_SUBMITTED: "inventory_requisition_submitted",
+  INVENTORY_REQUISITION_APPROVED: "inventory_requisition_approved",
+  INVENTORY_PO_APPROVED: "inventory_po_approved",
+  INVENTORY_GOODS_RECEIVED: "inventory_goods_received",
+  INVENTORY_ASSET_MAINTENANCE_DUE: "inventory_asset_maintenance_due",
+  INVENTORY_ASSET_CHECKOUT_OVERDUE: "inventory_asset_checkout_overdue",
+  INVENTORY_CONTRACT_EXPIRING: "inventory_contract_expiring",
 } as const;
 
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[keyof typeof NOTIFICATION_EVENTS];
@@ -110,4 +121,15 @@ export const EVENT_CHANNELS: Record<NotificationEvent, ("in_app" | "sms" | "emai
   [NOTIFICATION_EVENTS.DISCIPLINE_INCIDENT]: ["in_app", "sms"],
   [NOTIFICATION_EVENTS.DISCIPLINE_RESOLVED]: ["in_app"],
   [NOTIFICATION_EVENTS.LOW_STOCK_ALERT]: ["in_app"],
+  [NOTIFICATION_EVENTS.INVENTORY_OUT_OF_STOCK]: ["in_app", "email"],
+  [NOTIFICATION_EVENTS.INVENTORY_EXPIRY_WARNING]: ["in_app"],
+  [NOTIFICATION_EVENTS.INVENTORY_TRANSFER_REQUESTED]: ["in_app"],
+  [NOTIFICATION_EVENTS.INVENTORY_TRANSFER_APPROVED]: ["in_app"],
+  [NOTIFICATION_EVENTS.INVENTORY_REQUISITION_SUBMITTED]: ["in_app"],
+  [NOTIFICATION_EVENTS.INVENTORY_REQUISITION_APPROVED]: ["in_app"],
+  [NOTIFICATION_EVENTS.INVENTORY_PO_APPROVED]: ["in_app"],
+  [NOTIFICATION_EVENTS.INVENTORY_GOODS_RECEIVED]: ["in_app"],
+  [NOTIFICATION_EVENTS.INVENTORY_ASSET_MAINTENANCE_DUE]: ["in_app", "email"],
+  [NOTIFICATION_EVENTS.INVENTORY_ASSET_CHECKOUT_OVERDUE]: ["in_app"],
+  [NOTIFICATION_EVENTS.INVENTORY_CONTRACT_EXPIRING]: ["in_app", "email"],
 };

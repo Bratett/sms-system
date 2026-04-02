@@ -46,6 +46,8 @@ model StoreItem {
   category  ItemCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   movements StockMovement[]
   purchaseOrderItems PurchaseOrderItem[]
+  expiryTracking ItemExpiryTracking[]
+  wastageRecords WastageRecord[]
 
   @@unique([storeId, name])
   @@index([storeId])
@@ -89,6 +91,8 @@ model Supplier {
   updatedAt     DateTime @updatedAt
 
   purchaseOrders PurchaseOrder[]
+  contracts      SupplierContract[]
+  ratings        SupplierRating[]
 
   @@unique([schoolId, name])
   @@index([schoolId])
@@ -257,6 +261,10 @@ model FixedAsset {
   category            AssetCategory       @relation(fields: [categoryId], references: [id])
   depreciationRecords AssetDepreciation[]
   maintenanceRecords  AssetMaintenance[]
+  checkouts           AssetCheckout[]
+  auditItems          AssetAuditItem[]
+  insurance           AssetInsurance[]
+  warranties          AssetWarranty[]
 
   @@index([schoolId])
   @@index([categoryId])
@@ -325,4 +333,318 @@ enum MaintenanceType {
   SERVICE
   UPGRADE
   INSPECTION
+}
+
+// ─── Phase: Inter-Store Transfers ────────────────────────────────
+
+model StoreTransfer {
+  id              String         @id @default(cuid())
+  schoolId        String
+  transferNumber  String         @unique  // TRF/YYYY/NNNN
+  fromStoreId     String
+  toStoreId       String
+  requestedBy     String
+  approvedBy      String?
+  status          TransferStatus @default(PENDING)
+  reason          String?
+  requestedAt     DateTime       @default(now())
+  approvedAt      DateTime?
+  completedAt     DateTime?
+
+  items StoreTransferItem[]
+
+  @@index([schoolId])
+  @@index([fromStoreId])
+  @@index([toStoreId])
+  @@index([status])
+}
+
+model StoreTransferItem {
+  id              String @id @default(cuid())
+  storeTransferId String
+  storeItemId     String  // source store item
+  targetItemId    String? // target store item (matched by name or manually mapped)
+  quantity        Int
+  receivedQty     Int?
+
+  storeTransfer StoreTransfer @relation(fields: [storeTransferId], references: [id], onDelete: Cascade)
+
+  @@index([storeTransferId])
+}
+
+enum TransferStatus {
+  PENDING
+  APPROVED
+  IN_TRANSIT
+  RECEIVED
+  CANCELLED
+}
+
+// ─── Phase: Department Requisitions ─────────────────────────────
+
+model Requisition {
+  id                String            @id @default(cuid())
+  schoolId          String
+  requisitionNumber String            @unique  // REQ/YYYY/NNNN
+  storeId           String
+  department        String
+  requestedBy       String
+  approvedBy        String?
+  status            RequisitionStatus @default(PENDING)
+  purpose           String?
+  requestedAt       DateTime          @default(now())
+  approvedAt        DateTime?
+  issuedAt          DateTime?
+  issuedBy          String?
+
+  items RequisitionItem[]
+
+  @@index([schoolId])
+  @@index([storeId])
+  @@index([department])
+  @@index([status])
+}
+
+model RequisitionItem {
+  id                String @id @default(cuid())
+  requisitionId     String
+  storeItemId       String
+  quantityRequested Int
+  quantityIssued    Int?
+
+  requisition Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+
+  @@index([requisitionId])
+}
+
+enum RequisitionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PARTIALLY_ISSUED
+  ISSUED
+  CANCELLED
+}
+
+// ─── Phase: Stock Takes & Reconciliation ────────────────────────
+
+model StockTake {
+  id            String          @id @default(cuid())
+  schoolId      String
+  storeId       String
+  reference     String          @unique  // ST/YYYY/NNNN
+  status        StockTakeStatus @default(PLANNED)
+  scheduledDate DateTime?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  conductedBy   String?
+  approvedBy    String?
+  notes         String?
+  createdAt     DateTime        @default(now())
+
+  items StockTakeItem[]
+
+  @@index([schoolId])
+  @@index([storeId])
+  @@index([status])
+}
+
+model StockTakeItem {
+  id               String  @id @default(cuid())
+  stockTakeId      String
+  storeItemId      String
+  itemName         String  // snapshot of item name at time of stock take
+  systemQuantity   Int
+  physicalQuantity Int?
+  variance         Int?
+  varianceReason   String?
+  adjusted         Boolean @default(false)
+
+  stockTake StockTake @relation(fields: [stockTakeId], references: [id], onDelete: Cascade)
+
+  @@index([stockTakeId])
+}
+
+enum StockTakeStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  APPROVED
+  CANCELLED
+}
+
+// ─── Phase: Enhanced Supplier Management ────────────────────────
+
+model SupplierContract {
+  id             String   @id @default(cuid())
+  supplierId     String
+  contractNumber String?
+  startDate      DateTime
+  endDate        DateTime
+  terms          String?
+  value          Decimal? @db.Decimal(18, 2)
+  status         Status   @default(ACTIVE)
+  documentUrl    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+  @@index([endDate])
+}
+
+model SupplierRating {
+  id              String   @id @default(cuid())
+  supplierId      String
+  purchaseOrderId String?
+  deliveryScore   Int      // 1-5
+  qualityScore    Int      // 1-5
+  pricingScore    Int      // 1-5
+  overallScore    Decimal  @db.Decimal(3, 1)
+  comments        String?
+  ratedBy         String
+  ratedAt         DateTime @default(now())
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+}
+
+// ─── Phase: Expiry Tracking & Wastage ───────────────────────────
+
+model ItemExpiryTracking {
+  id          String   @id @default(cuid())
+  storeItemId String
+  batchNumber String?
+  quantity    Int
+  expiryDate  DateTime
+  alertSent   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  storeItem StoreItem @relation(fields: [storeItemId], references: [id], onDelete: Cascade)
+
+  @@index([storeItemId])
+  @@index([expiryDate])
+}
+
+model WastageRecord {
+  id          String        @id @default(cuid())
+  storeItemId String
+  quantity    Int
+  reason      WastageReason
+  description String?
+  recordedBy  String
+  recordedAt  DateTime      @default(now())
+
+  storeItem StoreItem @relation(fields: [storeItemId], references: [id], onDelete: Cascade)
+
+  @@index([storeItemId])
+  @@index([reason])
+  @@index([recordedAt])
+}
+
+enum WastageReason {
+  EXPIRED
+  DAMAGED
+  SPOILED
+  OBSOLETE
+  OTHER
+}
+
+// ─── Phase: Asset Lifecycle Enhancements ────────────────────────
+
+model AssetCheckout {
+  id             String         @id @default(cuid())
+  fixedAssetId   String
+  checkedOutTo   String         // staffId or department name
+  checkedOutBy   String         // userId
+  purpose        String?
+  checkoutDate   DateTime       @default(now())
+  expectedReturn DateTime?
+  returnDate     DateTime?
+  returnedBy     String?
+  condition      AssetCondition?
+  returnNotes    String?
+  status         CheckoutStatus @default(CHECKED_OUT)
+
+  fixedAsset FixedAsset @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
+
+  @@index([fixedAssetId])
+  @@index([checkedOutTo])
+  @@index([status])
+  @@index([expectedReturn])
+}
+
+enum CheckoutStatus {
+  CHECKED_OUT
+  RETURNED
+  OVERDUE
+}
+
+model AssetAudit {
+  id            String          @id @default(cuid())
+  schoolId      String
+  reference     String          @unique  // AA/YYYY/NNNN
+  scheduledDate DateTime?
+  completedAt   DateTime?
+  conductedBy   String?
+  status        StockTakeStatus @default(PLANNED)  // reuse enum
+  notes         String?
+  createdAt     DateTime        @default(now())
+
+  items AssetAuditItem[]
+
+  @@index([schoolId])
+  @@index([status])
+}
+
+model AssetAuditItem {
+  id               String          @id @default(cuid())
+  assetAuditId     String
+  fixedAssetId     String
+  found            Boolean?
+  condition        AssetCondition?
+  locationVerified Boolean?
+  notes            String?
+
+  assetAudit AssetAudit @relation(fields: [assetAuditId], references: [id], onDelete: Cascade)
+  fixedAsset FixedAsset @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
+
+  @@index([assetAuditId])
+  @@index([fixedAssetId])
+}
+
+model AssetInsurance {
+  id              String   @id @default(cuid())
+  fixedAssetId    String
+  provider        String
+  policyNumber    String?
+  coverageAmount  Decimal? @db.Decimal(18, 2)
+  premium         Decimal? @db.Decimal(18, 2)
+  startDate       DateTime
+  endDate         DateTime
+  status          Status   @default(ACTIVE)
+  createdAt       DateTime @default(now())
+
+  fixedAsset FixedAsset @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
+
+  @@index([fixedAssetId])
+  @@index([endDate])
+}
+
+model AssetWarranty {
+  id           String   @id @default(cuid())
+  fixedAssetId String
+  provider     String
+  warrantyType String?  // Manufacturer, Extended, Third-Party
+  startDate    DateTime
+  endDate      DateTime
+  terms        String?
+  createdAt    DateTime @default(now())
+
+  fixedAsset FixedAsset @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
+
+  @@index([fixedAssetId])
+  @@index([endDate])
 }
