@@ -1,12 +1,14 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
   approveSubstitutionAction,
   rejectSubstitutionAction,
+  createSubstitutionAction,
+  getAvailableSubstitutesAction,
 } from "@/modules/timetable/actions/substitution.action";
 
 interface SubstitutionRow {
@@ -40,6 +42,35 @@ export function SubstitutionsClient({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    timetableSlotId: "",
+    substituteTeacherId: "",
+    date: format(new Date(), "yyyy-MM-dd"),
+    reason: "",
+  });
+  const [availableSubs, setAvailableSubs] = useState<Array<{ id: string; name: string }>>([]);
+
+  function handleCreate() {
+    if (!createForm.timetableSlotId || !createForm.substituteTeacherId || !createForm.date) {
+      toast.error("Slot, substitute teacher, and date are required.");
+      return;
+    }
+    startTransition(async () => {
+      const result = await createSubstitutionAction({
+        timetableSlotId: createForm.timetableSlotId,
+        substituteTeacherId: createForm.substituteTeacherId,
+        date: createForm.date,
+        reason: createForm.reason || undefined,
+      });
+      if (result.error) toast.error(result.error);
+      else {
+        toast.success("Substitution created.");
+        setShowCreateForm(false);
+        router.refresh();
+      }
+    });
+  }
 
   function handleApprove(id: string) {
     startTransition(async () => {
@@ -100,7 +131,15 @@ export function SubstitutionsClient({
             <option value="COMPLETED">Completed</option>
           </select>
         </div>
-        <p className="ml-auto text-sm text-muted-foreground">{pagination.total} substitution(s)</p>
+        <div className="ml-auto flex items-center gap-3">
+          <p className="text-sm text-muted-foreground">{pagination.total} substitution(s)</p>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            New Substitution
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -170,6 +209,108 @@ export function SubstitutionsClient({
           </tbody>
         </table>
       </div>
+
+      {/* Create Substitution Modal */}
+      {showCreateForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg">
+            <h2 className="mb-4 text-lg font-semibold">New Substitution</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium">Timetable Slot ID *</label>
+                <input
+                  type="text"
+                  value={createForm.timetableSlotId}
+                  onChange={(e) => setCreateForm({ ...createForm, timetableSlotId: e.target.value })}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  placeholder="Slot ID from timetable"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Date *</label>
+                <input
+                  type="date"
+                  value={createForm.date}
+                  onChange={(e) => setCreateForm({ ...createForm, date: e.target.value })}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Substitute Teacher *</label>
+                <input
+                  type="text"
+                  value={createForm.substituteTeacherId}
+                  onChange={(e) => setCreateForm({ ...createForm, substituteTeacherId: e.target.value })}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  placeholder="Teacher user ID"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!createForm.timetableSlotId) {
+                      toast.error("Enter a slot ID first to find available substitutes.");
+                      return;
+                    }
+                    startTransition(async () => {
+                      const dateObj = new Date(createForm.date);
+                      const dayOfWeek = dateObj.getDay() === 0 ? 7 : dateObj.getDay();
+                      const result = await getAvailableSubstitutesAction({
+                        periodId: createForm.timetableSlotId,
+                        dayOfWeek,
+                        date: createForm.date,
+                      });
+                      if (result.data) setAvailableSubs(result.data);
+                    });
+                  }}
+                  className="mt-1 text-xs text-primary hover:underline"
+                >
+                  Find available teachers
+                </button>
+                {availableSubs.length > 0 && (
+                  <div className="mt-1 max-h-32 overflow-y-auto rounded border p-2">
+                    {availableSubs.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => setCreateForm({ ...createForm, substituteTeacherId: t.id })}
+                        className={`block w-full px-2 py-1 text-left text-xs hover:bg-muted rounded ${
+                          createForm.substituteTeacherId === t.id ? "bg-primary/10 font-medium" : ""
+                        }`}
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Reason</label>
+                <input
+                  type="text"
+                  value={createForm.reason}
+                  onChange={(e) => setCreateForm({ ...createForm, reason: e.target.value })}
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  placeholder="e.g., Sick leave"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={() => { setShowCreateForm(false); setAvailableSubs([]); }}
+                className="rounded-md border px-4 py-2 text-sm hover:bg-accent"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={isPending}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {isPending ? "Creating..." : "Create"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
