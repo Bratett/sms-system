@@ -185,3 +185,296 @@ enum RollCallStatus {
   EXEAT
   SICK_BAY
 }
+
+// ─── Phase 1: Boarding Incidents ────────────────────────────────────
+
+model BoardingIncident {
+  id                 String                    @id @default(cuid())
+  schoolId           String
+  incidentNumber     String                    @unique // BIN/YYYY/NNNN
+  hostelId           String
+  dormitoryId        String?
+  studentIds         String[]
+  reportedBy         String // userId
+  date               DateTime
+  time               String?
+  category           BoardingIncidentCategory
+  severity           BoardingIncidentSeverity   @default(MINOR)
+  title              String
+  description        String
+  actionTaken        String?
+  status             BoardingIncidentStatus     @default(REPORTED)
+  resolvedBy         String?
+  resolvedAt         DateTime?
+  resolution         String?
+  linkedDisciplineId String?
+  parentNotified     Boolean                    @default(false)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@index([schoolId])
+  @@index([hostelId])
+  @@index([status])
+  @@index([category])
+  @@index([severity])
+}
+
+enum BoardingIncidentCategory {
+  CURFEW_VIOLATION
+  PROPERTY_DAMAGE
+  BULLYING
+  FIGHTING
+  UNAUTHORIZED_ABSENCE
+  SUBSTANCE_ABUSE
+  THEFT
+  NOISE_DISTURBANCE
+  HEALTH_EMERGENCY
+  SAFETY_HAZARD
+  OTHER
+}
+
+enum BoardingIncidentSeverity {
+  MINOR
+  MODERATE
+  MAJOR
+  CRITICAL
+}
+
+enum BoardingIncidentStatus {
+  REPORTED
+  INVESTIGATING
+  ACTION_TAKEN
+  RESOLVED
+  ESCALATED
+  DISMISSED
+}
+
+// ─── Phase 2: Sick Bay & Health Tracking ────────────────────────────
+
+model SickBayAdmission {
+  id               String          @id @default(cuid())
+  schoolId         String
+  admissionNumber  String          @unique // SBA/YYYY/NNNN
+  studentId        String
+  hostelId         String
+  admittedBy       String // userId
+  admittedAt       DateTime        @default(now())
+  symptoms         String
+  initialDiagnosis String?
+  temperature      Decimal?
+  severity         SickBaySeverity @default(MILD)
+  status           SickBayStatus   @default(ADMITTED)
+  treatmentNotes   String?
+  dischargedBy     String?
+  dischargedAt     DateTime?
+  dischargeNotes   String?
+  referredTo       String?
+  parentNotified   Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  medications MedicationLog[]
+
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([hostelId])
+  @@index([status])
+}
+
+model MedicationLog {
+  id                   String   @id @default(cuid())
+  sickBayAdmissionId   String
+  medicationName       String
+  dosage               String
+  administeredBy       String // userId
+  administeredAt       DateTime @default(now())
+  notes                String?
+
+  admission SickBayAdmission @relation(fields: [sickBayAdmissionId], references: [id], onDelete: Cascade)
+
+  @@index([sickBayAdmissionId])
+}
+
+enum SickBaySeverity {
+  MILD
+  MODERATE
+  SEVERE
+  EMERGENCY
+}
+
+enum SickBayStatus {
+  ADMITTED
+  UNDER_OBSERVATION
+  DISCHARGED
+  REFERRED
+}
+
+// ─── Phase 3: Visitor Management ────────────────────────────────────
+
+model BoardingVisitor {
+  id              String        @id @default(cuid())
+  schoolId        String
+  studentId       String
+  visitorName     String
+  relationship    String
+  visitorPhone    String
+  visitorIdNumber String?
+  purpose         String
+  checkInAt       DateTime      @default(now())
+  checkOutAt      DateTime?
+  checkedInBy     String // userId
+  checkedOutBy    String?
+  status          VisitorStatus @default(CHECKED_IN)
+  hostelId        String
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([hostelId])
+  @@index([status])
+  @@index([checkInAt])
+}
+
+enum VisitorStatus {
+  CHECKED_IN
+  CHECKED_OUT
+}
+
+// ─── Phase 4: Bed Transfer Management ───────────────────────────────
+
+model BedTransfer {
+  id              String            @id @default(cuid())
+  schoolId        String
+  transferNumber  String            @unique // BTR/YYYY/NNNN
+  studentId       String
+  fromBedId       String
+  toBedId         String
+  reason          BedTransferReason
+  reasonDetails   String?
+  requestedBy     String // userId
+  requestedAt     DateTime          @default(now())
+  status          BedTransferStatus @default(PENDING)
+  approvedBy      String?
+  approvedAt      DateTime?
+  effectiveDate   DateTime?
+  completedAt     DateTime?
+  rejectionReason String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([status])
+}
+
+enum BedTransferReason {
+  STUDENT_REQUEST
+  DISCIPLINARY
+  MEDICAL
+  MAINTENANCE
+  CONFLICT_RESOLUTION
+  REBALANCING
+  OTHER
+}
+
+enum BedTransferStatus {
+  PENDING
+  APPROVED
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+// ─── Phase 5: Hostel Inspection & Maintenance ───────────────────────
+
+model HostelInspection {
+  id                String           @id @default(cuid())
+  schoolId          String
+  hostelId          String
+  dormitoryId       String?
+  inspectedBy       String // userId
+  inspectionDate    DateTime
+  type              InspectionType   @default(ROUTINE)
+  overallRating     InspectionRating
+  cleanlinessRating InspectionRating
+  facilityRating    InspectionRating
+  safetyRating      InspectionRating
+  remarks           String?
+  issues            String?
+  followUpRequired  Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([schoolId])
+  @@index([hostelId])
+  @@index([inspectionDate])
+}
+
+model MaintenanceRequest {
+  id              String              @id @default(cuid())
+  schoolId        String
+  requestNumber   String              @unique // MNT/YYYY/NNNN
+  hostelId        String
+  dormitoryId     String?
+  bedId           String?
+  reportedBy      String // userId
+  title           String
+  description     String
+  category        MaintenanceCategory
+  priority        MaintenancePriority @default(MEDIUM)
+  status          MaintenanceStatus   @default(OPEN)
+  assignedTo      String?
+  assignedAt      DateTime?
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  resolutionNotes String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([schoolId])
+  @@index([hostelId])
+  @@index([status])
+  @@index([priority])
+}
+
+enum InspectionType {
+  ROUTINE
+  SURPRISE
+  FOLLOW_UP
+  END_OF_TERM
+}
+
+enum InspectionRating {
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+  CRITICAL
+}
+
+enum MaintenanceCategory {
+  PLUMBING
+  ELECTRICAL
+  FURNITURE
+  STRUCTURAL
+  CLEANING
+  PEST_CONTROL
+  SECURITY
+  OTHER
+}
+
+enum MaintenancePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MaintenanceStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}

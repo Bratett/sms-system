@@ -21,6 +21,7 @@ interface AllocationRow {
   hostelName: string;
   hostelId: string;
   dormitoryName: string;
+  bedId: string;
   bedNumber: string;
   allocatedAt: Date;
   status: string;
