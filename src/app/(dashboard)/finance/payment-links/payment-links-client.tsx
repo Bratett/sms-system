@@ -61,7 +61,7 @@ export function PaymentLinksClient({
         expiresInDays: formData.expiresInDays,
         isOneTime: formData.isOneTime,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Payment link created");
       setShowCreateModal(false);
       router.refresh();
@@ -71,7 +71,7 @@ export function PaymentLinksClient({
   function handleDeactivate(linkId: string) {
     startTransition(async () => {
       const result = await deactivatePaymentLinkAction(linkId);
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Link deactivated");
       router.refresh();
     });

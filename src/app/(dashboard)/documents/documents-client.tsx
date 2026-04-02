@@ -134,7 +134,7 @@ export function DocumentsClient({
       category,
       accessLevel,
     });
-    if (res.error) {
+    if ("error" in res) {
       toast.error(res.error);
       return;
     }
@@ -145,7 +145,7 @@ export function DocumentsClient({
 
   async function handleArchive(id: string) {
     const res = await archiveDocumentAction(id);
-    if (res.error) {
+    if ("error" in res) {
       toast.error(res.error);
       return;
     }
@@ -156,7 +156,7 @@ export function DocumentsClient({
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this document? This action cannot be undone.")) return;
     const res = await deleteDocumentAction(id);
-    if (res.error) {
+    if ("error" in res) {
       toast.error(res.error);
       return;
     }

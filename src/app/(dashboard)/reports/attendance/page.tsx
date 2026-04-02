@@ -18,7 +18,7 @@ export default async function AttendanceReportsPage() {
         description="View attendance rates across classes and terms."
       />
       <AttendanceOverviewClient
-        filters={filtersResult.data ?? { academicYears: [], terms: [], classArms: [] }}
+        filters={"data" in filtersResult ? filtersResult.data : { academicYears: [], terms: [], classArms: [] }}
       />
     </div>
   );

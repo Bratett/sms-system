@@ -1208,6 +1208,7 @@ async function main() {
   for (const gd of GRADE_DEFINITIONS) {
     await prisma.gradeDefinition.create({
       data: {
+        schoolId: school.id,
         gradingScaleId: gradingScale.id,
         grade: gd.grade,
         minScore: gd.minScore,

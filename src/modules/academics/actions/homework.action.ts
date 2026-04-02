@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Homework CRUD ───────────────────────────────────────────────────
@@ -16,15 +17,14 @@ export async function createHomeworkAction(data: {
   dueDate: Date;
   maxScore?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOMEWORK_CREATE);
+  if (denied) return denied;
 
   const homework = await db.homework.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       subjectId: data.subjectId,
       classArmId: data.classArmId,
       termId: data.termId,
@@ -33,12 +33,12 @@ export async function createHomeworkAction(data: {
       description: data.description,
       dueDate: data.dueDate,
       maxScore: data.maxScore,
-      assignedBy: session.user.id!,
+      assignedBy: ctx.session.user.id!,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "Homework",
     entityId: homework.id,
@@ -59,8 +59,10 @@ export async function updateHomeworkAction(
     status?: string;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOMEWORK_CREATE);
+  if (denied) return denied;
 
   const existing = await db.homework.findUnique({ where: { id } });
   if (!existing) return { error: "Homework not found." };
@@ -80,8 +82,10 @@ export async function updateHomeworkAction(
 }
 
 export async function deleteHomeworkAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOMEWORK_CREATE);
+  if (denied) return denied;
 
   await db.homework.delete({ where: { id } });
   return { data: { deleted: true } };
@@ -92,8 +96,10 @@ export async function getHomeworkListAction(
   termId: string,
   subjectId?: string,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOMEWORK_READ);
+  if (denied) return denied;
 
   const where: Record<string, unknown> = { classArmId, termId };
   if (subjectId) where.subjectId = subjectId;
@@ -132,8 +138,10 @@ export async function submitHomeworkAction(
   content?: string,
   fileUrl?: string,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOMEWORK_READ);
+  if (denied) return denied;
 
   const homework = await db.homework.findUnique({ where: { id: homeworkId } });
   if (!homework) return { error: "Homework not found." };
@@ -152,7 +160,7 @@ export async function submitHomeworkAction(
   }
 
   const submission = await db.homeworkSubmission.create({
-    data: { homeworkId, studentId, content, fileUrl },
+    data: { schoolId: ctx.schoolId, homeworkId, studentId, content, fileUrl },
   });
 
   return { data: submission };
@@ -163,8 +171,10 @@ export async function gradeHomeworkAction(
   score: number,
   feedback?: string,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOMEWORK_GRADE);
+  if (denied) return denied;
 
   const submission = await db.homeworkSubmission.findUnique({ where: { id: submissionId } });
   if (!submission) return { error: "Submission not found." };
@@ -174,7 +184,7 @@ export async function gradeHomeworkAction(
     data: {
       score,
       feedback,
-      gradedBy: session.user.id,
+      gradedBy: ctx.session.user.id,
       gradedAt: new Date(),
       status: "GRADED",
     },
@@ -184,8 +194,10 @@ export async function gradeHomeworkAction(
 }
 
 export async function getHomeworkSubmissionsAction(homeworkId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOMEWORK_READ);
+  if (denied) return denied;
 
   const submissions = await db.homeworkSubmission.findMany({
     where: { homeworkId },

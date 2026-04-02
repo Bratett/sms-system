@@ -14,8 +14,8 @@ export default async function FinancePage() {
     getTermsAction(),
   ]);
 
-  const dashboard = dashboardResult.data ?? null;
-  const terms = termsResult.data ?? [];
+  const dashboard = "data" in dashboardResult ? dashboardResult.data : null;
+  const terms = "data" in termsResult ? termsResult.data : [];
 
   return <FinanceDashboardClient dashboard={dashboard} terms={terms} />;
 }

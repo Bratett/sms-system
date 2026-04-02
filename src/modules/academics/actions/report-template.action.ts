@@ -1,14 +1,17 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Get Report Templates ────────────────────────────────────────────
 
 export async function getReportTemplatesAction(frameworkId?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.REPORT_TEMPLATES_READ);
+  if (denied) return denied;
 
   const where: Record<string, unknown> = {};
   if (frameworkId) where.frameworkId = frameworkId;
@@ -32,8 +35,10 @@ export async function createReportTemplateAction(data: {
   headerConfig?: any;
   isDefault?: boolean;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.REPORT_TEMPLATES_CREATE);
+  if (denied) return denied;
 
   const template = await db.reportTemplate.create({
     data: {
@@ -48,7 +53,7 @@ export async function createReportTemplateAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "ReportTemplate",
     entityId: template.id,
@@ -72,8 +77,10 @@ export async function updateReportTemplateAction(
     isDefault?: boolean;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.REPORT_TEMPLATES_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.reportTemplate.findUnique({ where: { id } });
   if (!existing) return { error: "Template not found." };
@@ -91,7 +98,7 @@ export async function updateReportTemplateAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "ReportTemplate",
     entityId: id,
@@ -105,8 +112,10 @@ export async function updateReportTemplateAction(
 // ─── Delete Report Template ──────────────────────────────────────────
 
 export async function deleteReportTemplateAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.REPORT_TEMPLATES_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.reportTemplate.findUnique({ where: { id } });
   if (!existing) return { error: "Template not found." };
@@ -115,7 +124,7 @@ export async function deleteReportTemplateAction(id: string) {
   await db.reportTemplate.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "ReportTemplate",
     entityId: id,
@@ -129,8 +138,10 @@ export async function deleteReportTemplateAction(id: string) {
 // ─── Set Default Template ────────────────────────────────────────────
 
 export async function setDefaultTemplateAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.REPORT_TEMPLATES_UPDATE);
+  if (denied) return denied;
 
   const template = await db.reportTemplate.findUnique({ where: { id } });
   if (!template) return { error: "Template not found." };

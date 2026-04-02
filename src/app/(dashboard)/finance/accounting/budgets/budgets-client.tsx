@@ -104,7 +104,7 @@ export function BudgetsClient({
         termId: formData.termId || undefined,
         lines: validLines,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Budget created");
       setShowCreateModal(false);
       router.refresh();
@@ -114,7 +114,7 @@ export function BudgetsClient({
   function handleApprove(budget: Budget) {
     startTransition(async () => {
       const result = await approveBudgetAction(budget.id);
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Budget approved");
       router.refresh();
     });
@@ -124,7 +124,7 @@ export function BudgetsClient({
     if (expandedId === budgetId) { setExpandedId(null); setBudgetDetail(null); return; }
     startTransition(async () => {
       const result = await getBudgetVsActualAction(budgetId);
-      if (result.data) setBudgetDetail({ lines: result.data.lines });
+      if ("data" in result) setBudgetDetail({ lines: result.data.lines });
       setExpandedId(budgetId);
     });
   }

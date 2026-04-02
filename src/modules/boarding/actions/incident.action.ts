@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { dispatch } from "@/lib/notifications/dispatcher";
 import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
@@ -19,11 +19,9 @@ export async function getIncidentsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BOARDING_INCIDENTS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BOARDING_INCIDENTS_READ);
   if (permErr) return permErr;
 
   const page = filters?.page ?? 1;
@@ -144,11 +142,9 @@ export async function getIncidentsAction(filters?: {
 }
 
 export async function getIncidentAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BOARDING_INCIDENTS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BOARDING_INCIDENTS_READ);
   if (permErr) return permErr;
 
   const incident = await db.boardingIncident.findUnique({
@@ -254,22 +250,15 @@ export async function reportIncidentAction(data: {
   title: string;
   description: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BOARDING_INCIDENTS_CREATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BOARDING_INCIDENTS_CREATE);
   if (permErr) return permErr;
 
   const parsed = reportIncidentSchema.safeParse(data);
   if (!parsed.success) {
     return { error: parsed.error.issues.map((e: { message: string }) => e.message).join(", ") };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "School not found." };
-  }
+  }
 
   // Generate incident number
   const year = new Date().getFullYear();
@@ -282,12 +271,12 @@ export async function reportIncidentAction(data: {
 
   const incident = await db.boardingIncident.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       incidentNumber,
       hostelId: parsed.data.hostelId,
       dormitoryId: parsed.data.dormitoryId || null,
       studentIds: parsed.data.studentIds,
-      reportedBy: session.user.id!,
+      reportedBy: ctx.session.user.id,
       date: new Date(parsed.data.date),
       time: parsed.data.time || null,
       category: parsed.data.category as never,
@@ -298,7 +287,7 @@ export async function reportIncidentAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "BoardingIncident",
     entityId: incident.id,
@@ -312,7 +301,7 @@ export async function reportIncidentAction(data: {
     title: "Boarding Incident Reported",
     message: `Boarding incident reported: ${parsed.data.title}`,
     recipients: [],
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
   }).catch(() => {});
 
   if (parsed.data.severity === "CRITICAL") {
@@ -321,7 +310,7 @@ export async function reportIncidentAction(data: {
       title: "Critical Boarding Incident",
       message: `Critical incident reported: ${parsed.data.title}`,
       recipients: [],
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
     }).catch(() => {});
   }
 
@@ -337,11 +326,9 @@ export async function updateIncidentAction(
     severity?: string;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BOARDING_INCIDENTS_UPDATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BOARDING_INCIDENTS_UPDATE);
   if (permErr) return permErr;
 
   const parsed = updateIncidentSchema.safeParse(data);
@@ -362,7 +349,7 @@ export async function updateIncidentAction(
 
   // If resolving, set resolver info
   if (parsed.data.status === "RESOLVED") {
-    updateData.resolvedBy = session.user.id!;
+    updateData.resolvedBy = ctx.session.user.id;
     updateData.resolvedAt = new Date();
   }
 
@@ -372,7 +359,7 @@ export async function updateIncidentAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "BoardingIncident",
     entityId: id,
@@ -391,11 +378,9 @@ export async function updateIncidentAction(
 }
 
 export async function escalateIncidentAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BOARDING_INCIDENTS_ESCALATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BOARDING_INCIDENTS_ESCALATE);
   if (permErr) return permErr;
 
   const incident = await db.boardingIncident.findUnique({ where: { id } });
@@ -440,7 +425,7 @@ export async function escalateIncidentAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "BoardingIncident",
     entityId: id,
@@ -457,11 +442,9 @@ export async function getIncidentStatsAction(filters?: {
   hostelId?: string;
   termId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BOARDING_INCIDENTS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BOARDING_INCIDENTS_READ);
   if (permErr) return permErr;
 
   const where: Record<string, unknown> = {};

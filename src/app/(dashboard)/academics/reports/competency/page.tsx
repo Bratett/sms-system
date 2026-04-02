@@ -8,7 +8,8 @@ export default async function CompetencyReportsPage() {
   if (!session?.user) return null;
 
   const dropdownsResult = await getAcademicDropdownsAction();
-  const academicYears = dropdownsResult.data?.academicYears ?? [];
+  const dropdownsData = "data" in dropdownsResult ? dropdownsResult.data : null;
+  const academicYears = dropdownsData?.academicYears ?? [];
 
   return (
     <div className="space-y-6">

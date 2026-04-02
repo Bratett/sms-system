@@ -80,7 +80,7 @@ export function PettyCashClient({ funds }: { funds: PettyCashFund[] }) {
         custodianId: fundForm.custodianId,
         authorizedLimit: parseFloat(fundForm.authorizedLimit),
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -109,18 +109,18 @@ export function PettyCashClient({ funds }: { funds: PettyCashFund[] }) {
         receiptNumber: txForm.receiptNumber || undefined,
         date: new Date(txForm.date),
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
-      toast.success(`Transaction recorded. New balance: ${formatCurrency(result.data!.newBalance)}`);
+      toast.success(`Transaction recorded. New balance: ${formatCurrency(result.data.newBalance)}`);
       resetTxForm();
       setShowTransactionModal(false);
       router.refresh();
       // Refresh transactions if expanded
       if (expandedFundId === selectedFundId) {
         const txResult = await getPettyCashTransactionsAction(selectedFundId);
-        if (txResult.data) setTransactions(txResult.data);
+        if ("data" in txResult) setTransactions(txResult.data);
       }
     });
   }
@@ -136,7 +136,7 @@ export function PettyCashClient({ funds }: { funds: PettyCashFund[] }) {
         pettyCashFundId: fund.id,
         amount: replenishAmount,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -152,7 +152,7 @@ export function PettyCashClient({ funds }: { funds: PettyCashFund[] }) {
     }
     startTransition(async () => {
       const result = await getPettyCashTransactionsAction(fundId);
-      if (result.data) setTransactions(result.data);
+      if ("data" in result) setTransactions(result.data);
       setExpandedFundId(fundId);
     });
   }

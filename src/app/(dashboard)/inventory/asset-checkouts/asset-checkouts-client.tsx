@@ -91,7 +91,7 @@ export function AssetCheckoutsClient({
         purpose: checkoutForm.purpose || undefined,
         expectedReturn: checkoutForm.expectedReturn || undefined,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Asset checked out successfully");
       setShowCheckoutModal(false);
       setCheckoutForm({ fixedAssetId: "", checkedOutTo: "", purpose: "", expectedReturn: "" });
@@ -113,7 +113,7 @@ export function AssetCheckoutsClient({
         condition: returnForm.condition,
         returnNotes: returnForm.returnNotes || undefined,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Asset returned successfully");
       setShowReturnModal(false);
       router.refresh();

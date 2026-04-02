@@ -27,12 +27,12 @@ export default async function StaffProfilePage({
       getLeaveRequestsAction({ staffId: id, pageSize: 50 }),
     ]);
 
-  if (staffResult.error || !staffResult.data) {
+  if ("error" in staffResult || !("data" in staffResult)) {
     return (
       <div className="space-y-6">
         <PageHeader title="Staff Not Found" />
         <div className="rounded-lg border border-border bg-card p-8 text-center">
-          <p className="text-muted-foreground">{staffResult.error || "Staff member not found."}</p>
+          <p className="text-muted-foreground">{"error" in staffResult ? staffResult.error : "Staff member not found."}</p>
           <Link
             href="/hr/staff"
             className="mt-4 inline-block text-sm text-primary hover:underline"
@@ -45,12 +45,12 @@ export default async function StaffProfilePage({
   }
 
   const staff = staffResult.data;
-  const departments = (departmentsResult.data ?? []).map((d) => ({
+  const departments = ("data" in departmentsResult ? departmentsResult.data : []).map((d: { id: string; name: string }) => ({
     id: d.id,
     name: d.name,
   }));
-  const leaveTypes = leaveTypesResult.data ?? [];
-  const leaveRequests = leaveRequestsResult.data ?? [];
+  const leaveTypes = "data" in leaveTypesResult ? leaveTypesResult.data : [];
+  const leaveRequests = "data" in leaveRequestsResult ? leaveRequestsResult.data : [];
 
   return (
     <div className="space-y-6">

@@ -75,9 +75,9 @@ export function ApplicationForm({ programmes }: { programmes: Programme[] }) {
         notes,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
-        if (result.details) {
+        if ("details" in result && result.details) {
           setErrors(result.details as Record<string, string[]>);
         }
       } else {

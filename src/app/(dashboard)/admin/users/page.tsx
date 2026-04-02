@@ -11,7 +11,7 @@ export default async function UsersPage() {
   }
 
   const result = await getUsersAction();
-  const users = result.data ?? [];
+  const users = "data" in result ? result.data : [];
 
   return (
     <div className="space-y-6">

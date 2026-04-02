@@ -19,6 +19,7 @@ model Hostel {
 model Dormitory {
   id       String @id @default(cuid())
   hostelId String
+  schoolId String
   name     String
   floor    String?
   capacity Int    @default(0)
@@ -27,31 +28,37 @@ model Dormitory {
   updatedAt DateTime @updatedAt
 
   hostel Hostel @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  school School @relation("SchoolDormitory", fields: [schoolId], references: [id])
   beds   Bed[]
 
   @@unique([hostelId, name])
   @@index([hostelId])
+  @@index([schoolId])
 }
 
 model Bed {
   id          String    @id @default(cuid())
   dormitoryId String
+  schoolId    String
   bedNumber   String
   status      BedStatus @default(AVAILABLE)
   createdAt   DateTime  @default(now())
 
   dormitory   Dormitory      @relation(fields: [dormitoryId], references: [id], onDelete: Cascade)
+  school      School         @relation("SchoolBed", fields: [schoolId], references: [id])
   allocations BedAllocation[]
 
   @@unique([dormitoryId, bedNumber])
   @@index([dormitoryId])
   @@index([status])
+  @@index([schoolId])
 }
 
 model BedAllocation {
   id             String              @id @default(cuid())
   bedId          String
   studentId      String
+  schoolId       String
   termId         String
   academicYearId String
   allocatedAt    DateTime            @default(now())
@@ -59,7 +66,8 @@ model BedAllocation {
   status         BedAllocationStatus @default(ACTIVE)
   vacatedAt      DateTime?
 
-  bed Bed @relation(fields: [bedId], references: [id], onDelete: Cascade)
+  bed    Bed    @relation(fields: [bedId], references: [id], onDelete: Cascade)
+  school School @relation("SchoolBedAllocation", fields: [schoolId], references: [id])
 
   @@unique([studentId, termId])
   @@index([bedId])
@@ -67,12 +75,14 @@ model BedAllocation {
   @@index([termId])
   @@index([status])
   @@index([academicYearId])
+  @@index([schoolId])
 }
 
 model Exeat {
   id                String      @id @default(cuid())
   exeatNumber       String      @unique // EXT/YYYY/NNNN
   studentId         String
+  schoolId          String
   termId            String
   reason            String
   type              ExeatType   @default(NORMAL)
@@ -90,53 +100,64 @@ model Exeat {
   updatedAt         DateTime    @updatedAt
 
   approvals ExeatApproval[]
+  school    School          @relation("SchoolExeat", fields: [schoolId], references: [id])
 
   @@index([studentId])
   @@index([termId])
   @@index([status])
+  @@index([schoolId])
 }
 
 model ExeatApproval {
   id           String @id @default(cuid())
   exeatId      String
+  schoolId     String
   approverRole String // e.g., "housemaster", "headmaster"
   approverId   String // userId
   action       ExeatApprovalAction
   comments     String?
   actionAt     DateTime @default(now())
 
-  exeat Exeat @relation(fields: [exeatId], references: [id], onDelete: Cascade)
+  exeat  Exeat  @relation(fields: [exeatId], references: [id], onDelete: Cascade)
+  school School @relation("SchoolExeatApproval", fields: [schoolId], references: [id])
 
   @@index([exeatId])
+  @@index([schoolId])
 }
 
 model RollCall {
   id          String   @id @default(cuid())
   hostelId    String
+  schoolId    String
   date        DateTime
   type        RollCallType @default(EVENING)
   conductedBy String   // userId
   conductedAt DateTime @default(now())
 
   records RollCallRecord[]
+  school  School           @relation("SchoolRollCall", fields: [schoolId], references: [id])
 
   @@unique([hostelId, date, type])
   @@index([hostelId])
   @@index([date])
   @@index([hostelId, date])
+  @@index([schoolId])
 }
 
 model RollCallRecord {
   id         String         @id @default(cuid())
   rollCallId String
   studentId  String
+  schoolId   String
   status     RollCallStatus @default(PRESENT)
   notes      String?
 
   rollCall RollCall @relation(fields: [rollCallId], references: [id], onDelete: Cascade)
+  school   School   @relation("SchoolRollCallRecord", fields: [schoolId], references: [id])
 
   @@unique([rollCallId, studentId])
   @@index([rollCallId])
+  @@index([schoolId])
 }
 
 enum BedStatus {
@@ -284,6 +305,7 @@ model SickBayAdmission {
 model MedicationLog {
   id                   String   @id @default(cuid())
   sickBayAdmissionId   String
+  schoolId             String
   medicationName       String
   dosage               String
   administeredBy       String // userId
@@ -291,8 +313,10 @@ model MedicationLog {
   notes                String?
 
   admission SickBayAdmission @relation(fields: [sickBayAdmissionId], references: [id], onDelete: Cascade)
+  school    School           @relation("SchoolMedicationLog", fields: [schoolId], references: [id])
 
   @@index([sickBayAdmissionId])
+  @@index([schoolId])
 }
 
 enum SickBaySeverity {

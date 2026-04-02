@@ -21,7 +21,7 @@ export default async function PeriodsPage({
         title="Periods"
         description="Configure daily time periods for the school timetable."
       />
-      <PeriodsClient periods={periodsResult.data ?? []} />
+      <PeriodsClient periods={"data" in periodsResult ? periodsResult.data : []} />
     </div>
   );
 }

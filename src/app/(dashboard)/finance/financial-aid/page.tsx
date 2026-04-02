@@ -16,10 +16,10 @@ export default async function FinancialAidPage() {
 
   return (
     <FinancialAidClient
-      applications={applicationsResult.data ?? []}
-      pagination={applicationsResult.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
-      academicYears={academicYearsResult.data ?? []}
-      terms={termsResult.data ?? []}
+      applications={"data" in applicationsResult ? applicationsResult.data : []}
+      pagination={"pagination" in applicationsResult ? applicationsResult.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 } : { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
+      academicYears={"data" in academicYearsResult ? academicYearsResult.data : []}
+      terms={"data" in termsResult ? termsResult.data : []}
     />
   );
 }

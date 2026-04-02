@@ -91,7 +91,7 @@ export function LmsClient({
         title: formData.title.trim(),
         description: formData.description.trim() || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         setFormError(result.error);
       } else {
         toast.success(`Course "${formData.title}" created successfully.`);
@@ -104,7 +104,7 @@ export function LmsClient({
   function handlePublish(course: CourseItem) {
     startTransition(async () => {
       const result = await publishCourseAction(course.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Course "${course.title}" published.`);
@@ -116,7 +116,7 @@ export function LmsClient({
   function handleArchive(course: CourseItem) {
     startTransition(async () => {
       const result = await archiveCourseAction(course.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Course "${course.title}" archived.`);
@@ -130,7 +130,7 @@ export function LmsClient({
       return;
     startTransition(async () => {
       const result = await deleteCourseAction(course.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Course "${course.title}" deleted.`);

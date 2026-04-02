@@ -14,8 +14,8 @@ export default async function TermsPage() {
     getTermsAction(),
   ]);
 
-  const academicYears = academicYearsResult.data ?? [];
-  const terms = termsResult.data ?? [];
+  const academicYears = "data" in academicYearsResult ? academicYearsResult.data : [];
+  const terms = "data" in termsResult ? termsResult.data : [];
 
   return <TermsClient academicYears={academicYears} terms={terms} />;
 }

@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 
@@ -11,15 +12,14 @@ export async function getStockTakesAction(filters?: {
   status?: string;
   storeId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_STOCK_TAKE_READ);
+  if (denied) return denied;
 
   const stockTakes = await db.stockTake.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       ...(filters?.status && { status: filters.status as any }),
       ...(filters?.storeId && { storeId: filters.storeId }),
     },
@@ -65,8 +65,10 @@ export async function getStockTakesAction(filters?: {
 // ─── Get Stock Take Detail ──────────────────────────────────────────
 
 export async function getStockTakeAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_STOCK_TAKE_READ);
+  if (denied) return denied;
 
   const stockTake = await db.stockTake.findUnique({
     where: { id },
@@ -112,11 +114,10 @@ export async function createStockTakeAction(data: {
   scheduledDate?: string;
   notes?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_STOCK_TAKE_CREATE);
+  if (denied) return denied;
 
   // Verify store exists
   const store = await db.store.findUnique({ where: { id: data.storeId } });
@@ -143,7 +144,7 @@ export async function createStockTakeAction(data: {
 
   const stockTake = await db.stockTake.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       storeId: data.storeId,
       reference,
       scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
@@ -160,7 +161,7 @@ export async function createStockTakeAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StockTake",
     entityId: stockTake.id,
@@ -175,8 +176,10 @@ export async function createStockTakeAction(data: {
 // ─── Start Stock Take ───────────────────────────────────────────────
 
 export async function startStockTakeAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_STOCK_TAKE_CREATE);
+  if (denied) return denied;
 
   const stockTake = await db.stockTake.findUnique({ where: { id } });
   if (!stockTake) return { error: "Stock take not found." };
@@ -184,11 +187,11 @@ export async function startStockTakeAction(id: string) {
 
   const updated = await db.stockTake.update({
     where: { id },
-    data: { status: "IN_PROGRESS", startedAt: new Date(), conductedBy: session.user.id! },
+    data: { status: "IN_PROGRESS", startedAt: new Date(), conductedBy: ctx.session.user.id },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "StockTake",
     entityId: id,
@@ -207,8 +210,10 @@ export async function recordCountAction(
   id: string,
   counts: Array<{ stockTakeItemId: string; physicalQuantity: number; varianceReason?: string }>,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_STOCK_TAKE_CREATE);
+  if (denied) return denied;
 
   const stockTake = await db.stockTake.findUnique({ where: { id } });
   if (!stockTake) return { error: "Stock take not found." };
@@ -236,8 +241,10 @@ export async function recordCountAction(
 // ─── Complete Stock Take ────────────────────────────────────────────
 
 export async function completeStockTakeAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_STOCK_TAKE_CREATE);
+  if (denied) return denied;
 
   const stockTake = await db.stockTake.findUnique({
     where: { id },
@@ -259,7 +266,7 @@ export async function completeStockTakeAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "StockTake",
     entityId: id,
@@ -275,8 +282,10 @@ export async function completeStockTakeAction(id: string) {
 // ─── Approve Stock Take (Apply Adjustments) ─────────────────────────
 
 export async function approveStockTakeAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_STOCK_TAKE_APPROVE);
+  if (denied) return denied;
 
   const stockTake = await db.stockTake.findUnique({
     where: { id },
@@ -315,7 +324,7 @@ export async function approveStockTakeAction(id: string) {
           reason: `Stock take ${stockTake.reference}: ${stItem.varianceReason || "Stock take adjustment"}`,
           referenceType: "stockTake",
           referenceId: stockTake.id,
-          conductedBy: session.user.id!,
+          conductedBy: ctx.session.user.id,
         },
       }),
       db.stockTakeItem.update({
@@ -329,11 +338,11 @@ export async function approveStockTakeAction(id: string) {
 
   const updated = await db.stockTake.update({
     where: { id },
-    data: { status: "APPROVED", approvedBy: session.user.id! },
+    data: { status: "APPROVED", approvedBy: ctx.session.user.id },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "StockTake",
     entityId: id,
@@ -349,8 +358,10 @@ export async function approveStockTakeAction(id: string) {
 // ─── Variance Summary ───────────────────────────────────────────────
 
 export async function getVarianceSummaryAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_STOCK_TAKE_READ);
+  if (denied) return denied;
 
   const stockTake = await db.stockTake.findUnique({
     where: { id },

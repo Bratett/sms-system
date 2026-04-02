@@ -14,8 +14,8 @@ export default async function RolesPage() {
     getPermissionsAction(),
   ]);
 
-  const roles = rolesResult.data ?? [];
-  const permissions = permissionsResult.data ?? [];
+  const roles = "data" in rolesResult ? rolesResult.data : [];
+  const permissions = "data" in permissionsResult ? permissionsResult.data : [];
 
   return (
     <div className="space-y-6">

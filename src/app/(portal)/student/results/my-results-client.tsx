@@ -57,7 +57,7 @@ export function MyResultsClient({ initialData, error }: MyResultsClientProps) {
     setLoading(true);
     try {
       const result = await getMyResultsAction(termId);
-      if (result.data) {
+      if ("data" in result && result.data) {
         setData(result.data as unknown as ResultsResponse);
       }
     } finally {

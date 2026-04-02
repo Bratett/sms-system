@@ -125,7 +125,7 @@ export function SuppliersClient({
   function handleSearch() {
     startTransition(async () => {
       const result = await getSuppliersAction(search || undefined);
-      if (result.data) {
+      if ("data" in result && result.data) {
         setSuppliers(result.data);
       }
     });
@@ -165,7 +165,7 @@ export function SuppliersClient({
           email: form.email || undefined,
           address: form.address || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -178,7 +178,7 @@ export function SuppliersClient({
           email: form.email || undefined,
           address: form.address || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -194,7 +194,7 @@ export function SuppliersClient({
 
     startTransition(async () => {
       const result = await deleteSupplierAction(supplier.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -221,7 +221,7 @@ export function SuppliersClient({
         value: contractForm.value ? parseFloat(contractForm.value) : undefined,
         documentUrl: contractForm.documentUrl || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -248,7 +248,7 @@ export function SuppliersClient({
         pricingScore: ratingForm.pricingScore,
         comments: ratingForm.comments || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

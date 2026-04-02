@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import {
@@ -14,13 +15,12 @@ import {
 } from "@/modules/finance/schemas/fee-template.schema";
 
 export async function getFeeTemplatesAction(filters?: { isActive?: boolean }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_TEMPLATES_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.isActive !== undefined) where.isActive = filters.isActive;
 
   const templates = await db.feeTemplate.findMany({
@@ -52,8 +52,10 @@ export async function getFeeTemplatesAction(filters?: { isActive?: boolean }) {
 }
 
 export async function getFeeTemplateAction(templateId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_TEMPLATES_READ);
+  if (denied) return denied;
 
   const template = await db.feeTemplate.findUnique({
     where: { id: templateId },
@@ -66,26 +68,24 @@ export async function getFeeTemplateAction(templateId: string) {
 }
 
 export async function createFeeTemplateAction(data: CreateFeeTemplateInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_TEMPLATES_CREATE);
+  if (denied) return denied;
 
   const parsed = createFeeTemplateSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const existing = await db.feeTemplate.findUnique({
-    where: { schoolId_name: { schoolId: school.id, name: parsed.data.name } },
+    where: { schoolId_name: { schoolId: ctx.schoolId, name: parsed.data.name } },
   });
   if (existing) return { error: "A fee template with this name already exists" };
 
   const template = await db.$transaction(async (tx) => {
     const created = await tx.feeTemplate.create({
       data: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: parsed.data.name,
         description: parsed.data.description,
         boardingStatus: parsed.data.boardingStatus,
@@ -95,6 +95,7 @@ export async function createFeeTemplateAction(data: CreateFeeTemplateInput) {
 
     await tx.feeTemplateItem.createMany({
       data: parsed.data.items.map((item) => ({
+        schoolId: ctx.schoolId,
         feeTemplateId: created.id,
         name: item.name,
         code: item.code,
@@ -108,7 +109,7 @@ export async function createFeeTemplateAction(data: CreateFeeTemplateInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "FeeTemplate",
     entityId: template.id,
@@ -120,8 +121,10 @@ export async function createFeeTemplateAction(data: CreateFeeTemplateInput) {
 }
 
 export async function updateFeeTemplateAction(templateId: string, data: UpdateFeeTemplateInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_TEMPLATES_UPDATE);
+  if (denied) return denied;
 
   const parsed = updateFeeTemplateSchema.safeParse(data);
   if (!parsed.success) {
@@ -137,7 +140,7 @@ export async function updateFeeTemplateAction(templateId: string, data: UpdateFe
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "FeeTemplate",
     entityId: templateId,
@@ -149,8 +152,10 @@ export async function updateFeeTemplateAction(templateId: string, data: UpdateFe
 }
 
 export async function deleteFeeTemplateAction(templateId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_TEMPLATES_DELETE);
+  if (denied) return denied;
 
   const template = await db.feeTemplate.findUnique({ where: { id: templateId } });
   if (!template) return { error: "Fee template not found" };
@@ -158,7 +163,7 @@ export async function deleteFeeTemplateAction(templateId: string) {
   await db.feeTemplate.delete({ where: { id: templateId } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "FeeTemplate",
     entityId: templateId,
@@ -170,17 +175,15 @@ export async function deleteFeeTemplateAction(templateId: string) {
 }
 
 export async function createFeeStructureFromTemplateAction(data: CreateFromTemplateInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_TEMPLATES_CREATE);
+  if (denied) return denied;
 
   const parsed = createFromTemplateSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const template = await db.feeTemplate.findUnique({
     where: { id: parsed.data.feeTemplateId },
     include: { items: true },
@@ -195,7 +198,7 @@ export async function createFeeStructureFromTemplateAction(data: CreateFromTempl
   const feeStructure = await db.$transaction(async (tx) => {
     const structure = await tx.feeStructure.create({
       data: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: parsed.data.name,
         academicYearId: parsed.data.academicYearId,
         termId: parsed.data.termId,
@@ -207,6 +210,7 @@ export async function createFeeStructureFromTemplateAction(data: CreateFromTempl
 
     await tx.feeItem.createMany({
       data: template.items.map((item) => ({
+        schoolId: ctx.schoolId,
         feeStructureId: structure.id,
         name: item.name,
         code: item.code,
@@ -220,7 +224,7 @@ export async function createFeeStructureFromTemplateAction(data: CreateFromTempl
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "FeeStructure",
     entityId: feeStructure.id,

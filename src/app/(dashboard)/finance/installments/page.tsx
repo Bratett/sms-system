@@ -14,8 +14,8 @@ export default async function InstallmentsPage() {
     getFeeStructuresAction({ status: "ACTIVE" }),
   ]);
 
-  const plans = plansResult.data ?? [];
-  const feeStructures = feeStructuresResult.data ?? [];
+  const plans = "data" in plansResult ? plansResult.data : [];
+  const feeStructures = "data" in feeStructuresResult ? feeStructuresResult.data : [];
 
   return (
     <InstallmentsClient

@@ -170,28 +170,28 @@ export function BulkOperationsClient({
       switch (operation) {
         case "compute_terminal": {
           const r = await batchComputeResultsAction(armIds, selectedTerm, selectedYear);
-          errorMsg = r.error;
-          resultItems = r.data?.results ?? [];
+          errorMsg = "error" in r ? r.error : undefined;
+          resultItems = "data" in r ? r.data?.results ?? [] : [];
           break;
         }
         case "compute_annual": {
           const r = await batchComputeAnnualResultsAction(armIds, selectedYear);
-          errorMsg = r.error;
-          resultItems = r.data?.results ?? [];
+          errorMsg = "error" in r ? r.error : undefined;
+          resultItems = "data" in r ? r.data?.results ?? [] : [];
           break;
         }
         case "generate_reports": {
           const r = await batchGenerateReportCardsAction(armIds, selectedTerm);
-          errorMsg = r.error;
-          if (!r.error) {
+          errorMsg = "error" in r ? r.error : undefined;
+          if (!("error" in r)) {
             resultItems = armIds.map((id) => ({ classArmId: id, status: "success", computed: Array.isArray(r.data) ? r.data.length : 0 }));
           }
           break;
         }
         case "promote_students": {
           const r = await batchPromoteAction(armIds, selectedYear);
-          errorMsg = r.error;
-          if (r.data) {
+          errorMsg = "error" in r ? r.error : undefined;
+          if ("data" in r && r.data) {
             resultItems = armIds.map((id) => ({ classArmId: id, status: "success", computed: r.data!.totalPromoted + r.data!.totalRetained + r.data!.totalGraduated }));
           }
           break;

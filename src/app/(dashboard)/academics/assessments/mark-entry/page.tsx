@@ -10,7 +10,7 @@ export default async function MarkEntryPage() {
   }
 
   const dropdownsResult = await getAcademicDropdownsAction();
-  const dropdowns = dropdownsResult.data ?? {
+  const dropdowns = "data" in dropdownsResult ? dropdownsResult.data : {
     subjects: [],
     classArms: [],
     assessmentTypes: [],

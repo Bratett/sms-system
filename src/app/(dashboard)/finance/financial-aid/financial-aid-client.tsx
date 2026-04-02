@@ -106,7 +106,7 @@ export function FinancialAidClient({
         householdIncome: formData.householdIncome ? parseFloat(formData.householdIncome) : undefined,
         numberOfDependents: formData.numberOfDependents ? parseInt(formData.numberOfDependents) : undefined,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Financial aid application submitted");
       setShowCreateModal(false);
       router.refresh();
@@ -132,7 +132,7 @@ export function FinancialAidClient({
         applicationId: selectedApp.id, status: "APPROVED",
         approvedAmount: reviewData.approvedAmount, reviewNotes: reviewData.reviewNotes || undefined,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Application approved");
       setShowReviewModal(false);
       router.refresh();
@@ -147,7 +147,7 @@ export function FinancialAidClient({
         applicationId: selectedApp.id, status: "REJECTED",
         reviewNotes: reviewData.reviewNotes,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Application rejected");
       setShowReviewModal(false);
       router.refresh();

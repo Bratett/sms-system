@@ -13,8 +13,8 @@ export default async function TaxCompliancePage() {
 
   return (
     <TaxComplianceClient
-      records={recordsResult.data ?? []}
-      summary={summaryResult.data ?? null}
+      records={"data" in recordsResult ? recordsResult.data : []}
+      summary={"data" in summaryResult ? summaryResult.data : null}
     />
   );
 }

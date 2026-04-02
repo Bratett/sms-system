@@ -71,7 +71,7 @@ export function ApplicationsClient({
         search: newSearch ?? search,
         status: newStatus ?? statusFilter,
       });
-      if (result.data) {
+      if ("data" in result) {
         setApplications(result.data.applications as unknown as ApplicationRow[]);
         setTotal(result.data.total);
         setPage(newPage);
@@ -95,7 +95,7 @@ export function ApplicationsClient({
     }
     startTransition(async () => {
       const result = await deleteApplicationAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Application deleted successfully.");

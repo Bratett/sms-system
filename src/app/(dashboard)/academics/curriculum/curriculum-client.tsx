@@ -66,7 +66,7 @@ export function CurriculumClient({
     setLoading(true);
     getProgrammeSubjectsAction(selectedProgrammeId).then((result) => {
       if (cancelled) return;
-      if (result.data) {
+      if ("data" in result) {
         setProgrammeSubjects(result.data);
       }
       setLoading(false);
@@ -97,13 +97,13 @@ export function CurriculumClient({
         subjectId,
         isCore,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Subject assigned to programme.");
         // Refresh the programme subjects
         const refreshed = await getProgrammeSubjectsAction(selectedProgrammeId);
-        if (refreshed.data) {
+        if ("data" in refreshed) {
           setProgrammeSubjects(refreshed.data);
         }
         if (isCore) setCoreSubjectToAdd("");
@@ -118,12 +118,12 @@ export function CurriculumClient({
 
     startTransition(async () => {
       const result = await removeSubjectFromProgrammeAction(ps.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`"${ps.subjectName}" removed from programme.`);
         const refreshed = await getProgrammeSubjectsAction(selectedProgrammeId);
-        if (refreshed.data) {
+        if ("data" in refreshed) {
           setProgrammeSubjects(refreshed.data);
         }
         router.refresh();

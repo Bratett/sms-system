@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Activity CRUD ───────────────────────────────────────────────────
@@ -13,20 +14,19 @@ export async function createActivityAction(data: {
   supervisorId?: string;
   maxParticipants?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COCURRICULAR_CREATE);
+  if (denied) return denied;
 
   const existing = await db.coCurricularActivity.findFirst({
-    where: { schoolId: school.id, name: data.name },
+    where: { schoolId: ctx.schoolId, name: data.name },
   });
   if (existing) return { error: "An activity with this name already exists." };
 
   const activity = await db.coCurricularActivity.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       type: data.type as any,
       description: data.description,
@@ -36,7 +36,7 @@ export async function createActivityAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "CoCurricularActivity",
     entityId: activity.id,
@@ -55,8 +55,10 @@ export async function updateActivityAction(id: string, data: {
   maxParticipants?: number;
   status?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COCURRICULAR_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.coCurricularActivity.findUnique({ where: { id } });
   if (!existing) return { error: "Activity not found." };
@@ -77,21 +79,22 @@ export async function updateActivityAction(id: string, data: {
 }
 
 export async function deleteActivityAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COCURRICULAR_UPDATE);
+  if (denied) return denied;
 
   await db.coCurricularActivity.delete({ where: { id } });
   return { data: { deleted: true } };
 }
 
 export async function getActivitiesAction(filters?: { type?: string; status?: string }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COCURRICULAR_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.type) where.type = filters.type;
   if (filters?.status) where.status = filters.status;
 
@@ -124,8 +127,10 @@ export async function addStudentToActivityAction(data: {
   academicYearId: string;
   role?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COCURRICULAR_CREATE);
+  if (denied) return denied;
 
   const existing = await db.studentActivity.findFirst({
     where: { activityId: data.activityId, studentId: data.studentId, academicYearId: data.academicYearId },
@@ -134,6 +139,7 @@ export async function addStudentToActivityAction(data: {
 
   const participation = await db.studentActivity.create({
     data: {
+      schoolId: ctx.schoolId,
       activityId: data.activityId,
       studentId: data.studentId,
       academicYearId: data.academicYearId,
@@ -145,16 +151,20 @@ export async function addStudentToActivityAction(data: {
 }
 
 export async function removeStudentFromActivityAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COCURRICULAR_UPDATE);
+  if (denied) return denied;
 
   await db.studentActivity.delete({ where: { id } });
   return { data: { deleted: true } };
 }
 
 export async function getStudentActivitiesAction(studentId: string, academicYearId?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COCURRICULAR_READ);
+  if (denied) return denied;
 
   const where: Record<string, unknown> = { studentId };
   if (academicYearId) where.academicYearId = academicYearId;

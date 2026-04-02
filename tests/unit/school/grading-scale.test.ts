@@ -28,9 +28,9 @@ describe("getGradingScalesAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getGradingScalesAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return grading scales list", async () => {
@@ -116,12 +116,12 @@ describe("createGradingScaleAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await createGradingScaleAction({
       name: "Test Scale",
       grades: sampleGrades,
     });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should reject if no grade definitions provided", async () => {
@@ -188,9 +188,9 @@ describe("updateGradingScaleAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await updateGradingScaleAction("gs-1", { name: "Updated" });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return error if scale not found", async () => {
@@ -308,9 +308,9 @@ describe("setDefaultGradingScaleAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await setDefaultGradingScaleAction("gs-1");
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return error if scale not found", async () => {

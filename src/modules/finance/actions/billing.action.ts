@@ -1,8 +1,9 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
 import {
   generateBillsSchema,
@@ -10,10 +11,10 @@ import {
 } from "@/modules/finance/schemas/billing.schema";
 
 export async function generateBillsAction(data: GenerateBillsInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BILLING_CREATE);
+  if (denied) return denied;
 
   const parsed = generateBillsSchema.safeParse(data);
   if (!parsed.success) {
@@ -137,6 +138,7 @@ export async function generateBillsAction(data: GenerateBillsInput) {
       await db.$transaction(async (tx) => {
         const bill = await tx.studentBill.create({
           data: {
+            schoolId: ctx.schoolId,
             studentId: student.id,
             feeStructureId: feeStructure.id,
             termId: feeStructure.termId,
@@ -152,6 +154,7 @@ export async function generateBillsAction(data: GenerateBillsInput) {
         const billItemsData = feeStructure.feeItems
           .filter((item) => !item.isOptional)
           .map((item) => ({
+            schoolId: ctx.schoolId,
             studentBillId: bill.id,
             feeItemId: item.id,
             amount: item.amount,
@@ -171,7 +174,7 @@ export async function generateBillsAction(data: GenerateBillsInput) {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StudentBill",
     entityId: feeStructure.id,
@@ -191,10 +194,10 @@ export async function getBillsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BILLING_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
@@ -270,10 +273,10 @@ export async function getBillsAction(filters?: {
 }
 
 export async function getStudentBillAction(billId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BILLING_READ);
+  if (denied) return denied;
 
   const bill = await db.studentBill.findUnique({
     where: { id: billId },
@@ -331,10 +334,10 @@ export async function getStudentBillAction(billId: string) {
 }
 
 export async function getStudentBillsAction(studentId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BILLING_READ);
+  if (denied) return denied;
 
   const bills = await db.studentBill.findMany({
     where: { studentId },

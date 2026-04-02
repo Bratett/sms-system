@@ -60,7 +60,7 @@ export function AttendanceReportsClient({
 
     startTransition(async () => {
       const result = await getAttendanceSummaryAction(selectedClassArmId, selectedTermId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         setSummaryData(result.data ?? []);
@@ -149,9 +149,9 @@ export function AttendanceReportsClient({
                       termId: selectedTermId,
                       format: "csv",
                     });
-                    if (result.error) {
+                    if ("error" in result) {
                       toast.error(result.error);
-                    } else if (result.data) {
+                    } else if ("data" in result) {
                       const blob = new Blob(
                         [Uint8Array.from(atob(result.data.base64), (c) => c.charCodeAt(0))],
                         { type: result.data.contentType },
@@ -178,9 +178,9 @@ export function AttendanceReportsClient({
                       termId: selectedTermId,
                       format: "xlsx",
                     });
-                    if (result.error) {
+                    if ("error" in result) {
                       toast.error(result.error);
-                    } else if (result.data) {
+                    } else if ("data" in result) {
                       const blob = new Blob(
                         [Uint8Array.from(atob(result.data.base64), (c) => c.charCodeAt(0))],
                         { type: result.data.contentType },

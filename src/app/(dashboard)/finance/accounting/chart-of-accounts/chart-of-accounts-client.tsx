@@ -97,7 +97,7 @@ export function ChartOfAccountsClient({
   function handleSeedDefaults() {
     startTransition(async () => {
       const result = await seedDefaultChartOfAccountsAction();
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -117,7 +117,7 @@ export function ChartOfAccountsClient({
         description: formData.description || undefined,
         normalBalance: formData.normalBalance as "DEBIT" | "CREDIT",
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -131,7 +131,7 @@ export function ChartOfAccountsClient({
   function handleToggleActive(accountId: string, currentlyActive: boolean) {
     startTransition(async () => {
       const result = await updateAccountAction(accountId, { isActive: !currentlyActive });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

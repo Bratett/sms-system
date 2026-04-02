@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Upsert Student Conduct ─────────────────────────────────────────
@@ -25,14 +26,17 @@ export async function upsertStudentConductAction(data: {
   verbalFluency?: string;
   remarks?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CONDUCT_CREATE);
+  if (denied) return denied;
 
   const existing = await db.studentConduct.findFirst({
     where: { studentId: data.studentId, termId: data.termId, academicYearId: data.academicYearId },
   });
 
   const conductData = {
+    schoolId: ctx.schoolId,
     studentId: data.studentId,
     classArmId: data.classArmId,
     termId: data.termId,
@@ -50,7 +54,7 @@ export async function upsertStudentConductAction(data: {
     handwriting: data.handwriting ? (data.handwriting as any) : undefined,
     verbalFluency: data.verbalFluency ? (data.verbalFluency as any) : undefined,
     remarks: data.remarks ?? undefined,
-    ratedBy: session.user.id!,
+    ratedBy: ctx.session.user.id!,
   };
 
   const result = existing
@@ -58,7 +62,7 @@ export async function upsertStudentConductAction(data: {
     : await db.studentConduct.create({ data: conductData });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: existing ? "UPDATE" : "CREATE",
     entity: "StudentConduct",
     entityId: result.id,
@@ -93,8 +97,10 @@ export async function batchUpsertConductAction(
   termId: string,
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CONDUCT_CREATE);
+  if (denied) return denied;
 
   let saved = 0;
   const errors: string[] = [];
@@ -106,7 +112,7 @@ export async function batchUpsertConductAction(
       termId,
       academicYearId,
     });
-    if (result.error) errors.push(`${record.studentId}: ${result.error}`);
+    if ("error" in result) errors.push(`${record.studentId}: ${result.error}`);
     else saved++;
   }
 
@@ -116,8 +122,10 @@ export async function batchUpsertConductAction(
 // ─── Get Class Conduct Records ───────────────────────────────────────
 
 export async function getClassConductAction(classArmId: string, termId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CONDUCT_READ);
+  if (denied) return denied;
 
   const enrollments = await db.enrollment.findMany({
     where: { classArmId, status: "ACTIVE" },
@@ -166,8 +174,10 @@ export async function getClassConductAction(classArmId: string, termId: string) 
 // ─── Get Student Conduct ─────────────────────────────────────────────
 
 export async function getStudentConductAction(studentId: string, termId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CONDUCT_READ);
+  if (denied) return denied;
 
   const conduct = await db.studentConduct.findFirst({ where: { studentId, termId } });
   if (!conduct) return { data: null };

@@ -24,7 +24,7 @@ export default async function AssignmentDetailPage({ params }: PageProps) {
     getSubmissionsAction(assignmentId),
   ]);
 
-  if (assignmentResult.error || !assignmentResult.data) {
+  if ("error" in assignmentResult || !("data" in assignmentResult) || !assignmentResult.data) {
     notFound();
   }
 
@@ -44,7 +44,7 @@ export default async function AssignmentDetailPage({ params }: PageProps) {
       />
       <AssignmentDetailClient
         assignment={assignmentResult.data as never}
-        submissions={(submissionsResult.data ?? []) as never}
+        submissions={("data" in submissionsResult ? submissionsResult.data : []) as never}
       />
     </div>
   );

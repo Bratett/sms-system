@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { z } from "zod";
@@ -33,9 +33,9 @@ type RenewContractInput = z.infer<typeof renewContractSchema>;
 // ─── CRUD ───────────────────────────────────────────────────
 
 export async function getStaffContractsAction(staffId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.CONTRACT_READ)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.CONTRACT_READ)) return { error: "Insufficient permissions" };
 
   const contracts = await db.staffContract.findMany({
     where: { staffId },
@@ -51,19 +51,16 @@ export async function getAllContractsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.CONTRACT_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.CONTRACT_READ)) return { error: "Insufficient permissions" };
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: any = { schoolId: school.id };
+  const where: any = { schoolId: ctx.schoolId };
   if (filters?.status) where.status = filters.status;
   if (filters?.type) where.type = filters.type;
 
@@ -84,22 +81,19 @@ export async function getAllContractsAction(filters?: {
 }
 
 export async function createContractAction(data: CreateContractInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.CONTRACT_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.CONTRACT_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = createContractSchema.safeParse(data);
-  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
 
   const staff = await db.staff.findUnique({ where: { id: parsed.data.staffId } });
   if (!staff) return { error: "Staff member not found." };
 
   const contract = await db.staffContract.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       staffId: parsed.data.staffId,
       contractNumber: parsed.data.contractNumber || null,
       type: parsed.data.type,
@@ -108,12 +102,12 @@ export async function createContractAction(data: CreateContractInput) {
       renewalDate: parsed.data.renewalDate ? new Date(parsed.data.renewalDate) : null,
       terms: parsed.data.terms || null,
       documentId: parsed.data.documentId || null,
-      createdBy: session.user.id!,
+      createdBy: ctx.session.user.id,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StaffContract",
     entityId: contract.id,
@@ -126,9 +120,9 @@ export async function createContractAction(data: CreateContractInput) {
 }
 
 export async function renewContractAction(contractId: string, data: RenewContractInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.CONTRACT_UPDATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.CONTRACT_UPDATE)) return { error: "Insufficient permissions" };
 
   const parsed = renewContractSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -152,12 +146,12 @@ export async function renewContractAction(contractId: string, data: RenewContrac
       startDate: existing.endDate ?? new Date(),
       endDate: new Date(parsed.data.newEndDate),
       terms: parsed.data.newTerms || existing.terms,
-      createdBy: session.user.id!,
+      createdBy: ctx.session.user.id,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "StaffContract",
     entityId: contractId,
@@ -171,12 +165,9 @@ export async function renewContractAction(contractId: string, data: RenewContrac
 }
 
 export async function getExpiringContractsAction(daysAhead: number = 30) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.CONTRACT_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.CONTRACT_READ)) return { error: "Insufficient permissions" };
 
   const now = new Date();
   const futureDate = new Date();
@@ -184,7 +175,7 @@ export async function getExpiringContractsAction(daysAhead: number = 30) {
 
   const contracts = await db.staffContract.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       status: "ACTIVE",
       endDate: {
         gte: now,

@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import {
@@ -12,13 +13,12 @@ import {
 } from "@/modules/finance/schemas/installment.schema";
 
 export async function getInstallmentPlansAction(filters?: { feeStructureId?: string; isActive?: boolean }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INSTALLMENTS_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.feeStructureId) where.feeStructureId = filters.feeStructureId;
   if (filters?.isActive !== undefined) where.isActive = filters.isActive;
 
@@ -52,21 +52,19 @@ export async function getInstallmentPlansAction(filters?: { feeStructureId?: str
 }
 
 export async function createInstallmentPlanAction(data: CreateInstallmentPlanInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INSTALLMENTS_CREATE);
+  if (denied) return denied;
 
   const parsed = createInstallmentPlanSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const plan = await db.$transaction(async (tx) => {
     const created = await tx.installmentPlan.create({
       data: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: parsed.data.name,
         feeStructureId: parsed.data.feeStructureId,
         numberOfInstallments: parsed.data.numberOfInstallments,
@@ -75,6 +73,7 @@ export async function createInstallmentPlanAction(data: CreateInstallmentPlanInp
 
     await tx.installmentSchedule.createMany({
       data: parsed.data.schedules.map((s) => ({
+        schoolId: ctx.schoolId,
         installmentPlanId: created.id,
         installmentNumber: s.installmentNumber,
         percentageOfTotal: s.percentageOfTotal,
@@ -87,7 +86,7 @@ export async function createInstallmentPlanAction(data: CreateInstallmentPlanInp
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "InstallmentPlan",
     entityId: plan.id,
@@ -99,8 +98,10 @@ export async function createInstallmentPlanAction(data: CreateInstallmentPlanInp
 }
 
 export async function updateInstallmentPlanAction(planId: string, data: { name?: string; isActive?: boolean }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INSTALLMENTS_UPDATE);
+  if (denied) return denied;
 
   const plan = await db.installmentPlan.findUnique({ where: { id: planId } });
   if (!plan) return { error: "Installment plan not found" };
@@ -111,7 +112,7 @@ export async function updateInstallmentPlanAction(planId: string, data: { name?:
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "InstallmentPlan",
     entityId: planId,
@@ -123,8 +124,10 @@ export async function updateInstallmentPlanAction(planId: string, data: { name?:
 }
 
 export async function deleteInstallmentPlanAction(planId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INSTALLMENTS_UPDATE);
+  if (denied) return denied;
 
   const plan = await db.installmentPlan.findUnique({
     where: { id: planId },
@@ -139,7 +142,7 @@ export async function deleteInstallmentPlanAction(planId: string) {
   await db.installmentPlan.delete({ where: { id: planId } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "InstallmentPlan",
     entityId: planId,
@@ -151,8 +154,10 @@ export async function deleteInstallmentPlanAction(planId: string) {
 }
 
 export async function applyInstallmentPlanToBillAction(data: ApplyInstallmentPlanInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INSTALLMENTS_CREATE);
+  if (denied) return denied;
 
   const parsed = applyInstallmentPlanSchema.safeParse(data);
   if (!parsed.success) {
@@ -194,6 +199,7 @@ export async function applyInstallmentPlanToBillAction(data: ApplyInstallmentPla
 
       const installment = await tx.studentInstallment.create({
         data: {
+          schoolId: ctx.schoolId,
           studentBillId: bill.id,
           installmentPlanId: plan.id,
           installmentNumber: schedule.installmentNumber,
@@ -208,7 +214,7 @@ export async function applyInstallmentPlanToBillAction(data: ApplyInstallmentPla
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StudentInstallment",
     entityId: bill.id,
@@ -220,8 +226,10 @@ export async function applyInstallmentPlanToBillAction(data: ApplyInstallmentPla
 }
 
 export async function getStudentInstallmentsAction(studentBillId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INSTALLMENTS_READ);
+  if (denied) return denied;
 
   const installments = await db.studentInstallment.findMany({
     where: { studentBillId },
@@ -249,8 +257,10 @@ export async function getStudentInstallmentsAction(studentBillId: string) {
 }
 
 export async function removeStudentInstallmentsAction(studentBillId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INSTALLMENTS_UPDATE);
+  if (denied) return denied;
 
   // Check for any paid installments
   const paidInstallments = await db.studentInstallment.findFirst({
@@ -264,7 +274,7 @@ export async function removeStudentInstallmentsAction(studentBillId: string) {
   const deleted = await db.studentInstallment.deleteMany({ where: { studentBillId } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "StudentInstallment",
     entityId: studentBillId,

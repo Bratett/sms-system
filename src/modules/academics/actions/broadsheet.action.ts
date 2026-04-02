@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 
 // ─── Generate Broadsheet ──────────────────────────────────────────────
 
@@ -9,10 +10,10 @@ export async function generateBroadsheetAction(
   classArmId: string,
   termId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_READ);
+  if (denied) return denied;
 
   // Get all terminal results with subject results for this class arm and term
   const terminalResults = await db.terminalResult.findMany({

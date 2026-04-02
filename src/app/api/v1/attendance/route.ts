@@ -138,6 +138,7 @@ export async function POST(request: NextRequest) {
             },
           },
           create: {
+            schoolId: register.schoolId,
             registerId: register.id,
             studentId: r.studentId,
             status: r.status as "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | "SICK",
@@ -240,6 +241,7 @@ export async function PUT(request: NextRequest) {
             },
           },
           create: {
+            schoolId: register.schoolId,
             registerId,
             studentId: r.studentId,
             status: r.status as "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | "SICK",

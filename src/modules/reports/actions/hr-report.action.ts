@@ -1,30 +1,26 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 
 export async function getHrReportAction(filters?: {
   academicYearId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.REPORTS_ACADEMIC_READ);
+  if (denied) return denied;
 
   // Total staff
   const totalStaff = await db.staff.count({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
   });
 
   // By type (teaching / non-teaching)
   const byTypeRaw = await db.staff.groupBy({
     by: ["staffType"],
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     _count: { _all: true },
   });
 
@@ -37,7 +33,7 @@ export async function getHrReportAction(filters?: {
   // By status
   const byStatusRaw = await db.staff.groupBy({
     by: ["status"],
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     _count: { _all: true },
   });
 
@@ -49,7 +45,7 @@ export async function getHrReportAction(filters?: {
 
   // Department distribution
   const departments = await db.department.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     select: { id: true, name: true },
   });
 

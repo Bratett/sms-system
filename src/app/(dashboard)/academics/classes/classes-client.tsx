@@ -114,7 +114,7 @@ export function ClassesClient({
     }
     startTransition(async () => {
       const result = await getClassesAction(selectedYearId);
-      if (result.data) {
+      if ("data" in result) {
         setClasses(result.data);
       }
     });
@@ -164,7 +164,7 @@ export function ClassesClient({
     if (!confirm(`Are you sure you want to delete class "${cls.name}"?`)) return;
     startTransition(async () => {
       const result = await deleteClassAction(cls.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Class "${cls.name}" deleted successfully.`);
@@ -198,7 +198,7 @@ export function ClassesClient({
           yearGroup: classForm.yearGroup,
           maxCapacity: classForm.maxCapacity,
         });
-        if (result.error) {
+        if ("error" in result) {
           setClassFormError(result.error);
         } else {
           toast.success(`Class "${classForm.name}" updated successfully.`);
@@ -214,7 +214,7 @@ export function ClassesClient({
           code: classForm.code.trim() || undefined,
           maxCapacity: classForm.maxCapacity,
         });
-        if (result.error) {
+        if ("error" in result) {
           setClassFormError(result.error);
         } else {
           toast.success(`Class "${classForm.name}" created successfully.`);
@@ -247,7 +247,7 @@ export function ClassesClient({
     if (!confirm(`Are you sure you want to delete class arm "${arm.name}"?`)) return;
     startTransition(async () => {
       const result = await deleteClassArmAction(arm.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Class arm "${arm.name}" deleted successfully.`);
@@ -270,7 +270,7 @@ export function ClassesClient({
           name: armForm.name.trim(),
           capacity: armForm.capacity,
         });
-        if (result.error) {
+        if ("error" in result) {
           setArmFormError(result.error);
         } else {
           toast.success(`Class arm "${armForm.name}" updated successfully.`);
@@ -283,7 +283,7 @@ export function ClassesClient({
           name: armForm.name.trim(),
           capacity: armForm.capacity,
         });
-        if (result.error) {
+        if ("error" in result) {
           setArmFormError(result.error);
         } else {
           toast.success(`Class arm "${armForm.name}" created successfully.`);

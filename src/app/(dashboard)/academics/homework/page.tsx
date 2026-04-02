@@ -8,10 +8,11 @@ export default async function HomeworkPage() {
   if (!session?.user) return null;
 
   const dropdownsResult = await getAcademicDropdownsAction();
-  const classArms = dropdownsResult.data?.classArms ?? [];
-  const terms = dropdownsResult.data?.terms ?? [];
-  const subjects = dropdownsResult.data?.subjects ?? [];
-  const academicYears = dropdownsResult.data?.academicYears ?? [];
+  const dropdownsData = "data" in dropdownsResult ? dropdownsResult.data : null;
+  const classArms = dropdownsData?.classArms ?? [];
+  const terms = dropdownsData?.terms ?? [];
+  const subjects = dropdownsData?.subjects ?? [];
+  const academicYears = dropdownsData?.academicYears ?? [];
 
   return (
     <div className="space-y-6">

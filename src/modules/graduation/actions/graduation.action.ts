@@ -1,24 +1,20 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Get Graduation Batches ─────────────────────────────────────────
 
 export async function getGraduationBatchesAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.GRADUATION_READ);
+  if (denied) return denied;
 
   const batches = await db.graduationBatch.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     include: {
       _count: { select: { records: true } },
       records: {
@@ -86,19 +82,14 @@ export async function createGraduationBatchAction(data: {
   name: string;
   ceremonyDate?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.GRADUATION_CREATE);
+  if (denied) return denied;
 
   const batch = await db.graduationBatch.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       academicYearId: data.academicYearId,
       name: data.name,
       ceremonyDate: data.ceremonyDate ? new Date(data.ceremonyDate) : null,
@@ -107,7 +98,7 @@ export async function createGraduationBatchAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "GraduationBatch",
     entityId: batch.id,
@@ -122,10 +113,10 @@ export async function createGraduationBatchAction(data: {
 // ─── Add Graduates to Batch ─────────────────────────────────────────
 
 export async function addGraduatesToBatchAction(batchId: string, studentIds: string[]) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.GRADUATION_CREATE);
+  if (denied) return denied;
 
   const batch = await db.graduationBatch.findUnique({ where: { id: batchId } });
   if (!batch) {
@@ -174,6 +165,7 @@ export async function addGraduatesToBatchAction(batchId: string, studentIds: str
   }
 
   const records = newStudents.map((s) => ({
+    schoolId: ctx.schoolId,
     graduationBatchId: batchId,
     studentId: s.id,
     status: "PENDING",
@@ -182,7 +174,7 @@ export async function addGraduatesToBatchAction(batchId: string, studentIds: str
   await db.graduationRecord.createMany({ data: records });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "GraduationRecord",
     module: "graduation",
@@ -199,10 +191,10 @@ export async function confirmGraduateAction(
   recordId: string,
   data: { certificateNumber?: string; honours?: string },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.GRADUATION_APPROVE);
+  if (denied) return denied;
 
   const record = await db.graduationRecord.findUnique({
     where: { id: recordId },
@@ -229,7 +221,7 @@ export async function confirmGraduateAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "GraduationRecord",
     entityId: recordId,
@@ -245,10 +237,10 @@ export async function confirmGraduateAction(
 // ─── Complete Batch ─────────────────────────────────────────────────
 
 export async function completeBatchAction(batchId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.GRADUATION_APPROVE);
+  if (denied) return denied;
 
   const batch = await db.graduationBatch.findUnique({
     where: { id: batchId },
@@ -265,7 +257,7 @@ export async function completeBatchAction(batchId: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "GraduationBatch",
     entityId: batchId,
@@ -281,22 +273,17 @@ export async function completeBatchAction(batchId: string) {
 // ─── Get Alumni ─────────────────────────────────────────────────────
 
 export async function getAlumniAction(search?: string, page?: number, pageSize?: number) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.GRADUATION_READ);
+  if (denied) return denied;
 
   const p = page ?? 1;
   const ps = pageSize ?? 20;
   const skip = (p - 1) * ps;
 
   const where: Record<string, unknown> = {
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
     status: "GRADUATED",
   };
 
@@ -376,15 +363,10 @@ export async function getAlumniAction(search?: string, page?: number, pageSize?:
 // ─── Search SHS 3 Students ─────────────────────────────────────────
 
 export async function searchGraduationEligibleStudentsAction(search: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.GRADUATION_READ);
+  if (denied) return denied;
 
   if (!search || search.length < 2) {
     return { data: [] };
@@ -392,7 +374,7 @@ export async function searchGraduationEligibleStudentsAction(search: string) {
 
   // Get SHS 3 students (yearGroup 3)
   const currentYear = await db.academicYear.findFirst({
-    where: { schoolId: school.id, isCurrent: true },
+    where: { schoolId: ctx.schoolId, isCurrent: true },
   });
 
   if (!currentYear) {
@@ -435,18 +417,13 @@ export async function searchGraduationEligibleStudentsAction(search: string) {
 // ─── Get Academic Years (for dropdown) ──────────────────────────────
 
 export async function getAcademicYearsForGraduationAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.GRADUATION_READ);
+  if (denied) return denied;
 
   const years = await db.academicYear.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: { startDate: "desc" },
     select: { id: true, name: true, isCurrent: true },
   });

@@ -112,7 +112,7 @@ export function AssignmentsClient({
         filterYearId || undefined,
         filterTermId || undefined,
       );
-      if (result.data) {
+      if ("data" in result) {
         setAssignments(result.data);
       }
     });
@@ -151,7 +151,7 @@ export function AssignmentsClient({
 
     startTransition(async () => {
       const result = await deleteTeacherAssignmentAction(assignment.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Assignment removed successfully.");
@@ -160,7 +160,7 @@ export function AssignmentsClient({
           filterYearId || undefined,
           filterTermId || undefined,
         );
-        if (refreshed.data) setAssignments(refreshed.data);
+        if ("data" in refreshed) setAssignments(refreshed.data);
       }
     });
   }
@@ -193,7 +193,7 @@ export function AssignmentsClient({
         academicYearId: formData.academicYearId,
         termId: formData.termId || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         setFormError(result.error);
       } else {
         toast.success("Teacher assignment created successfully.");
@@ -203,7 +203,7 @@ export function AssignmentsClient({
           filterYearId || undefined,
           filterTermId || undefined,
         );
-        if (refreshed.data) setAssignments(refreshed.data);
+        if ("data" in refreshed) setAssignments(refreshed.data);
       }
     });
   }

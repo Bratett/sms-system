@@ -16,9 +16,9 @@ export default async function ScholarshipsPage() {
     getTermsAction(),
   ]);
 
-  const scholarships = scholarshipsResult.data ?? [];
-  const academicYears = academicYearsResult.data ?? [];
-  const terms = termsResult.data ?? [];
+  const scholarships = "data" in scholarshipsResult ? scholarshipsResult.data : [];
+  const academicYears = "data" in academicYearsResult ? academicYearsResult.data : [];
+  const terms = "data" in termsResult ? termsResult.data : [];
 
   return (
     <ScholarshipsClient

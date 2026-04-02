@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import {
   uploadBankStatementSchema,
@@ -13,17 +14,16 @@ export async function getBankReconciliationsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BANK_RECONCILIATION_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.status) where.status = filters.status;
 
   const [reconciliations, total] = await Promise.all([
@@ -57,8 +57,10 @@ export async function getBankReconciliationsAction(filters?: {
 }
 
 export async function getReconciliationEntriesAction(reconciliationId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BANK_RECONCILIATION_READ);
+  if (denied) return denied;
 
   const entries = await db.bankStatementEntry.findMany({
     where: { bankReconciliationId: reconciliationId },
@@ -69,31 +71,30 @@ export async function getReconciliationEntriesAction(reconciliationId: string) {
 }
 
 export async function uploadBankStatementAction(data: UploadBankStatementInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BANK_RECONCILIATION_CREATE);
+  if (denied) return denied;
 
   const parsed = uploadBankStatementSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const reconciliation = await db.$transaction(async (tx) => {
     const recon = await tx.bankReconciliation.create({
       data: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         bankName: parsed.data.bankName,
         accountNumber: parsed.data.accountNumber,
         statementDate: parsed.data.statementDate,
-        uploadedBy: session.user.id!,
+        uploadedBy: ctx.session.user.id,
         totalEntries: parsed.data.entries.length,
       },
     });
 
     await tx.bankStatementEntry.createMany({
       data: parsed.data.entries.map((entry) => ({
+        schoolId: ctx.schoolId,
         bankReconciliationId: recon.id,
         transactionDate: entry.transactionDate,
         description: entry.description,
@@ -108,7 +109,7 @@ export async function uploadBankStatementAction(data: UploadBankStatementInput) 
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "BankReconciliation",
     entityId: reconciliation.id,
@@ -120,8 +121,10 @@ export async function uploadBankStatementAction(data: UploadBankStatementInput) 
 }
 
 export async function autoMatchEntriesAction(reconciliationId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BANK_RECONCILIATION_MATCH);
+  if (denied) return denied;
 
   const entries = await db.bankStatementEntry.findMany({
     where: { bankReconciliationId: reconciliationId, matchStatus: "UNMATCHED" },
@@ -164,7 +167,7 @@ export async function autoMatchEntriesAction(reconciliationId: string) {
           matchedPaymentId: payment.id,
           matchStatus: "AUTO_MATCHED",
           matchedAt: new Date(),
-          matchedBy: session.user.id!,
+          matchedBy: ctx.session.user.id,
         },
       });
       matched++;
@@ -195,7 +198,7 @@ export async function autoMatchEntriesAction(reconciliationId: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "BankReconciliation",
     entityId: reconciliationId,
@@ -207,8 +210,10 @@ export async function autoMatchEntriesAction(reconciliationId: string) {
 }
 
 export async function manualMatchEntryAction(entryId: string, paymentId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BANK_RECONCILIATION_MATCH);
+  if (denied) return denied;
 
   const entry = await db.bankStatementEntry.findUnique({ where: { id: entryId } });
   if (!entry) return { error: "Bank statement entry not found" };
@@ -222,7 +227,7 @@ export async function manualMatchEntryAction(entryId: string, paymentId: string)
       matchedPaymentId: paymentId,
       matchStatus: "MANUALLY_MATCHED",
       matchedAt: new Date(),
-      matchedBy: session.user.id!,
+      matchedBy: ctx.session.user.id,
     },
   });
 

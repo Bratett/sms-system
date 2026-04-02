@@ -1,30 +1,20 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 
 // ─── Get Class Teacher Dashboard Data ────────────────────────────────
 
 export async function getClassTeacherDashboardAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CLASSES_READ);
+  if (denied) return denied;
 
   // Find class arm(s) where this user is class teacher
-  const classArms = await db.classArm.findMany({
-    where: { classTeacherId: session.user.id, status: "ACTIVE" },
-    include: {
-      class: {
-        include: {
-          examSchedules: { select: { id: true } },
-        },
-        select: undefined,
-      },
-    },
-  });
-
-  // Re-query with proper include
   const classArmsData = await db.classArm.findMany({
-    where: { classTeacherId: session.user.id, status: "ACTIVE" },
+    where: { classTeacherId: ctx.session.user.id, status: "ACTIVE" },
     include: {
       class: { select: { name: true, yearGroup: true, programmeId: true, academicYearId: true } },
     },

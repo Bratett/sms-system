@@ -23,9 +23,9 @@ export default async function InventoryReportsPage() {
         description="Stock level reports and movement summaries."
       />
       <ReportsClient
-        stockLevels={stockLevelResult.data ?? []}
-        movementSummary={movementResult.data ?? []}
-        stores={storesResult.data ?? []}
+        stockLevels={"data" in stockLevelResult ? stockLevelResult.data : []}
+        movementSummary={"data" in movementResult ? movementResult.data : []}
+        stores={"data" in storesResult ? storesResult.data : []}
       />
     </div>
   );

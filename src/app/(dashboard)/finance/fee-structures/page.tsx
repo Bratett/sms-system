@@ -16,9 +16,9 @@ export default async function FeeStructuresPage() {
     getTermsAction(),
   ]);
 
-  const feeStructures = feeStructuresResult.data ?? [];
-  const academicYears = academicYearsResult.data ?? [];
-  const terms = termsResult.data ?? [];
+  const feeStructures = "data" in feeStructuresResult ? feeStructuresResult.data : [];
+  const academicYears = "data" in academicYearsResult ? academicYearsResult.data : [];
+  const terms = "data" in termsResult ? termsResult.data : [];
 
   return (
     <FeeStructuresClient

@@ -24,8 +24,8 @@ export default async function GraduationPage() {
         description="Manage graduation batches and records."
       />
       <GraduationClient
-        batches={batchesResult.data ?? []}
-        academicYears={yearsResult.data ?? []}
+        batches={"data" in batchesResult ? batchesResult.data : []}
+        academicYears={"data" in yearsResult ? yearsResult.data : []}
       />
     </div>
   );

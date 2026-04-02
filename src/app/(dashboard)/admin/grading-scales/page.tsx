@@ -10,7 +10,7 @@ export default async function GradingScalesPage() {
   }
 
   const result = await getGradingScalesAction();
-  const gradingScales = result.data ?? [];
+  const gradingScales = "data" in result ? result.data : [];
 
   return (
     <div className="space-y-6">

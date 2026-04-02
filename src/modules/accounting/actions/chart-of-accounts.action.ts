@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import {
   createAccountCategorySchema,
@@ -13,14 +14,11 @@ import {
 } from "@/modules/accounting/schemas/chart-of-accounts.schema";
 
 export async function getAccountCategoriesAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const categories = await db.accountCategory.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     include: {
       accounts: {
         where: { parentId: null },
@@ -37,13 +35,12 @@ export async function getAccountCategoriesAction() {
 }
 
 export async function getAccountsAction(filters?: { categoryId?: string; isActive?: boolean }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COA_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.categoryId) where.categoryId = filters.categoryId;
   if (filters?.isActive !== undefined) where.isActive = filters.isActive;
 
@@ -61,52 +58,48 @@ export async function getAccountsAction(filters?: { categoryId?: string; isActiv
 }
 
 export async function createAccountCategoryAction(data: CreateAccountCategoryInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const parsed = createAccountCategorySchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const category = await db.accountCategory.create({
-    data: { schoolId: school.id, ...parsed.data },
+    data: { schoolId: ctx.schoolId, ...parsed.data },
   });
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "AccountCategory", entityId: category.id, module: "accounting", description: `Created account category "${parsed.data.name}"` });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "AccountCategory", entityId: category.id, module: "accounting", description: `Created account category "${parsed.data.name}"` });
 
   return { data: category };
 }
 
 export async function createAccountAction(data: CreateAccountInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COA_CREATE);
+  if (denied) return denied;
 
   const parsed = createAccountSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   // Check unique code
   const existing = await db.account.findUnique({
-    where: { schoolId_code: { schoolId: school.id, code: parsed.data.code } },
+    where: { schoolId_code: { schoolId: ctx.schoolId, code: parsed.data.code } },
   });
   if (existing) return { error: `Account code "${parsed.data.code}" already exists` };
 
   const account = await db.account.create({
-    data: { schoolId: school.id, ...parsed.data },
+    data: { schoolId: ctx.schoolId, ...parsed.data },
   });
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "Account", entityId: account.id, module: "accounting", description: `Created account "${parsed.data.code} - ${parsed.data.name}"` });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "Account", entityId: account.id, module: "accounting", description: `Created account "${parsed.data.code} - ${parsed.data.name}"` });
 
   return { data: account };
 }
 
 export async function updateAccountAction(accountId: string, data: UpdateAccountInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COA_UPDATE);
+  if (denied) return denied;
 
   const parsed = updateAccountSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -116,20 +109,17 @@ export async function updateAccountAction(accountId: string, data: UpdateAccount
 
   const updated = await db.account.update({ where: { id: accountId }, data: parsed.data });
 
-  await audit({ userId: session.user.id!, action: "UPDATE", entity: "Account", entityId: accountId, module: "accounting", description: `Updated account "${updated.code} - ${updated.name}"` });
+  await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "Account", entityId: accountId, module: "accounting", description: `Updated account "${updated.code} - ${updated.name}"` });
 
   return { data: updated };
 }
 
 export async function seedDefaultChartOfAccountsAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   // Check if already seeded
-  const existingCategories = await db.accountCategory.count({ where: { schoolId: school.id } });
+  const existingCategories = await db.accountCategory.count({ where: { schoolId: ctx.schoolId } });
   if (existingCategories > 0) return { error: "Chart of accounts already exists for this school" };
 
   const defaultCoA = [
@@ -189,17 +179,17 @@ export async function seedDefaultChartOfAccountsAction() {
   await db.$transaction(async (tx) => {
     for (const cat of defaultCoA) {
       const category = await tx.accountCategory.create({
-        data: { schoolId: school.id, name: cat.name, type: cat.type, sortOrder: cat.sortOrder },
+        data: { schoolId: ctx.schoolId, name: cat.name, type: cat.type, sortOrder: cat.sortOrder },
       });
       for (const acc of cat.accounts) {
         await tx.account.create({
-          data: { schoolId: school.id, categoryId: category.id, code: acc.code, name: acc.name, normalBalance: acc.normalBalance, isSystemAccount: true },
+          data: { schoolId: ctx.schoolId, categoryId: category.id, code: acc.code, name: acc.name, normalBalance: acc.normalBalance, isSystemAccount: true },
         });
       }
     }
   });
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "Account", entityId: school.id, module: "accounting", description: "Seeded default Ghana-standard Chart of Accounts" });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "Account", entityId: ctx.schoolId, module: "accounting", description: "Seeded default Ghana-standard Chart of Accounts" });
 
   return { data: { success: true, message: "Default Chart of Accounts created with Ghana-standard accounts" } };
 }

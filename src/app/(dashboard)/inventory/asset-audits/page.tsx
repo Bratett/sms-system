@@ -14,7 +14,7 @@ export default async function AssetAuditsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Asset Audits" description="Schedule and conduct physical verification of fixed assets." />
-      <AssetAuditsClient audits={auditsResult.data ?? []} categories={categoriesResult.data ?? []} />
+      <AssetAuditsClient audits={"data" in auditsResult ? auditsResult.data : []} categories={"data" in categoriesResult ? categoriesResult.data : []} />
     </div>
   );
 }

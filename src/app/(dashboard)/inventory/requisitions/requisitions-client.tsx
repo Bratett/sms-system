@@ -118,7 +118,7 @@ export function RequisitionsClient({
     }
     setLoadingItems(true);
     const result = await getItemsAction({ storeId, pageSize: 500 });
-    if (result.data) {
+    if ("data" in result && result.data) {
       setStoreItems(
         result.data.map((i) => ({
           id: i.id,
@@ -183,7 +183,7 @@ export function RequisitionsClient({
         purpose: reqPurpose || undefined,
         items: reqItems,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -198,7 +198,7 @@ export function RequisitionsClient({
   function handleApprove(id: string) {
     startTransition(async () => {
       const result = await approveRequisitionAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -211,7 +211,7 @@ export function RequisitionsClient({
     if (!confirm("Reject this requisition?")) return;
     startTransition(async () => {
       const result = await rejectRequisitionAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -222,8 +222,12 @@ export function RequisitionsClient({
 
   async function openIssueForm(requisitionId: string) {
     const result = await getRequisitionAction(requisitionId);
-    if (result.error || !result.data) {
-      toast.error(result.error ?? "Failed to load requisition details.");
+    if ("error" in result) {
+      toast.error(result.error);
+      return;
+    }
+    if (!result.data) {
+      toast.error("Failed to load requisition details.");
       return;
     }
     const detail = result.data;
@@ -266,7 +270,7 @@ export function RequisitionsClient({
 
     startTransition(async () => {
       const result = await issueRequisitionAction(issueRequisition.id, issuedItems);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

@@ -37,12 +37,12 @@ export default async function StockMovementPage({
         description="Track stock in, out, and adjustments."
       />
       <StockMovementClient
-        movements={movementsResult.data ?? []}
-        total={movementsResult.total ?? 0}
-        page={movementsResult.page ?? 1}
-        pageSize={movementsResult.pageSize ?? 25}
-        allItems={itemsResult.data ?? []}
-        stores={storesResult.data ?? []}
+        movements={"data" in movementsResult ? movementsResult.data : []}
+        total={"total" in movementsResult ? movementsResult.total : 0}
+        page={"page" in movementsResult ? movementsResult.page : 1}
+        pageSize={"pageSize" in movementsResult ? movementsResult.pageSize : 25}
+        allItems={"data" in itemsResult ? itemsResult.data : []}
+        stores={"data" in storesResult ? storesResult.data : []}
         filters={params}
       />
     </div>

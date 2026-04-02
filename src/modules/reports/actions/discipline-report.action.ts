@@ -1,24 +1,20 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 
 export async function getDisciplineReportAction(filters?: {
   termId?: string;
   academicYearId?: string;
   status?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.REPORTS_ACADEMIC_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
 
   // Apply date range filter if termId provided
   if (filters?.termId) {

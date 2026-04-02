@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import {
@@ -27,14 +28,13 @@ async function generateAssetNumber(schoolId: string): Promise<string> {
 }
 
 export async function getAssetCategoriesAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FIXED_ASSETS_READ);
+  if (denied) return denied;
 
   const categories = await db.assetCategory.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     include: { _count: { select: { assets: true } } },
     orderBy: { name: "asc" },
   });
@@ -44,17 +44,16 @@ export async function getAssetCategoriesAction() {
 }
 
 export async function createAssetCategoryAction(data: CreateAssetCategoryInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FIXED_ASSETS_CREATE);
+  if (denied) return denied;
 
   const parsed = createAssetCategorySchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const category = await db.assetCategory.create({
-    data: { schoolId: school.id, ...parsed.data },
+    data: { schoolId: ctx.schoolId, ...parsed.data },
   });
 
   return { data: category };
@@ -67,17 +66,16 @@ export async function getFixedAssetsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FIXED_ASSETS_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.categoryId) where.categoryId = filters.categoryId;
   if (filters?.status) where.status = filters.status;
   if (filters?.condition) where.condition = filters.condition;
@@ -109,8 +107,10 @@ export async function getFixedAssetsAction(filters?: {
 }
 
 export async function getFixedAssetAction(assetId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FIXED_ASSETS_READ);
+  if (denied) return denied;
 
   const asset = await db.fixedAsset.findUnique({
     where: { id: assetId },
@@ -140,34 +140,35 @@ export async function getFixedAssetAction(assetId: string) {
 }
 
 export async function createFixedAssetAction(data: CreateFixedAssetInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FIXED_ASSETS_CREATE);
+  if (denied) return denied;
 
   const parsed = createFixedAssetSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const assetNumber = await generateAssetNumber(school.id);
+  const assetNumber = await generateAssetNumber(ctx.schoolId);
 
   const asset = await db.fixedAsset.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       assetNumber,
       currentValue: parsed.data.purchasePrice,
       ...parsed.data,
     },
   });
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "FixedAsset", entityId: asset.id, module: "inventory", description: `Registered asset "${parsed.data.name}" (${assetNumber})` });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "FixedAsset", entityId: asset.id, module: "inventory", description: `Registered asset "${parsed.data.name}" (${assetNumber})` });
 
   return { data: asset };
 }
 
 export async function updateFixedAssetAction(assetId: string, data: UpdateFixedAssetInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FIXED_ASSETS_UPDATE);
+  if (denied) return denied;
 
   const parsed = updateFixedAssetSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -177,14 +178,16 @@ export async function updateFixedAssetAction(assetId: string, data: UpdateFixedA
 
   const updated = await db.fixedAsset.update({ where: { id: assetId }, data: parsed.data });
 
-  await audit({ userId: session.user.id!, action: "UPDATE", entity: "FixedAsset", entityId: assetId, module: "inventory", description: `Updated asset "${updated.name}" (${updated.assetNumber})` });
+  await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "FixedAsset", entityId: assetId, module: "inventory", description: `Updated asset "${updated.name}" (${updated.assetNumber})` });
 
   return { data: updated };
 }
 
 export async function disposeAssetAction(data: DisposeAssetInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FIXED_ASSETS_DISPOSE);
+  if (denied) return denied;
 
   const parsed = disposeAssetSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -202,25 +205,24 @@ export async function disposeAssetAction(data: DisposeAssetInput) {
       disposedAt: new Date(),
       disposalMethod: parsed.data.disposalMethod,
       disposalAmount: parsed.data.disposalAmount,
-      disposedBy: session.user.id!,
+      disposedBy: ctx.session.user.id,
       currentValue: 0,
     },
   });
 
-  await audit({ userId: session.user.id!, action: "UPDATE", entity: "FixedAsset", entityId: parsed.data.assetId, module: "inventory", description: `Disposed asset "${asset.name}" (${asset.assetNumber}) via ${parsed.data.disposalMethod}` });
+  await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "FixedAsset", entityId: parsed.data.assetId, module: "inventory", description: `Disposed asset "${asset.name}" (${asset.assetNumber}) via ${parsed.data.disposalMethod}` });
 
   return { data: { success: true } };
 }
 
 export async function getAssetSummaryAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FIXED_ASSETS_READ);
+  if (denied) return denied;
 
   const assets = await db.fixedAsset.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     include: { category: { select: { name: true } } },
   });
 

@@ -208,7 +208,7 @@ export function FeeTemplatesClient({
           boardingStatus: (formData.boardingStatus as "DAY" | "BOARDING") || undefined,
           programmeId: formData.programmeId || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -227,7 +227,7 @@ export function FeeTemplatesClient({
             description: item.description || undefined,
           })),
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -267,7 +267,7 @@ export function FeeTemplatesClient({
         termId: structureData.termId,
         adjustments: structureData.adjustments,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -283,7 +283,7 @@ export function FeeTemplatesClient({
       const result = await updateFeeTemplateAction(template.id, {
         isActive: !template.isActive,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -299,7 +299,7 @@ export function FeeTemplatesClient({
   function handleDelete(template: FeeTemplate) {
     startTransition(async () => {
       const result = await deleteFeeTemplateAction(template.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

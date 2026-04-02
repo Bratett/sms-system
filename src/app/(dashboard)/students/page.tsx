@@ -17,13 +17,13 @@ export default async function StudentsPage() {
     getProgrammesAction(),
   ]);
 
-  const students = studentsResult.students ?? [];
-  const total = studentsResult.total ?? 0;
-  const page = studentsResult.page ?? 1;
-  const pageSize = studentsResult.pageSize ?? 25;
+  const students = "students" in studentsResult ? studentsResult.students : [];
+  const total = "total" in studentsResult ? studentsResult.total : 0;
+  const page = "page" in studentsResult ? studentsResult.page : 1;
+  const pageSize = "pageSize" in studentsResult ? studentsResult.pageSize : 25;
 
   // Build class arm options from classes
-  const allClasses = classesResult.data ?? [];
+  const allClasses = "data" in classesResult ? classesResult.data : [];
   const classArmOptions = allClasses.flatMap((cls) =>
     cls.classArms.map((arm) => ({
       id: arm.id,
@@ -32,7 +32,7 @@ export default async function StudentsPage() {
     })),
   );
 
-  const programmes = (programmesResult.data ?? []).map((p) => ({
+  const programmes = ("data" in programmesResult ? programmesResult.data ?? [] : []).map((p) => ({
     id: p.id,
     name: p.name,
   }));

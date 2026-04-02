@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { lookupGrade } from "@/modules/academics/utils/grading";
 
@@ -11,19 +12,14 @@ export async function computeAnnualResultsAction(
   classArmId: string,
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_COMPUTE);
+  if (denied) return denied;
 
   // Get grading scale
   const gradingScale = await db.gradingScale.findFirst({
-    where: { schoolId: school.id, isDefault: true },
+    where: { schoolId: ctx.schoolId, isDefault: true },
     include: {
       gradeDefinitions: { orderBy: { minScore: "desc" } },
     },
@@ -94,7 +90,7 @@ export async function computeAnnualResultsAction(
   for (const [studentId, studentTermResults] of resultsByStudent) {
     // Create annual result
     const annualResult = await db.annualResult.create({
-      data: { studentId, classArmId, academicYearId },
+      data: { studentId, classArmId, academicYearId, schoolId: ctx.schoolId },
     });
 
     // Collect all subjects across all terms
@@ -130,6 +126,7 @@ export async function computeAnnualResultsAction(
         data: {
           annualResultId: annualResult.id,
           subjectId,
+          schoolId: ctx.schoolId,
           term1Score: scores.term1,
           term2Score: scores.term2,
           term3Score: scores.term3,
@@ -219,7 +216,7 @@ export async function computeAnnualResultsAction(
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "AnnualResult",
     entityId: classArmId,
@@ -237,10 +234,10 @@ export async function getAnnualResultsAction(
   classArmId: string,
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_READ);
+  if (denied) return denied;
 
   const results = await db.annualResult.findMany({
     where: { classArmId, academicYearId },
@@ -305,10 +302,10 @@ export async function getStudentAnnualResultAction(
   studentId: string,
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_READ);
+  if (denied) return denied;
 
   const result = await db.annualResult.findFirst({
     where: { studentId, academicYearId },

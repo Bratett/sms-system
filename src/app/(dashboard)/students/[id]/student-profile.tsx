@@ -175,7 +175,7 @@ export function StudentProfile({
     if (!enrollClassArmId || !enrollAcademicYearId) return;
     startTransition(async () => {
       const result = await enrollStudentAction(student.id, enrollClassArmId, enrollAcademicYearId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Student enrolled successfully.");
@@ -200,7 +200,7 @@ export function StudentProfile({
           selectedGuardianId,
           guardianIsPrimary,
         );
-        if (result.error) {
+        if ("error" in result) {
           setGuardianFormError(result.error);
         } else {
           toast.success("Guardian linked successfully.");
@@ -229,17 +229,17 @@ export function StudentProfile({
           address: newGuardian.address.trim() || undefined,
           relationship: newGuardian.relationship.trim() || undefined,
         });
-        if (createResult.error) {
+        if ("error" in createResult) {
           setGuardianFormError(createResult.error);
           return;
         }
-        if (createResult.data) {
+        if ("data" in createResult && createResult.data) {
           const linkResult = await linkGuardianToStudentAction(
             student.id,
             createResult.data.id,
             guardianIsPrimary,
           );
-          if (linkResult.error) {
+          if ("error" in linkResult) {
             setGuardianFormError(linkResult.error);
           } else {
             toast.success("Guardian created and linked successfully.");
@@ -255,7 +255,7 @@ export function StudentProfile({
     if (!confirm(`Remove ${guardianName} as guardian?`)) return;
     startTransition(async () => {
       const result = await unlinkGuardianFromStudentAction(student.id, guardianId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Guardian removed.");
@@ -270,7 +270,7 @@ export function StudentProfile({
       const result = await updateStudentAction(student.id, {
         status: newStatus as "ACTIVE" | "SUSPENDED" | "WITHDRAWN",
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Student status updated.");
@@ -953,7 +953,7 @@ function PerformanceTrendsSection({ studentId }: { studentId: string }) {
   function loadTrends() {
     startTransition(async () => {
       const result = await getStudentPerformanceTrendsAction(studentId);
-      if (result.data) {
+      if ("data" in result && result.data) {
         setTrends(result.data);
       }
       setLoaded(true);

@@ -86,7 +86,7 @@ export function startFinancePenaltyWorker() {
           if (!dryRun) {
             await db.$transaction(async (tx) => {
               await tx.appliedPenalty.create({
-                data: { studentBillId: bill.id, latePenaltyRuleId: rule.id, amount: penaltyAmount },
+                data: { schoolId: bill.schoolId, studentBillId: bill.id, latePenaltyRuleId: rule.id, amount: penaltyAmount },
               });
               await tx.studentBill.update({
                 where: { id: bill.id },

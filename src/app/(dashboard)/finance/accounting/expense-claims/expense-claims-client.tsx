@@ -101,7 +101,7 @@ export function ExpenseClaimsClient({
           expenseCategoryId: i.expenseCategoryId || undefined,
         })),
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Expense claim submitted");
       setShowCreateModal(false);
       router.refresh();
@@ -111,7 +111,7 @@ export function ExpenseClaimsClient({
   function handleApprove(claim: Claim) {
     startTransition(async () => {
       const result = await approveExpenseClaimAction(claim.id);
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Claim approved");
       router.refresh();
     });
@@ -120,7 +120,7 @@ export function ExpenseClaimsClient({
   function handleReject(claim: Claim) {
     startTransition(async () => {
       const result = await rejectExpenseClaimAction(claim.id);
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Claim rejected");
       router.refresh();
     });
@@ -129,7 +129,7 @@ export function ExpenseClaimsClient({
   function handleMarkPaid(claim: Claim) {
     startTransition(async () => {
       const result = await markClaimPaidAction(claim.id);
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Claim marked as paid");
       router.refresh();
     });

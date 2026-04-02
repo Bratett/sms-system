@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import { PERMISSIONS, denyPermission } from "@/lib/permissions";
@@ -29,19 +29,16 @@ export async function getLoansAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LOAN_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LOAN_READ)) return { error: "Insufficient permissions" };
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: any = { schoolId: school.id };
+  const where: any = { schoolId: ctx.schoolId };
   if (filters?.staffId) where.staffId = filters.staffId;
   if (filters?.status) where.status = filters.status;
 
@@ -63,15 +60,12 @@ export async function getLoansAction(filters?: {
 }
 
 export async function createLoanAction(data: CreateLoanInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LOAN_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LOAN_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = createLoanSchema.safeParse(data);
-  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
 
   const staff = await db.staff.findUnique({ where: { id: parsed.data.staffId } });
   if (!staff) return { error: "Staff member not found." };
@@ -93,13 +87,13 @@ export async function createLoanAction(data: CreateLoanInput) {
   const monthlyDeduction = totalRepayment / parsed.data.tenure;
 
   // Auto-generate loan number
-  const loanCount = await db.staffLoan.count({ where: { schoolId: school.id } });
+  const loanCount = await db.staffLoan.count({ where: { schoolId: ctx.schoolId } });
   const year = new Date().getFullYear();
   const loanNumber = `LN/${year}/${String(loanCount + 1).padStart(4, "0")}`;
 
   const loan = await db.staffLoan.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       staffId: parsed.data.staffId,
       loanNumber,
       type: parsed.data.type,
@@ -113,7 +107,7 @@ export async function createLoanAction(data: CreateLoanInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StaffLoan",
     entityId: loan.id,
@@ -126,9 +120,9 @@ export async function createLoanAction(data: CreateLoanInput) {
 }
 
 export async function approveLoanAction(loanId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LOAN_APPROVE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LOAN_APPROVE)) return { error: "Insufficient permissions" };
 
   const loan = await db.staffLoan.findUnique({ where: { id: loanId } });
   if (!loan) return { error: "Loan not found." };
@@ -138,13 +132,13 @@ export async function approveLoanAction(loanId: string) {
     where: { id: loanId },
     data: {
       status: "ACTIVE",
-      approvedBy: session.user.id!,
+      approvedBy: ctx.session.user.id,
       approvedAt: new Date(),
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "APPROVE",
     entity: "StaffLoan",
     entityId: loanId,
@@ -158,9 +152,9 @@ export async function approveLoanAction(loanId: string) {
 }
 
 export async function cancelLoanAction(loanId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LOAN_APPROVE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LOAN_APPROVE)) return { error: "Insufficient permissions" };
 
   const loan = await db.staffLoan.findUnique({ where: { id: loanId } });
   if (!loan) return { error: "Loan not found." };
@@ -172,7 +166,7 @@ export async function cancelLoanAction(loanId: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "StaffLoan",
     entityId: loanId,
@@ -186,9 +180,9 @@ export async function cancelLoanAction(loanId: string) {
 }
 
 export async function getLoanRepaymentsAction(loanId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LOAN_READ)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LOAN_READ)) return { error: "Insufficient permissions" };
 
   const repayments = await db.loanRepayment.findMany({
     where: { loanId },

@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 
 // ─── Generate Report Card Data for a Single Student ───────────────────
 
@@ -9,15 +10,10 @@ export async function generateReportCardDataAction(
   studentId: string,
   termId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_READ);
+  if (denied) return denied;
 
   // Get student info
   const student = await db.student.findUnique({
@@ -29,6 +25,15 @@ export async function generateReportCardDataAction(
 
   if (!student) {
     return { error: "Student not found." };
+  }
+
+  // Get school info
+  const school = await db.school.findUnique({
+    where: { id: ctx.schoolId },
+  });
+
+  if (!school) {
+    return { error: "School not found." };
   }
 
   // Get terminal result with subject results
@@ -206,10 +211,10 @@ export async function generateClassReportCardsAction(
   classArmId: string,
   termId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_READ);
+  if (denied) return denied;
 
   // Get all terminal results for this class arm and term
   const terminalResults = await db.terminalResult.findMany({
@@ -233,7 +238,7 @@ export async function generateClassReportCardsAction(
       result.studentId,
       termId,
     );
-    if (cardResult.error) {
+    if ("error" in cardResult) {
       errors.push(cardResult.error);
     } else if (cardResult.data) {
       reportCards.push(cardResult.data);

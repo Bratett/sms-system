@@ -17,7 +17,7 @@ export default async function ExeatDetailPage({
   const { id } = await params;
   const result = await getExeatAction(id);
 
-  if (result.error || !result.data) {
+  if ("error" in result) {
     return (
       <div className="space-y-6">
         <PageHeader title="Exeat Not Found" />

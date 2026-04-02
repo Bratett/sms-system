@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 export async function createLessonAction(data: {
@@ -12,8 +13,10 @@ export async function createLessonAction(data: {
   resourceUrl?: string;
   duration?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_LESSON_CREATE);
+  if (denied) return denied;
 
   const course = await db.course.findUnique({ where: { id: data.courseId } });
   if (!course) return { error: "Course not found" };
@@ -28,6 +31,7 @@ export async function createLessonAction(data: {
 
   const lesson = await db.lesson.create({
     data: {
+      schoolId: ctx.schoolId,
       courseId: data.courseId,
       title: data.title.trim(),
       content: data.content || null,
@@ -39,7 +43,7 @@ export async function createLessonAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Lesson",
     entityId: lesson.id,
@@ -58,8 +62,10 @@ export async function updateLessonAction(id: string, data: {
   duration?: number;
   isPublished?: boolean;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_LESSON_CREATE);
+  if (denied) return denied;
 
   const lesson = await db.lesson.findUnique({ where: { id } });
   if (!lesson) return { error: "Lesson not found" };
@@ -80,8 +86,10 @@ export async function updateLessonAction(id: string, data: {
 }
 
 export async function deleteLessonAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_LESSON_CREATE);
+  if (denied) return denied;
 
   const lesson = await db.lesson.findUnique({ where: { id } });
   if (!lesson) return { error: "Lesson not found" };
@@ -91,8 +99,10 @@ export async function deleteLessonAction(id: string) {
 }
 
 export async function reorderLessonsAction(courseId: string, lessonIds: string[]) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_LESSON_CREATE);
+  if (denied) return denied;
 
   const updates = lessonIds.map((id, index) =>
     db.lesson.update({ where: { id }, data: { orderIndex: index + 1 } }),
@@ -103,16 +113,19 @@ export async function reorderLessonsAction(courseId: string, lessonIds: string[]
 }
 
 export async function markLessonCompleteAction(lessonId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_LESSON_READ);
+  if (denied) return denied;
 
   const progress = await db.lessonProgress.upsert({
     where: {
-      lessonId_studentId: { lessonId, studentId: session.user.id! },
+      lessonId_studentId: { lessonId, studentId: ctx.session.user.id },
     },
     create: {
+      schoolId: ctx.schoolId,
       lessonId,
-      studentId: session.user.id!,
+      studentId: ctx.session.user.id,
       status: "COMPLETED",
       startedAt: new Date(),
       completedAt: new Date(),
@@ -133,7 +146,7 @@ export async function markLessonCompleteAction(lessonId: string) {
     const totalLessons = await db.lesson.count({ where: { courseId: lesson.courseId } });
     const completedLessons = await db.lessonProgress.count({
       where: {
-        studentId: session.user.id!,
+        studentId: ctx.session.user.id,
         status: "COMPLETED",
         lesson: { courseId: lesson.courseId },
       },
@@ -142,7 +155,7 @@ export async function markLessonCompleteAction(lessonId: string) {
     const progressPct = totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
 
     await db.courseEnrollment.updateMany({
-      where: { courseId: lesson.courseId, studentId: session.user.id! },
+      where: { courseId: lesson.courseId, studentId: ctx.session.user.id },
       data: {
         progress: Math.round(progressPct),
         ...(progressPct >= 100 ? { completedAt: new Date() } : {}),

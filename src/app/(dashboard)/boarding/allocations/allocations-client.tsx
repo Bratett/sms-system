@@ -107,7 +107,7 @@ export function AllocationsClient({
         hostelId: filterHostel || undefined,
         status: filterStatus || undefined,
       });
-      if (result.data) {
+      if ("data" in result) {
         setAllocations(result.data);
       }
     });
@@ -142,7 +142,7 @@ export function AllocationsClient({
 
     startTransition(async () => {
       const result = await getHostelAction(hostelId);
-      if (result.data) {
+      if ("data" in result) {
         setDormitories(
           result.data.dormitories.map((d) => ({
             id: d.id,

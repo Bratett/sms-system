@@ -36,6 +36,99 @@ model School {
   teacherAvailabilities TeacherAvailability[]
   teacherPreferences   TeacherPreference[]
   eventAttendances     EventAttendance[]
+  auditLogs            AuditLog[]
+  notifications        Notification[]
+  terms                Term[]
+  gradeDefinitions     GradeDefinition[]
+
+  // Academic
+  classArms                  ClassArm[]              @relation("SchoolClassArm")
+  enrollments                Enrollment[]            @relation("SchoolEnrollment")
+  marks                      Mark[]                  @relation("SchoolMark")
+  terminalResults            TerminalResult[]        @relation("SchoolTerminalResult")
+  subjectResults             SubjectResult[]         @relation("SchoolSubjectResult")
+  annualResults              AnnualResult[]          @relation("SchoolAnnualResult")
+  subjectAnnualResults       SubjectAnnualResult[]   @relation("SchoolSubjectAnnualResult")
+  programmeSubjects          ProgrammeSubject[]      @relation("SchoolProgrammeSubject")
+  teacherSubjectAssignments  TeacherSubjectAssignment[] @relation("SchoolTeacherSubjectAssignment")
+
+  // Academic enhancements
+  studentSubjectSelections   StudentSubjectSelection[] @relation("SchoolStudentSubjectSelections")
+  studentConducts            StudentConduct[]         @relation("SchoolStudentConducts")
+  markAuditLogs              MarkAuditLog[]           @relation("SchoolMarkAuditLogs")
+  studentActivities          StudentActivity[]        @relation("SchoolStudentActivities")
+  examSeatingArrangements    ExamSeatingArrangement[] @relation("SchoolExamSeatingArrangements")
+  markStandardLinks          MarkStandardLink[]       @relation("SchoolMarkStandardLinks")
+  studentStandardMasteries   StudentStandardMastery[] @relation("SchoolStudentStandardMasteries")
+  ptcBookings                PTCBooking[]             @relation("SchoolPTCBookings")
+  homeworkSubmissions        HomeworkSubmission[]      @relation("SchoolHomeworkSubmissions")
+
+  // Student
+  guardians                  Guardian[]               @relation("SchoolGuardian")
+  studentGuardians           StudentGuardian[]        @relation("SchoolStudentGuardian")
+  studentHouses              StudentHouse[]           @relation("SchoolStudentHouse")
+  admissionDocuments         AdmissionDocument[]      @relation("SchoolAdmissionDocument")
+
+  // Finance
+  feeItems                   FeeItem[]                @relation("SchoolFeeItem")
+  studentBills               StudentBill[]            @relation("SchoolStudentBill")
+  studentBillItems           StudentBillItem[]        @relation("SchoolStudentBillItem")
+  payments                   Payment[]                @relation("SchoolPayment")
+  receipts                   Receipt[]                @relation("SchoolReceipt")
+  studentScholarships        StudentScholarship[]     @relation("SchoolStudentScholarship")
+  paymentReversals           PaymentReversal[]        @relation("SchoolPaymentReversal")
+  feeTemplateItems           FeeTemplateItem[]        @relation("SchoolFeeTemplateItem")
+  installmentSchedules       InstallmentSchedule[]    @relation("SchoolInstallmentSchedule")
+  studentInstallments        StudentInstallment[]     @relation("SchoolStudentInstallment")
+  appliedPenalties           AppliedPenalty[]         @relation("SchoolAppliedPenalty")
+  subsidyDisbursements       SubsidyDisbursement[]    @relation("SchoolSubsidyDisbursement")
+  donorFundAllocations       DonorFundAllocation[]    @relation("SchoolDonorFundAllocation")
+  bankStatementEntries       BankStatementEntry[]     @relation("SchoolBankStatementEntry")
+
+  // Accounting
+  journalEntries             JournalEntry[]           @relation("SchoolJournalEntry")
+  pettyCashTransactions      PettyCashTransaction[]   @relation("SchoolPettyCashTransaction")
+  pettyCashReplenishments    PettyCashReplenishment[] @relation("SchoolPettyCashReplenishment")
+  budgetLines                BudgetLine[]             @relation("SchoolBudgetLine")
+  expenseClaimItems          ExpenseClaimItem[]       @relation("SchoolExpenseClaimItem")
+
+  // HR
+  employments                Employment[]             @relation("SchoolEmployment")
+  leaveBalances              LeaveBalance[]           @relation("SchoolLeaveBalance")
+  leaveRequests              LeaveRequest[]           @relation("SchoolLeaveRequest")
+  payrollEntries             PayrollEntry[]           @relation("SchoolPayrollEntry")
+  loanRepayments             LoanRepayment[]          @relation("SchoolLoanRepayment")
+
+  // Boarding
+  dormitories                Dormitory[]              @relation("SchoolDormitory")
+  beds                       Bed[]                    @relation("SchoolBed")
+  bedAllocations             BedAllocation[]          @relation("SchoolBedAllocation")
+  exeats                     Exeat[]                  @relation("SchoolExeat")
+  exeatApprovals             ExeatApproval[]          @relation("SchoolExeatApproval")
+  rollCalls                  RollCall[]               @relation("SchoolRollCall")
+  rollCallRecords            RollCallRecord[]         @relation("SchoolRollCallRecord")
+  medicationLogs             MedicationLog[]          @relation("SchoolMedicationLog")
+
+  // Attendance
+  attendanceRecords          AttendanceRecord[]       @relation("SchoolAttendanceRecords")
+
+  // Communication
+  graduationRecords          GraduationRecord[]       @relation("SchoolGraduationRecords")
+
+  // LMS
+  lessons                    Lesson[]                 @relation("SchoolLessons")
+  lmsAssignments             LmsAssignment[]          @relation("SchoolLmsAssignments")
+  assignmentSubmissions      AssignmentSubmission[]   @relation("SchoolAssignmentSubmissions")
+  lessonProgress             LessonProgress[]         @relation("SchoolLessonProgress")
+  courseEnrollments           CourseEnrollment[]      @relation("SchoolCourseEnrollments")
+  quizQuestions              QuizQuestion[]           @relation("SchoolQuizQuestions")
+
+  // Library
+  bookIssues                 BookIssue[]              @relation("SchoolBookIssues")
+
+  // Transport
+  routeStops                 RouteStop[]              @relation("SchoolRouteStops")
+  studentTransports          StudentTransport[]       @relation("SchoolStudentTransports")
 }
 
 model AcademicYear {
@@ -61,6 +154,7 @@ model AcademicYear {
 
 model Term {
   id             String     @id @default(cuid())
+  schoolId       String
   academicYearId String
   name           String
   termNumber     Int
@@ -71,10 +165,12 @@ model Term {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
+  school         School          @relation(fields: [schoolId], references: [id])
   academicYear   AcademicYear    @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
   timetableSlots TimetableSlot[]
   examSchedules  ExamSchedule[]
 
+  @@index([schoolId])
   @@index([academicYearId])
   @@index([isCurrent])
   @@index([academicYearId, isCurrent])
@@ -150,6 +246,7 @@ model GradingScale {
 
 model GradeDefinition {
   id             String @id @default(cuid())
+  schoolId       String
   gradingScaleId String
   grade          String
   minScore       Float
@@ -157,8 +254,10 @@ model GradeDefinition {
   interpretation String
   gradePoint     Float  @default(0)
 
+  school       School       @relation(fields: [schoolId], references: [id])
   gradingScale GradingScale @relation(fields: [gradingScaleId], references: [id], onDelete: Cascade)
 
+  @@index([schoolId])
   @@index([gradingScaleId])
 }
 

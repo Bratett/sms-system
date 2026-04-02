@@ -145,9 +145,9 @@ export function StudentForm({
         classArmId: formData.classArmId || undefined,
       });
 
-      if (result.error) {
-        setFormError(result.error);
-      } else if (result.data) {
+      if ("error" in result) {
+        setFormError(result.error ?? null);
+      } else if ("data" in result && result.data) {
         toast.success(
           `Student "${result.data.firstName} ${result.data.lastName}" registered successfully.`,
         );

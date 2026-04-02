@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import { checkInVisitorSchema } from "../schemas";
@@ -17,11 +17,9 @@ export async function getVisitorsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BOARDING_VISITORS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BOARDING_VISITORS_READ);
   if (permErr) return permErr;
 
   const page = filters?.page ?? 1;
@@ -147,26 +145,19 @@ export async function checkInVisitorAction(data: {
   purpose: string;
   notes?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BOARDING_VISITORS_CREATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BOARDING_VISITORS_CREATE);
   if (permErr) return permErr;
 
   const parsed = checkInVisitorSchema.safeParse(data);
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "School not found." };
-  }
+  }
 
   const visitor = await db.boardingVisitor.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       studentId: parsed.data.studentId,
       hostelId: parsed.data.hostelId,
       visitorName: parsed.data.visitorName,
@@ -175,13 +166,13 @@ export async function checkInVisitorAction(data: {
       visitorIdNumber: parsed.data.visitorIdNumber || null,
       purpose: parsed.data.purpose,
       notes: parsed.data.notes || null,
-      checkedInBy: session.user.id!,
+      checkedInBy: ctx.session.user.id,
       status: "CHECKED_IN",
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "BoardingVisitor",
     entityId: visitor.id,
@@ -194,11 +185,9 @@ export async function checkInVisitorAction(data: {
 }
 
 export async function checkOutVisitorAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BOARDING_VISITORS_CREATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BOARDING_VISITORS_CREATE);
   if (permErr) return permErr;
 
   const visitor = await db.boardingVisitor.findUnique({ where: { id } });
@@ -214,13 +203,13 @@ export async function checkOutVisitorAction(id: string) {
     where: { id },
     data: {
       checkOutAt: new Date(),
-      checkedOutBy: session.user.id!,
+      checkedOutBy: ctx.session.user.id,
       status: "CHECKED_OUT",
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "BoardingVisitor",
     entityId: id,
@@ -234,11 +223,9 @@ export async function checkOutVisitorAction(id: string) {
 }
 
 export async function getActiveVisitorsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BOARDING_VISITORS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BOARDING_VISITORS_READ);
   if (permErr) return permErr;
 
   const visitors = await db.boardingVisitor.findMany({
@@ -304,11 +291,9 @@ export async function getActiveVisitorsAction() {
 }
 
 export async function getStudentVisitHistoryAction(studentId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BOARDING_VISITORS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BOARDING_VISITORS_READ);
   if (permErr) return permErr;
 
   const visitors = await db.boardingVisitor.findMany({
@@ -366,11 +351,9 @@ export async function getStudentVisitHistoryAction(studentId: string) {
 export async function getVisitorStatsAction(filters?: {
   hostelId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BOARDING_VISITORS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BOARDING_VISITORS_READ);
   if (permErr) return permErr;
 
   const where: Record<string, unknown> = {};

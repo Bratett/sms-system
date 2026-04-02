@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Transfer Student ──────────────────────────────────────────────
@@ -13,8 +14,10 @@ export async function transferStudentAction(data: {
   reason?: string;
   notes?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_UPDATE);
+  if (denied) return denied;
 
   const student = await db.student.findUnique({ where: { id: data.studentId } });
   if (!student) return { error: "Student not found" };
@@ -43,7 +46,7 @@ export async function transferStudentAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Student",
     entityId: data.studentId,
@@ -69,8 +72,10 @@ export async function withdrawStudentAction(data: {
   reason: string;
   notes?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_UPDATE);
+  if (denied) return denied;
 
   const student = await db.student.findUnique({ where: { id: data.studentId } });
   if (!student) return { error: "Student not found" };
@@ -98,7 +103,7 @@ export async function withdrawStudentAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Student",
     entityId: data.studentId,
@@ -121,8 +126,10 @@ export async function suspendStudentAction(data: {
   endDate?: string;
   notes?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_UPDATE);
+  if (denied) return denied;
 
   const student = await db.student.findUnique({ where: { id: data.studentId } });
   if (!student) return { error: "Student not found" };
@@ -134,7 +141,7 @@ export async function suspendStudentAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Student",
     entityId: data.studentId,
@@ -158,8 +165,10 @@ export async function reinstateStudentAction(data: {
   studentId: string;
   notes?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_UPDATE);
+  if (denied) return denied;
 
   const student = await db.student.findUnique({ where: { id: data.studentId } });
   if (!student) return { error: "Student not found" };
@@ -171,7 +180,7 @@ export async function reinstateStudentAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Student",
     entityId: data.studentId,

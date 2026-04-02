@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { dispatch } from "@/lib/notifications/dispatcher";
 import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
@@ -14,11 +15,10 @@ export async function createSubstitutionAction(data: {
   date: string;
   reason?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBSTITUTION_CREATE);
+  if (denied) return denied;
 
   // Get the timetable slot
   const slot = await db.timetableSlot.findUnique({
@@ -70,18 +70,18 @@ export async function createSubstitutionAction(data: {
 
   const substitution = await db.timetableSubstitution.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       timetableSlotId: data.timetableSlotId,
       originalTeacherId: slot.teacherId,
       substituteTeacherId: data.substituteTeacherId,
       date: dateObj,
       reason: data.reason || null,
-      createdBy: session.user.id!,
+      createdBy: ctx.session.user.id,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "TimetableSubstitution",
     entityId: substitution.id,
@@ -101,7 +101,7 @@ export async function createSubstitutionAction(data: {
       title: "Substitution Assigned",
       message: `You have been assigned to cover ${slot.subject.name} for ${slot.classArm.class.name} ${slot.classArm.name} on ${dateObj.toLocaleDateString()} at ${slot.period.startTime}-${slot.period.endTime}.`,
       recipients: [{ userId: substituteUser.id, email: substituteUser.email ?? undefined }],
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
     }).catch(() => {});
   }
 
@@ -111,8 +111,10 @@ export async function createSubstitutionAction(data: {
 // ─── Approve Substitution ────────────────────────────────────────────
 
 export async function approveSubstitutionAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBSTITUTION_APPROVE);
+  if (denied) return denied;
 
   const substitution = await db.timetableSubstitution.findUnique({
     where: { id },
@@ -125,13 +127,13 @@ export async function approveSubstitutionAction(id: string) {
     where: { id },
     data: {
       status: "APPROVED",
-      approvedBy: session.user.id,
+      approvedBy: ctx.session.user.id,
       approvedAt: new Date(),
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "APPROVE",
     entity: "TimetableSubstitution",
     entityId: id,
@@ -145,8 +147,10 @@ export async function approveSubstitutionAction(id: string) {
 // ─── Reject Substitution ─────────────────────────────────────────────
 
 export async function rejectSubstitutionAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBSTITUTION_APPROVE);
+  if (denied) return denied;
 
   const substitution = await db.timetableSubstitution.findUnique({
     where: { id },
@@ -161,7 +165,7 @@ export async function rejectSubstitutionAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "REJECT",
     entity: "TimetableSubstitution",
     entityId: id,
@@ -181,17 +185,16 @@ export async function getSubstitutionsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBSTITUTION_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.status) where.status = filters.status;
   if (filters?.teacherId) {
     where.OR = [
@@ -266,11 +269,8 @@ export async function getAvailableSubstitutesAction(data: {
   dayOfWeek: number;
   date: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const currentTerm = await db.term.findFirst({ where: { isCurrent: true } });
   if (!currentTerm) return { data: [] };
@@ -281,7 +281,7 @@ export async function getAvailableSubstitutesAction(data: {
       periodId: data.periodId,
       dayOfWeek: data.dayOfWeek,
       termId: currentTerm.id,
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
     },
     select: { teacherId: true },
   });
@@ -290,7 +290,7 @@ export async function getAvailableSubstitutesAction(data: {
   // Get all active teaching staff
   const staff = await db.staff.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       staffType: "TEACHING",
       status: "ACTIVE",
       deletedAt: null,

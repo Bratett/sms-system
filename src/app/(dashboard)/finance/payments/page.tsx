@@ -14,14 +14,14 @@ export default async function PaymentsPage() {
     getTermsAction(),
   ]);
 
-  const payments = paymentsResult.data ?? [];
-  const pagination = paymentsResult.pagination ?? {
+  const payments = "data" in paymentsResult ? paymentsResult.data : [];
+  const pagination = "pagination" in paymentsResult ? paymentsResult.pagination ?? {
     page: 1,
     pageSize: 25,
     total: 0,
     totalPages: 0,
-  };
-  const terms = termsResult.data ?? [];
+  } : { page: 1, pageSize: 25, total: 0, totalPages: 0 };
+  const terms = "data" in termsResult ? termsResult.data : [];
 
   return (
     <PaymentsClient

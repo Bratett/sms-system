@@ -39,9 +39,9 @@ describe("getGraduationBatchesAction", () => {
   });
 
   it("should return error if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getGraduationBatchesAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return graduation batches with records", async () => {
@@ -90,12 +90,12 @@ describe("createGraduationBatchAction", () => {
   });
 
   it("should return error if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await createGraduationBatchAction({
       academicYearId: "ay-1",
       name: "Class of 2025",
     });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should create graduation batch successfully", async () => {

@@ -140,7 +140,7 @@ export function ScholarshipsClient({
           criteria: formData.criteria,
           academicYearId: formData.academicYearId,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -153,7 +153,7 @@ export function ScholarshipsClient({
           criteria: formData.criteria || undefined,
           academicYearId: formData.academicYearId || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -177,7 +177,7 @@ export function ScholarshipsClient({
         selectedScholarship!.id,
         applyData.termId
       );
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -191,7 +191,7 @@ export function ScholarshipsClient({
   function handleDelete(scholarship: Scholarship) {
     startTransition(async () => {
       const result = await deleteScholarshipAction(scholarship.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

@@ -45,9 +45,9 @@ describe("getIncidentsAction", () => {
   });
 
   it("should return error if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getIncidentsAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return paginated incidents with student and reporter names", async () => {
@@ -311,14 +311,14 @@ describe("createCounselingRecordAction", () => {
   });
 
   it("should return error if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await createCounselingRecordAction({
       studentId: "stu-1",
       sessionDate: "2025-01-01",
       type: "INDIVIDUAL",
       summary: "Test session",
     });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should create a counseling record successfully", async () => {
@@ -420,14 +420,14 @@ describe("createWelfareNoteAction", () => {
   });
 
   it("should return error if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await createWelfareNoteAction({
       studentId: "stu-1",
       date: "2025-01-01",
       category: "HEALTH",
       description: "Student felt unwell",
     });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should create a welfare note successfully", async () => {
@@ -527,14 +527,14 @@ describe("createCommendationAction", () => {
   });
 
   it("should return error if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await createCommendationAction({
       studentId: "stu-1",
       date: "2025-01-01",
       type: "ACADEMIC",
       title: "Best Student",
     });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should create a commendation successfully", async () => {

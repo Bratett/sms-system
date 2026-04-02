@@ -62,10 +62,10 @@ export function AnalyticsClient({ terms }: { terms: TermOption[] }) {
         getAttendanceTrendAction(termId),
         getChronicAbsenteeismAction(termId),
       ]);
-      if (dayResult.data) setDayStats(dayResult.data);
-      if (periodResult.data) setPeriodStats(periodResult.data);
-      if (trendResult.data) setTrendStats(trendResult.data);
-      if (absentResult.data) setAbsenteeism(absentResult.data);
+      if ("data" in dayResult) setDayStats(dayResult.data);
+      if ("data" in periodResult) setPeriodStats(periodResult.data);
+      if ("data" in trendResult) setTrendStats(trendResult.data);
+      if ("data" in absentResult) setAbsenteeism(absentResult.data);
     });
   }
 

@@ -94,15 +94,15 @@ export function FinanceReportsClient({
         getDebtorListAction(tid, 20),
       ]);
 
-      if (collectionRes.error) {
+      if ("error" in collectionRes) {
         toast.error(collectionRes.error);
         return;
       }
 
       setCollection(collectionRes.data ?? null);
-      setRevenueByClass(classRes.data ?? []);
-      setRevenueByFeeItem(feeItemRes.data ?? []);
-      setDebtors(debtorRes.data ?? []);
+      setRevenueByClass("data" in classRes ? classRes.data ?? [] : []);
+      setRevenueByFeeItem("data" in feeItemRes ? feeItemRes.data ?? [] : []);
+      setDebtors("data" in debtorRes ? debtorRes.data ?? [] : []);
     });
   }
 

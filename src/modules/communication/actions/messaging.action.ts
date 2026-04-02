@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { sendMessage, sendMultiChannel, broadcastMessage, type ChannelType } from "@/lib/messaging/hub";
 
@@ -15,8 +16,10 @@ export async function sendWhatsAppAction(data: {
   templateId?: string;
   templateData?: Record<string, string>;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MESSAGES_READ);
+  if (denied) return denied;
 
   const result = await sendMessage("whatsapp", {
     to: data.phone,
@@ -27,7 +30,7 @@ export async function sendWhatsAppAction(data: {
 
   if (result.success) {
     await audit({
-      userId: session.user.id!,
+      userId: ctx.session.user.id,
       action: "CREATE",
       entity: "Message",
       module: "communication",
@@ -51,8 +54,10 @@ export async function sendMultiChannelNotificationAction(data: {
   message: string;
   subject?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MESSAGES_READ);
+  if (denied) return denied;
 
   // For each channel, determine the recipient address
   const results: Record<string, { success: boolean; error?: string }> = {};
@@ -85,7 +90,7 @@ export async function sendMultiChannelNotificationAction(data: {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Message",
     module: "communication",
@@ -106,11 +111,10 @@ export async function broadcastToGroupAction(data: {
   message: string;
   subject?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MESSAGES_READ);
+  if (denied) return denied;
 
   // Resolve recipients based on target type
   let studentIds: string[] = [];
@@ -139,7 +143,7 @@ export async function broadcastToGroupAction(data: {
     }
     case "boarding": {
       const boarders = await db.student.findMany({
-        where: { schoolId: school.id, boardingStatus: "BOARDING", status: "ACTIVE" },
+        where: { schoolId: ctx.schoolId, boardingStatus: "BOARDING", status: "ACTIVE" },
         select: { id: true },
       });
       studentIds = boarders.map((s) => s.id);
@@ -147,7 +151,7 @@ export async function broadcastToGroupAction(data: {
     }
     case "school": {
       const students = await db.student.findMany({
-        where: { schoolId: school.id, status: "ACTIVE" },
+        where: { schoolId: ctx.schoolId, status: "ACTIVE" },
         select: { id: true },
       });
       studentIds = students.map((s) => s.id);
@@ -180,7 +184,7 @@ export async function broadcastToGroupAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Broadcast",
     module: "communication",
@@ -198,8 +202,10 @@ export async function sendFeeReminderAction(data: {
   studentBillId: string;
   channels: ChannelType[];
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MESSAGES_READ);
+  if (denied) return denied;
 
   const bill = await db.studentBill.findUnique({
     where: { id: data.studentBillId },

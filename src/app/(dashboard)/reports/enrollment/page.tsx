@@ -21,8 +21,8 @@ export default async function EnrollmentReportsPage() {
         description="Student demographics, gender and programme distribution."
       />
       <EnrollmentReportsClient
-        report={reportResult.data ?? null}
-        filters={filtersResult.data ?? { academicYears: [], terms: [], classArms: [] }}
+        report={"data" in reportResult ? reportResult.data : null}
+        filters={"data" in filtersResult ? filtersResult.data : { academicYears: [], terms: [], classArms: [] }}
       />
     </div>
   );

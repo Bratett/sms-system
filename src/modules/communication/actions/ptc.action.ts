@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── PTC Session CRUD ────────────────────────────────────────────────
@@ -16,15 +17,14 @@ export async function createPTCSessionAction(data: {
   slotDuration?: number;
   location?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PTC_CREATE);
+  if (denied) return denied;
 
   const ptcSession = await db.pTCSession.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       academicYearId: data.academicYearId,
       termId: data.termId,
       title: data.title,
@@ -33,12 +33,12 @@ export async function createPTCSessionAction(data: {
       endTime: data.endTime,
       slotDuration: data.slotDuration ?? 15,
       location: data.location,
-      createdBy: session.user.id!,
+      createdBy: ctx.session.user.id,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "PTCSession",
     entityId: ptcSession.id,
@@ -53,13 +53,12 @@ export async function getPTCSessionsAction(filters?: {
   academicYearId?: string;
   termId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PTC_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.academicYearId) where.academicYearId = filters.academicYearId;
   if (filters?.termId) where.termId = filters.termId;
 
@@ -79,8 +78,10 @@ export async function getPTCSessionsAction(filters?: {
 }
 
 export async function deletePTCSessionAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PTC_CREATE);
+  if (denied) return denied;
 
   await db.pTCSession.delete({ where: { id } });
   return { data: { deleted: true } };
@@ -89,8 +90,10 @@ export async function deletePTCSessionAction(id: string) {
 // ─── Slot Management ─────────────────────────────────────────────────
 
 export async function getAvailableSlotsAction(sessionId: string, teacherId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PTC_READ);
+  if (denied) return denied;
 
   const ptcSession = await db.pTCSession.findUnique({ where: { id: sessionId } });
   if (!ptcSession) return { error: "PTC session not found." };
@@ -130,8 +133,10 @@ export async function bookSlotAction(data: {
   studentId: string;
   timeSlot: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PTC_BOOK);
+  if (denied) return denied;
 
   // Check if slot is already booked
   const existing = await db.pTCBooking.findFirst({
@@ -147,6 +152,7 @@ export async function bookSlotAction(data: {
 
   const booking = await db.pTCBooking.create({
     data: {
+      schoolId: ctx.schoolId,
       sessionId: data.sessionId,
       teacherId: data.teacherId,
       parentId: data.parentId,
@@ -159,8 +165,10 @@ export async function bookSlotAction(data: {
 }
 
 export async function cancelBookingAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PTC_BOOK);
+  if (denied) return denied;
 
   const booking = await db.pTCBooking.findUnique({ where: { id } });
   if (!booking) return { error: "Booking not found." };
@@ -174,8 +182,10 @@ export async function cancelBookingAction(id: string) {
 }
 
 export async function getTeacherPTCScheduleAction(sessionId: string, teacherId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PTC_READ);
+  if (denied) return denied;
 
   const bookings = await db.pTCBooking.findMany({
     where: { sessionId, teacherId },

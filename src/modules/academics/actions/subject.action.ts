@@ -1,24 +1,20 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Subjects ────────────────────────────────────────────────────────
 
 export async function getSubjectsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBJECTS_READ);
+  if (denied) return denied;
 
   const subjects = await db.subject.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: { name: "asc" },
     include: {
       _count: {
@@ -48,21 +44,16 @@ export async function createSubjectAction(data: {
   description?: string;
   type: "CORE" | "ELECTIVE";
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBJECTS_CREATE);
+  if (denied) return denied;
 
   // Check for duplicate name
   const existing = await db.subject.findUnique({
     where: {
       schoolId_name: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: data.name,
       },
     },
@@ -74,7 +65,7 @@ export async function createSubjectAction(data: {
 
   const subject = await db.subject.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       code: data.code || null,
       description: data.description || null,
@@ -83,7 +74,7 @@ export async function createSubjectAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "Subject",
     entityId: subject.id,
@@ -105,15 +96,10 @@ export async function updateSubjectAction(
     status?: "ACTIVE" | "INACTIVE";
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBJECTS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.subject.findUnique({ where: { id } });
   if (!existing) {
@@ -125,7 +111,7 @@ export async function updateSubjectAction(
     const duplicate = await db.subject.findUnique({
       where: {
         schoolId_name: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           name: data.name,
         },
       },
@@ -149,7 +135,7 @@ export async function updateSubjectAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Subject",
     entityId: id,
@@ -163,10 +149,10 @@ export async function updateSubjectAction(
 }
 
 export async function deleteSubjectAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBJECTS_DELETE);
+  if (denied) return denied;
 
   const existing = await db.subject.findUnique({
     where: { id },
@@ -186,7 +172,7 @@ export async function deleteSubjectAction(id: string) {
   await db.subject.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "Subject",
     entityId: id,
@@ -201,10 +187,10 @@ export async function deleteSubjectAction(id: string) {
 // ─── Programme-Subject Assignments ───────────────────────────────────
 
 export async function getProgrammeSubjectsAction(programmeId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBJECTS_READ);
+  if (denied) return denied;
 
   const programmeSubjects = await db.programmeSubject.findMany({
     where: { programmeId },
@@ -237,10 +223,10 @@ export async function assignSubjectToProgrammeAction(data: {
   isCore: boolean;
   yearGroup?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBJECTS_CREATE);
+  if (denied) return denied;
 
   // Check for duplicate assignment
   const existing = await db.programmeSubject.findUnique({
@@ -258,23 +244,26 @@ export async function assignSubjectToProgrammeAction(data: {
 
   const assignment = await db.programmeSubject.create({
     data: {
+      schoolId: ctx.schoolId,
       programmeId: data.programmeId,
       subjectId: data.subjectId,
       isCore: data.isCore,
       yearGroup: data.yearGroup ?? null,
     },
-    include: {
-      subject: { select: { name: true } },
-    },
+  });
+
+  const assignedSubject = await db.subject.findUnique({
+    where: { id: data.subjectId },
+    select: { name: true },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "ProgrammeSubject",
     entityId: assignment.id,
     module: "academics",
-    description: `Assigned subject "${assignment.subject.name}" to programme`,
+    description: `Assigned subject "${assignedSubject?.name ?? "Unknown"}" to programme`,
     newData: assignment,
   });
 
@@ -282,10 +271,10 @@ export async function assignSubjectToProgrammeAction(data: {
 }
 
 export async function removeSubjectFromProgrammeAction(programmeSubjectId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBJECTS_DELETE);
+  if (denied) return denied;
 
   const existing = await db.programmeSubject.findUnique({
     where: { id: programmeSubjectId },
@@ -301,7 +290,7 @@ export async function removeSubjectFromProgrammeAction(programmeSubjectId: strin
   await db.programmeSubject.delete({ where: { id: programmeSubjectId } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "ProgrammeSubject",
     entityId: programmeSubjectId,

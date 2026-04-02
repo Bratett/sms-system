@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import {
@@ -10,13 +11,12 @@ import {
 } from "@/modules/accounting/schemas/budget.schema";
 
 export async function getBudgetsAction(filters?: { academicYearId?: string; status?: string }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BUDGETS_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.academicYearId) where.academicYearId = filters.academicYearId;
   if (filters?.status) where.status = filters.status;
 
@@ -54,31 +54,30 @@ export async function getBudgetsAction(filters?: { academicYearId?: string; stat
 }
 
 export async function createBudgetAction(data: CreateBudgetInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BUDGETS_CREATE);
+  if (denied) return denied;
 
   const parsed = createBudgetSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const totalAmount = parsed.data.lines.reduce((sum, l) => sum + l.allocatedAmount, 0);
 
   const budget = await db.$transaction(async (tx) => {
     const created = await tx.budget.create({
       data: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: parsed.data.name,
         academicYearId: parsed.data.academicYearId,
         termId: parsed.data.termId,
         totalAmount,
-        createdBy: session.user.id!,
+        createdBy: ctx.session.user.id,
       },
     });
 
     await tx.budgetLine.createMany({
       data: parsed.data.lines.map((l) => ({
+        schoolId: ctx.schoolId,
         budgetId: created.id,
         expenseCategoryId: l.expenseCategoryId,
         departmentId: l.departmentId,
@@ -90,14 +89,16 @@ export async function createBudgetAction(data: CreateBudgetInput) {
     return created;
   });
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "Budget", entityId: budget.id, module: "accounting", description: `Created budget "${parsed.data.name}" (GHS ${totalAmount})` });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "Budget", entityId: budget.id, module: "accounting", description: `Created budget "${parsed.data.name}" (GHS ${totalAmount})` });
 
   return { data: budget };
 }
 
 export async function approveBudgetAction(budgetId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BUDGETS_APPROVE);
+  if (denied) return denied;
 
   const budget = await db.budget.findUnique({ where: { id: budgetId } });
   if (!budget) return { error: "Budget not found" };
@@ -105,17 +106,19 @@ export async function approveBudgetAction(budgetId: string) {
 
   await db.budget.update({
     where: { id: budgetId },
-    data: { status: "ACTIVE", approvedBy: session.user.id!, approvedAt: new Date() },
+    data: { status: "ACTIVE", approvedBy: ctx.session.user.id, approvedAt: new Date() },
   });
 
-  await audit({ userId: session.user.id!, action: "UPDATE", entity: "Budget", entityId: budgetId, module: "accounting", description: `Approved budget "${budget.name}"` });
+  await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "Budget", entityId: budgetId, module: "accounting", description: `Approved budget "${budget.name}"` });
 
   return { data: { success: true } };
 }
 
 export async function getBudgetVsActualAction(budgetId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BUDGETS_READ);
+  if (denied) return denied;
 
   const budget = await db.budget.findUnique({
     where: { id: budgetId },

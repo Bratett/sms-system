@@ -114,8 +114,8 @@ describe("createAcademicYearAction", () => {
     expect(result.details).toBeDefined();
   });
 
-  it("should return error when school not found", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+  it("should return error when no school context", async () => {
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await createAcademicYearAction({
       name: "2024/2025",
@@ -123,7 +123,7 @@ describe("createAcademicYearAction", () => {
       endDate: "2025-07-31",
     });
     expect(result).toEqual({
-      error: "School not found. Please configure school settings first.",
+      error: "No school context. Please select an active school.",
     });
   });
 
@@ -277,10 +277,10 @@ describe("getDepartmentsAction", () => {
   });
 
   it("should return error when no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await getDepartmentsAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return departments list", async () => {
@@ -315,10 +315,10 @@ describe("createDepartmentAction", () => {
   });
 
   it("should return error when no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await createDepartmentAction({ name: "Science" });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should reject duplicate department name", async () => {
@@ -467,10 +467,10 @@ describe("getHousesAction", () => {
   });
 
   it("should return error when no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await getHousesAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return houses list", async () => {
@@ -621,10 +621,10 @@ describe("getProgrammesAction", () => {
   });
 
   it("should return error when no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await getProgrammesAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return programmes list", async () => {
@@ -786,17 +786,17 @@ describe("getSchoolAction", () => {
       category: "PUBLIC",
       region: "Greater Accra",
     };
-    prismaMock.school.findFirst.mockResolvedValue(school as never);
+    prismaMock.school.findUnique.mockResolvedValue(school as never);
 
     const result = await getSchoolAction();
     expect(result.data).toEqual(school);
   });
 
-  it("should return null data when no school exists", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+  it("should return error when no school context", async () => {
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await getSchoolAction();
-    expect(result.data).toBeNull();
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 });
 
@@ -825,7 +825,7 @@ describe("updateSchoolAction", () => {
   });
 
   it("should return error when school record not found", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    prismaMock.school.findUnique.mockResolvedValue(null as never);
 
     const result = await updateSchoolAction({
       name: "Updated School",
@@ -843,7 +843,7 @@ describe("updateSchoolAction", () => {
       category: "PUBLIC",
     };
 
-    prismaMock.school.findFirst.mockResolvedValue(existing as never);
+    prismaMock.school.findUnique.mockResolvedValue(existing as never);
 
     const updated = { ...existing, name: "Updated School" };
     prismaMock.school.update.mockResolvedValue(updated as never);

@@ -134,14 +134,14 @@ export function RoutesClient({
 
     if (editingRoute) {
       const res = await updateRouteAction(editingRoute.id, payload);
-      if (res.error) {
+      if ("error" in res) {
         toast.error(res.error);
         return;
       }
       toast.success("Route updated successfully");
     } else {
       const res = await createRouteAction(payload);
-      if (res.error) {
+      if ("error" in res) {
         toast.error(res.error);
         return;
       }
@@ -154,7 +154,7 @@ export function RoutesClient({
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this route?")) return;
     const res = await deleteRouteAction(id);
-    if (res.error) {
+    if ("error" in res) {
       toast.error(res.error);
       return;
     }

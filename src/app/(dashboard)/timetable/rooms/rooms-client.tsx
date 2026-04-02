@@ -98,7 +98,7 @@ export function RoomsClient({
           capacity: roomForm.capacity || null,
           type: roomForm.type,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -110,7 +110,7 @@ export function RoomsClient({
           capacity: roomForm.capacity || undefined,
           type: roomForm.type,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -126,7 +126,7 @@ export function RoomsClient({
 
     startTransition(async () => {
       const result = await deleteRoomAction(room.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { dispatch } from "@/lib/notifications/dispatcher";
@@ -19,17 +19,12 @@ import {
 // ─── Leave Types ─────────────────────────────────────────────
 
 export async function getLeaveTypesAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LEAVE_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LEAVE_READ)) return { error: "Insufficient permissions" };
 
   const leaveTypes = await db.leaveType.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: { name: "asc" },
   });
 
@@ -46,25 +41,20 @@ export async function getLeaveTypesAction() {
 }
 
 export async function createLeaveTypeAction(data: CreateLeaveTypeInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = createLeaveTypeSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  }
 
   // Check for duplicate name
   const existing = await db.leaveType.findUnique({
     where: {
       schoolId_name: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: parsed.data.name,
       },
     },
@@ -76,7 +66,7 @@ export async function createLeaveTypeAction(data: CreateLeaveTypeInput) {
 
   const leaveType = await db.leaveType.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: parsed.data.name,
       defaultDays: parsed.data.defaultDays,
       requiresApproval: parsed.data.requiresApproval ?? true,
@@ -85,7 +75,7 @@ export async function createLeaveTypeAction(data: CreateLeaveTypeInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "LeaveType",
     entityId: leaveType.id,
@@ -98,9 +88,9 @@ export async function createLeaveTypeAction(data: CreateLeaveTypeInput) {
 }
 
 export async function updateLeaveTypeAction(id: string, data: UpdateLeaveTypeInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = updateLeaveTypeSchema.safeParse(data);
   if (!parsed.success) {
@@ -128,7 +118,7 @@ export async function updateLeaveTypeAction(id: string, data: UpdateLeaveTypeInp
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "LeaveType",
     entityId: id,
@@ -142,9 +132,9 @@ export async function updateLeaveTypeAction(id: string, data: UpdateLeaveTypeInp
 }
 
 export async function deleteLeaveTypeAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
 
   const existing = await db.leaveType.findUnique({
     where: { id },
@@ -164,7 +154,7 @@ export async function deleteLeaveTypeAction(id: string) {
   await db.leaveType.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "LeaveType",
     entityId: id,
@@ -179,14 +169,9 @@ export async function deleteLeaveTypeAction(id: string) {
 // ─── Leave Balances ──────────────────────────────────────────
 
 export async function initializeLeaveBalancesAction(staffId: string, academicYearId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
 
   const staff = await db.staff.findUnique({ where: { id: staffId } });
   if (!staff) {
@@ -195,7 +180,7 @@ export async function initializeLeaveBalancesAction(staffId: string, academicYea
 
   const leaveTypes = await db.leaveType.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       status: "ACTIVE",
       OR: [
         { applicableGender: null },
@@ -219,6 +204,7 @@ export async function initializeLeaveBalancesAction(staffId: string, academicYea
     if (!existing) {
       await db.leaveBalance.create({
         data: {
+          schoolId: ctx.schoolId,
           staffId,
           leaveTypeId: lt.id,
           academicYearId,
@@ -231,7 +217,7 @@ export async function initializeLeaveBalancesAction(staffId: string, academicYea
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "LeaveBalance",
     module: "hr",
@@ -245,17 +231,14 @@ export async function initializeLeaveBalancesAction(staffId: string, academicYea
 // ─── Bulk Initialize Leave Balances ──────────────────────────
 
 export async function bulkInitializeLeaveBalancesAction(academicYearId: string, staffIds?: string[]) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
 
   // Get target staff — either specified IDs or all active staff
   const staffWhere = staffIds && staffIds.length > 0
-    ? { id: { in: staffIds }, schoolId: school.id, deletedAt: null }
-    : { schoolId: school.id, status: "ACTIVE" as const, deletedAt: null };
+    ? { id: { in: staffIds }, schoolId: ctx.schoolId, deletedAt: null }
+    : { schoolId: ctx.schoolId, status: "ACTIVE" as const, deletedAt: null };
   const staffMembers = await db.staff.findMany({
     where: staffWhere,
     select: { id: true, firstName: true, lastName: true, gender: true },
@@ -264,7 +247,7 @@ export async function bulkInitializeLeaveBalancesAction(academicYearId: string, 
   if (staffMembers.length === 0) return { error: "No staff members found." };
 
   const leaveTypes = await db.leaveType.findMany({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
   });
 
   let totalCreated = 0;
@@ -289,6 +272,7 @@ export async function bulkInitializeLeaveBalancesAction(academicYearId: string, 
       if (!existing) {
         await db.leaveBalance.create({
           data: {
+            schoolId: ctx.schoolId,
             staffId: staff.id,
             leaveTypeId: lt.id,
             academicYearId,
@@ -304,7 +288,7 @@ export async function bulkInitializeLeaveBalancesAction(academicYearId: string, 
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "LeaveBalance",
     module: "hr",
@@ -323,14 +307,9 @@ export async function getLeaveRequestsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LEAVE_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LEAVE_READ)) return { error: "Insufficient permissions" };
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
@@ -338,7 +317,7 @@ export async function getLeaveRequestsAction(filters?: {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {
-    staff: { schoolId: school.id },
+    staff: { schoolId: ctx.schoolId },
   };
 
   if (filters?.staffId) {
@@ -382,9 +361,9 @@ export async function getLeaveRequestsAction(filters?: {
 }
 
 export async function requestLeaveAction(data: RequestLeaveInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LEAVE_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = requestLeaveSchema.safeParse(data);
   if (!parsed.success) {
@@ -399,12 +378,7 @@ export async function requestLeaveAction(data: RequestLeaveInput) {
   const leaveType = await db.leaveType.findUnique({ where: { id: parsed.data.leaveTypeId } });
   if (!leaveType) {
     return { error: "Leave type not found." };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  }
 
   const startDate = new Date(parsed.data.startDate);
   const endDate = new Date(parsed.data.endDate);
@@ -416,7 +390,7 @@ export async function requestLeaveAction(data: RequestLeaveInput) {
   // Fetch public holidays in the date range for accurate business day calculation
   const holidays = await db.publicHoliday.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       date: { gte: startDate, lte: endDate },
     },
     select: { date: true },
@@ -446,6 +420,7 @@ export async function requestLeaveAction(data: RequestLeaveInput) {
 
   const request = await db.leaveRequest.create({
     data: {
+      schoolId: ctx.schoolId,
       staffId: parsed.data.staffId,
       leaveTypeId: parsed.data.leaveTypeId,
       startDate,
@@ -456,7 +431,7 @@ export async function requestLeaveAction(data: RequestLeaveInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "LeaveRequest",
     entityId: request.id,
@@ -471,16 +446,16 @@ export async function requestLeaveAction(data: RequestLeaveInput) {
     title: "New Leave Request",
     message: `${staff.firstName} ${staff.lastName} has requested ${daysRequested} days of ${leaveType.name} leave.`,
     recipients: [], // In-app notification created for admins with LEAVE_APPROVE permission
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
   }).catch(() => {}); // Fire-and-forget
 
   return { data: request };
 }
 
 export async function approveLeaveAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LEAVE_APPROVE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LEAVE_APPROVE)) return { error: "Insufficient permissions" };
 
   const request = await db.leaveRequest.findUnique({
     where: { id },
@@ -500,7 +475,7 @@ export async function approveLeaveAction(id: string) {
     where: { id },
     data: {
       status: "APPROVED",
-      reviewedBy: session.user.id,
+      reviewedBy: ctx.session.user.id,
       reviewedAt: new Date(),
     },
   });
@@ -525,7 +500,7 @@ export async function approveLeaveAction(id: string) {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "LeaveRequest",
     entityId: id,
@@ -541,14 +516,13 @@ export async function approveLeaveAction(id: string) {
       where: { id: request.staff.userId },
       select: { id: true, email: true },
     });
-    const school = await db.school.findFirst();
-    if (user && school) {
+    if (user) {
       dispatch({
         event: NOTIFICATION_EVENTS.LEAVE_APPROVED,
         title: "Leave Request Approved",
         message: `Your ${request.leaveType.name} leave request for ${request.daysRequested} day(s) has been approved.`,
         recipients: [{ userId: user.id, email: user.email ?? undefined, name: `${request.staff.firstName} ${request.staff.lastName}` }],
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
       }).catch(() => {});
     }
   }
@@ -557,9 +531,9 @@ export async function approveLeaveAction(id: string) {
 }
 
 export async function rejectLeaveAction(id: string, notes: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LEAVE_APPROVE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LEAVE_APPROVE)) return { error: "Insufficient permissions" };
 
   const request = await db.leaveRequest.findUnique({
     where: { id },
@@ -578,14 +552,14 @@ export async function rejectLeaveAction(id: string, notes: string) {
     where: { id },
     data: {
       status: "REJECTED",
-      reviewedBy: session.user.id,
+      reviewedBy: ctx.session.user.id,
       reviewedAt: new Date(),
       reviewNotes: notes || null,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "LeaveRequest",
     entityId: id,
@@ -601,14 +575,13 @@ export async function rejectLeaveAction(id: string, notes: string) {
       where: { id: request.staff.userId },
       select: { id: true, email: true },
     });
-    const school = await db.school.findFirst();
-    if (user && school) {
+    if (user) {
       dispatch({
         event: NOTIFICATION_EVENTS.LEAVE_REJECTED,
         title: "Leave Request Rejected",
         message: `Your ${request.leaveType.name} leave request has been rejected.${notes ? ` Reason: ${notes}` : ""}`,
         recipients: [{ userId: user.id, email: user.email ?? undefined, name: `${request.staff.firstName} ${request.staff.lastName}` }],
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
       }).catch(() => {});
     }
   }
@@ -617,9 +590,9 @@ export async function rejectLeaveAction(id: string, notes: string) {
 }
 
 export async function cancelLeaveAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LEAVE_APPROVE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LEAVE_APPROVE)) return { error: "Insufficient permissions" };
 
   const request = await db.leaveRequest.findUnique({
     where: { id },
@@ -665,7 +638,7 @@ export async function cancelLeaveAction(id: string) {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "LeaveRequest",
     entityId: id,

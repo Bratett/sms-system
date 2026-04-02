@@ -39,10 +39,10 @@ export function EligibilityClient() {
 
     startTransition(async () => {
       const result = await searchGraduationEligibleStudentsAction(searchTerm.trim());
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
-        setStudents(result.data ?? []);
+        setStudents("data" in result ? result.data : []);
         setEligibility(null);
         setCheckedStudentId(null);
       }
@@ -52,9 +52,9 @@ export function EligibilityClient() {
   function handleCheckEligibility(student: StudentResult) {
     startTransition(async () => {
       const result = await checkGraduationEligibilityAction(student.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
-      } else if (result.data) {
+      } else if ("data" in result && result.data) {
         setEligibility(result.data);
         setCheckedStudentId(student.id);
       }

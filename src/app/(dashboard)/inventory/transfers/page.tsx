@@ -22,8 +22,8 @@ export default async function TransfersPage() {
         description="Transfer inventory items between stores."
       />
       <TransfersClient
-        transfers={transfersResult.data ?? []}
-        stores={storesResult.data ?? []}
+        transfers={"data" in transfersResult ? transfersResult.data : []}
+        stores={"data" in storesResult ? storesResult.data : []}
       />
     </div>
   );

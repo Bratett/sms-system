@@ -1,23 +1,19 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 
 export async function getScholarshipsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "School not found" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCIAL_AID_READ);
+  if (denied) return denied;
 
   const scholarships = await db.scholarship.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     include: {
       studentScholarships: {
         select: { id: true },
@@ -49,15 +45,10 @@ export async function createScholarshipAction(data: {
   criteria?: string;
   academicYearId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "School not found" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCIAL_AID_CREATE);
+  if (denied) return denied;
 
   if (!data.name || data.name.trim() === "") {
     return { error: "Scholarship name is required" };
@@ -73,7 +64,7 @@ export async function createScholarshipAction(data: {
 
   const scholarship = await db.scholarship.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name.trim(),
       type: data.type,
       value: data.value,
@@ -83,7 +74,7 @@ export async function createScholarshipAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Scholarship",
     entityId: scholarship.id,
@@ -106,10 +97,10 @@ export async function updateScholarshipAction(
     status?: "ACTIVE" | "INACTIVE";
   }
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCIAL_AID_REVIEW);
+  if (denied) return denied;
 
   const existing = await db.scholarship.findUnique({ where: { id } });
   if (!existing) {
@@ -145,7 +136,7 @@ export async function updateScholarshipAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Scholarship",
     entityId: id,
@@ -159,10 +150,10 @@ export async function updateScholarshipAction(
 }
 
 export async function deleteScholarshipAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCIAL_AID_REVIEW);
+  if (denied) return denied;
 
   const existing = await db.scholarship.findUnique({
     where: { id },
@@ -182,7 +173,7 @@ export async function deleteScholarshipAction(id: string) {
   await db.scholarship.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Scholarship",
     entityId: id,
@@ -199,10 +190,10 @@ export async function applyScholarshipAction(
   scholarshipId: string,
   termId: string
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCIAL_AID_CREATE);
+  if (denied) return denied;
 
   const scholarship = await db.scholarship.findUnique({
     where: { id: scholarshipId },
@@ -240,6 +231,7 @@ export async function applyScholarshipAction(
 
   const studentScholarship = await db.studentScholarship.create({
     data: {
+      schoolId: ctx.schoolId,
       studentId,
       scholarshipId,
       termId,
@@ -254,7 +246,7 @@ export async function applyScholarshipAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StudentScholarship",
     entityId: studentScholarship.id,
@@ -267,10 +259,10 @@ export async function applyScholarshipAction(
 }
 
 export async function removeStudentScholarshipAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCIAL_AID_CREATE);
+  if (denied) return denied;
 
   const existing = await db.studentScholarship.findUnique({
     where: { id },
@@ -286,7 +278,7 @@ export async function removeStudentScholarshipAction(id: string) {
   await db.studentScholarship.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "StudentScholarship",
     entityId: id,
@@ -299,10 +291,10 @@ export async function removeStudentScholarshipAction(id: string) {
 }
 
 export async function getStudentScholarshipsAction(studentId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCIAL_AID_READ);
+  if (denied) return denied;
 
   const studentScholarships = await db.studentScholarship.findMany({
     where: { studentId },

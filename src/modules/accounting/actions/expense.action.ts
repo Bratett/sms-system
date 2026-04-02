@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import {
@@ -12,14 +13,11 @@ import {
 } from "@/modules/accounting/schemas/expense.schema";
 
 export async function getExpenseCategoriesAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const categories = await db.expenseCategory.findMany({
-    where: { schoolId: school.id, parentId: null },
+    where: { schoolId: ctx.schoolId, parentId: null },
     include: { children: { orderBy: { name: "asc" } } },
     orderBy: { name: "asc" },
   });
@@ -28,17 +26,13 @@ export async function getExpenseCategoriesAction() {
 }
 
 export async function createExpenseCategoryAction(data: CreateExpenseCategoryInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const parsed = createExpenseCategorySchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const category = await db.expenseCategory.create({
-    data: { schoolId: school.id, ...parsed.data },
+    data: { schoolId: ctx.schoolId, ...parsed.data },
   });
 
   return { data: category };
@@ -52,17 +46,16 @@ export async function getExpensesAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXPENSES_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.status) where.status = filters.status;
   if (filters?.expenseCategoryId) where.expenseCategoryId = filters.expenseCategoryId;
   if (filters?.dateFrom || filters?.dateTo) {
@@ -97,27 +90,27 @@ export async function getExpensesAction(filters?: {
 }
 
 export async function createExpenseAction(data: CreateExpenseInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXPENSES_CREATE);
+  if (denied) return denied;
 
   const parsed = createExpenseSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const expense = await db.expense.create({
-    data: { schoolId: school.id, submittedBy: session.user.id!, ...parsed.data },
+    data: { schoolId: ctx.schoolId, submittedBy: ctx.session.user.id, ...parsed.data },
   });
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "Expense", entityId: expense.id, module: "accounting", description: `Created expense "${parsed.data.description}" (GHS ${parsed.data.amount})` });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "Expense", entityId: expense.id, module: "accounting", description: `Created expense "${parsed.data.description}" (GHS ${parsed.data.amount})` });
 
   return { data: expense };
 }
 
 export async function approveExpenseAction(expenseId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXPENSES_APPROVE);
+  if (denied) return denied;
 
   const expense = await db.expense.findUnique({ where: { id: expenseId } });
   if (!expense) return { error: "Expense not found" };
@@ -125,17 +118,19 @@ export async function approveExpenseAction(expenseId: string) {
 
   await db.expense.update({
     where: { id: expenseId },
-    data: { status: "APPROVED", approvedBy: session.user.id!, approvedAt: new Date() },
+    data: { status: "APPROVED", approvedBy: ctx.session.user.id, approvedAt: new Date() },
   });
 
-  await audit({ userId: session.user.id!, action: "UPDATE", entity: "Expense", entityId: expenseId, module: "accounting", description: `Approved expense (GHS ${expense.amount})` });
+  await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "Expense", entityId: expenseId, module: "accounting", description: `Approved expense (GHS ${expense.amount})` });
 
   return { data: { success: true } };
 }
 
 export async function rejectExpenseAction(expenseId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXPENSES_APPROVE);
+  if (denied) return denied;
 
   const expense = await db.expense.findUnique({ where: { id: expenseId } });
   if (!expense) return { error: "Expense not found" };
@@ -143,19 +138,16 @@ export async function rejectExpenseAction(expenseId: string) {
 
   await db.expense.update({ where: { id: expenseId }, data: { status: "REJECTED" } });
 
-  await audit({ userId: session.user.id!, action: "UPDATE", entity: "Expense", entityId: expenseId, module: "accounting", description: `Rejected expense` });
+  await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "Expense", entityId: expenseId, module: "accounting", description: `Rejected expense` });
 
   return { data: { success: true } };
 }
 
 export async function getExpenseSummaryAction(filters?: { termId?: string }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const where: Record<string, unknown> = { schoolId: school.id, status: { in: ["APPROVED", "PAID"] } };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId, status: { in: ["APPROVED", "PAID"] } };
   if (filters?.termId) where.termId = filters.termId;
 
   const expenses = await db.expense.findMany({

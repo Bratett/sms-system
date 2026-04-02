@@ -8,7 +8,7 @@ export default async function ReportTemplatesPage() {
   if (!session?.user) return null;
 
   const result = await getReportTemplatesAction();
-  const templates = result.data ?? [];
+  const templates = "data" in result ? result.data : [];
 
   return (
     <div className="space-y-6">

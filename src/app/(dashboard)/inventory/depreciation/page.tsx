@@ -10,8 +10,8 @@ export default async function DepreciationPage() {
 
   return (
     <DepreciationClient
-      assets={result.data?.assets ?? []}
-      summary={result.data?.summary ?? null}
+      assets={"data" in result ? result.data.assets : []}
+      summary={"data" in result ? result.data.summary : null}
     />
   );
 }

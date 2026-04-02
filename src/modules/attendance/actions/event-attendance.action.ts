@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Record Event Attendance ─────────────────────────────────────────
@@ -14,11 +15,10 @@ export async function recordEventAttendanceAction(data: {
     remarks?: string;
   }>;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ATTENDANCE_CREATE);
+  if (denied) return denied;
 
   // Verify event exists
   const event = await db.academicEvent.findUnique({
@@ -41,12 +41,12 @@ export async function recordEventAttendanceAction(data: {
           },
         },
         create: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           eventId: data.eventId,
           studentId: record.studentId,
           status: record.status,
           remarks: record.remarks || null,
-          recordedBy: session.user.id!,
+          recordedBy: ctx.session.user.id,
         },
         update: {
           status: record.status,
@@ -60,7 +60,7 @@ export async function recordEventAttendanceAction(data: {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "EventAttendance",
     entityId: data.eventId,
@@ -74,8 +74,10 @@ export async function recordEventAttendanceAction(data: {
 // ─── Get Event Attendance ────────────────────────────────────────────
 
 export async function getEventAttendanceAction(eventId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ATTENDANCE_READ);
+  if (denied) return denied;
 
   const records = await db.eventAttendance.findMany({
     where: { eventId },
@@ -107,11 +109,8 @@ export async function getEventAttendanceAction(eventId: string) {
 // ─── Get Events with Attendance Summary ──────────────────────────────
 
 export async function getEventsWithAttendanceAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const currentTerm = await db.term.findFirst({
     where: { isCurrent: true },
@@ -120,7 +119,7 @@ export async function getEventsWithAttendanceAction() {
 
   const events = await db.academicEvent.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       ...(currentTerm ? { termId: currentTerm.id } : {}),
     },
     orderBy: { startDate: "desc" },

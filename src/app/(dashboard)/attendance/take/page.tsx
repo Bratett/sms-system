@@ -16,8 +16,8 @@ export default async function TakeAttendancePage() {
     getPeriodsAction(),
   ]);
 
-  const classes = classesResult.data ?? [];
-  const periods = (periodsResult.data ?? []).map((p) => ({
+  const classes = "data" in classesResult ? classesResult.data : [];
+  const periods = ("data" in periodsResult ? periodsResult.data : []).map((p) => ({
     id: p.id,
     name: p.name,
     startTime: p.startTime,

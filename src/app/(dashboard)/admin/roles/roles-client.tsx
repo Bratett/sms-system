@@ -62,7 +62,7 @@ export function RolesClient({
     }
     startTransition(async () => {
       const result = await deleteRoleAction(role.id);
-      if (result.error) {
+      if ("error" in result) {
         alert(result.error);
       }
       router.refresh();

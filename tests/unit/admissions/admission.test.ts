@@ -35,9 +35,9 @@ describe("getApplicationsAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getApplicationsAction({ page: 1, pageSize: 25 });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return paginated applications", async () => {
@@ -162,9 +162,9 @@ describe("createApplicationAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await createApplicationAction(validApplicationInput);
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should reject if no active academic year", async () => {
@@ -378,10 +378,10 @@ describe("enrollApplicationAction", () => {
       id: "app-1",
       status: "ACCEPTED",
     } as never);
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await enrollApplicationAction("app-1", "ca-1");
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should reject if no active academic year", async () => {
@@ -634,9 +634,9 @@ describe("getAdmissionStatsAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getAdmissionStatsAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return counts by all status types", async () => {

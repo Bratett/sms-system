@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import { createInspectionSchema } from "../schemas";
@@ -16,11 +16,9 @@ export async function getInspectionsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.HOSTEL_INSPECTIONS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.HOSTEL_INSPECTIONS_READ);
   if (permErr) return permErr;
 
   const page = filters?.page ?? 1;
@@ -130,29 +128,22 @@ export async function createInspectionAction(data: {
   issues?: string;
   followUpRequired?: boolean;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.HOSTEL_INSPECTIONS_CREATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.HOSTEL_INSPECTIONS_CREATE);
   if (permErr) return permErr;
 
   const parsed = createInspectionSchema.safeParse(data);
   if (!parsed.success) {
     return { error: parsed.error.issues.map((e: { message: string }) => e.message).join(", ") };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "School not found." };
-  }
+  }
 
   const inspection = await db.hostelInspection.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       hostelId: parsed.data.hostelId,
       dormitoryId: parsed.data.dormitoryId || null,
-      inspectedBy: session.user.id!,
+      inspectedBy: ctx.session.user.id,
       inspectionDate: new Date(parsed.data.inspectionDate),
       type: parsed.data.type as never,
       overallRating: parsed.data.overallRating as never,
@@ -166,7 +157,7 @@ export async function createInspectionAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "HostelInspection",
     entityId: inspection.id,
@@ -179,11 +170,9 @@ export async function createInspectionAction(data: {
 }
 
 export async function getInspectionAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.HOSTEL_INSPECTIONS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.HOSTEL_INSPECTIONS_READ);
   if (permErr) return permErr;
 
   const inspection = await db.hostelInspection.findUnique({
@@ -244,11 +233,9 @@ export async function getInspectionAction(id: string) {
 }
 
 export async function getInspectionTrendsAction(hostelId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.HOSTEL_INSPECTIONS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.HOSTEL_INSPECTIONS_READ);
   if (permErr) return permErr;
 
   const inspections = await db.hostelInspection.findMany({

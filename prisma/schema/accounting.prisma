@@ -82,6 +82,7 @@ model JournalTransaction {
 model JournalEntry {
   id                   String @id @default(cuid())
   journalTransactionId String
+  schoolId             String
   debitAccountId       String
   creditAccountId      String
   amount               Decimal @db.Decimal(18, 2)
@@ -90,10 +91,12 @@ model JournalEntry {
   journalTransaction JournalTransaction @relation(fields: [journalTransactionId], references: [id], onDelete: Cascade)
   debitAccount       Account            @relation("DebitAccount", fields: [debitAccountId], references: [id])
   creditAccount      Account            @relation("CreditAccount", fields: [creditAccountId], references: [id])
+  school             School             @relation("SchoolJournalEntry", fields: [schoolId], references: [id])
 
   @@index([journalTransactionId])
   @@index([debitAccountId])
   @@index([creditAccountId])
+  @@index([schoolId])
 }
 
 enum JournalStatus {
@@ -185,6 +188,7 @@ model PettyCashFund {
 model PettyCashTransaction {
   id                String        @id @default(cuid())
   pettyCashFundId   String
+  schoolId          String
   type              PettyCashType
   amount            Decimal  @db.Decimal(18, 2)
   description       String
@@ -196,14 +200,17 @@ model PettyCashTransaction {
   createdAt         DateTime      @default(now())
 
   pettyCashFund PettyCashFund @relation(fields: [pettyCashFundId], references: [id], onDelete: Cascade)
+  school        School        @relation("SchoolPettyCashTransaction", fields: [schoolId], references: [id])
 
   @@index([pettyCashFundId])
   @@index([date])
+  @@index([schoolId])
 }
 
 model PettyCashReplenishment {
   id              String              @id @default(cuid())
   pettyCashFundId String
+  schoolId        String
   amount          Decimal             @db.Decimal(18, 2)
   requestedBy     String
   approvedBy      String?
@@ -212,9 +219,11 @@ model PettyCashReplenishment {
   approvedAt      DateTime?
 
   pettyCashFund PettyCashFund @relation(fields: [pettyCashFundId], references: [id], onDelete: Cascade)
+  school        School        @relation("SchoolPettyCashReplenishment", fields: [schoolId], references: [id])
 
   @@index([pettyCashFundId])
   @@index([status])
+  @@index([schoolId])
 }
 
 enum PettyCashType {
@@ -256,6 +265,7 @@ model Budget {
 model BudgetLine {
   id                String @id @default(cuid())
   budgetId          String
+  schoolId          String
   expenseCategoryId String
   departmentId      String?
   allocatedAmount   Decimal @db.Decimal(18, 2)
@@ -264,9 +274,11 @@ model BudgetLine {
 
   budget          Budget          @relation(fields: [budgetId], references: [id], onDelete: Cascade)
   expenseCategory ExpenseCategory @relation(fields: [expenseCategoryId], references: [id])
+  school          School          @relation("SchoolBudgetLine", fields: [schoolId], references: [id])
 
   @@unique([budgetId, expenseCategoryId, departmentId])
   @@index([budgetId])
+  @@index([schoolId])
 }
 
 enum BudgetStatus {
@@ -300,6 +312,7 @@ model ExpenseClaim {
 model ExpenseClaimItem {
   id                String   @id @default(cuid())
   expenseClaimId    String
+  schoolId          String
   description       String
   amount            Decimal  @db.Decimal(18, 2)
   date              DateTime
@@ -307,8 +320,10 @@ model ExpenseClaimItem {
   expenseCategoryId String?
 
   expenseClaim ExpenseClaim @relation(fields: [expenseClaimId], references: [id], onDelete: Cascade)
+  school       School       @relation("SchoolExpenseClaimItem", fields: [schoolId], references: [id])
 
   @@index([expenseClaimId])
+  @@index([schoolId])
 }
 
 enum ExpenseClaimStatus {

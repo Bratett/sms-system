@@ -1,18 +1,18 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 export async function getConsentStatusAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COMPLIANCE_CONSENT_READ);
+  if (denied) return denied;
 
   const consents = await db.consentRecord.findMany({
-    where: { userId: session.user.id!, schoolId: school.id },
+    where: { userId: ctx.session.user.id, schoolId: ctx.schoolId },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -38,11 +38,10 @@ export async function updateConsentAction(data: {
   ipAddress?: string;
   userAgent?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COMPLIANCE_CONSENT_CREATE);
+  if (denied) return denied;
 
   const now = new Date();
   const consentType = data.consentType as "DATA_PROCESSING" | "MARKETING_COMMUNICATIONS" | "PHOTO_VIDEO" | "THIRD_PARTY_SHARING" | "ANALYTICS_TRACKING";
@@ -50,14 +49,14 @@ export async function updateConsentAction(data: {
   const record = await db.consentRecord.upsert({
     where: {
       userId_schoolId_consentType: {
-        userId: session.user.id!,
-        schoolId: school.id,
+        userId: ctx.session.user.id,
+        schoolId: ctx.schoolId,
         consentType,
       },
     },
     create: {
-      userId: session.user.id!,
-      schoolId: school.id,
+      userId: ctx.session.user.id,
+      schoolId: ctx.schoolId,
       consentType,
       granted: data.granted,
       grantedAt: data.granted ? now : null,
@@ -75,7 +74,7 @@ export async function updateConsentAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "ConsentRecord",
     entityId: record.id,
@@ -91,16 +90,15 @@ export async function getConsentAuditAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COMPLIANCE_CONSENT_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.consentType) where.consentType = filters.consentType;
 
   const [records, total] = await Promise.all([

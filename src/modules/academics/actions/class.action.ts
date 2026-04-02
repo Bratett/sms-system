@@ -1,23 +1,19 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Classes ────────────────────────────────────────────────────────
 
 export async function getClassesAction(academicYearId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CLASSES_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (academicYearId) {
     where.academicYearId = academicYearId;
   }
@@ -39,7 +35,7 @@ export async function getClassesAction(academicYearId?: string) {
 
   // We need programme names — fetch all programmes for this school
   const programmes = await db.programme.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     select: { id: true, name: true },
   });
   const programmeMap = new Map(programmes.map((p) => [p.id, p.name]));
@@ -85,21 +81,16 @@ export async function createClassAction(data: {
   code?: string;
   maxCapacity?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CLASSES_CREATE);
+  if (denied) return denied;
 
   // Check for duplicate name within same academic year
   const existing = await db.class.findUnique({
     where: {
       schoolId_name_academicYearId: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: data.name,
         academicYearId: data.academicYearId,
       },
@@ -112,7 +103,7 @@ export async function createClassAction(data: {
 
   const newClass = await db.class.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       programmeId: data.programmeId,
       academicYearId: data.academicYearId,
       yearGroup: data.yearGroup,
@@ -123,7 +114,7 @@ export async function createClassAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "Class",
     entityId: newClass.id,
@@ -146,15 +137,10 @@ export async function updateClassAction(
     status?: "ACTIVE" | "INACTIVE";
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CLASSES_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.class.findUnique({ where: { id } });
   if (!existing) {
@@ -166,7 +152,7 @@ export async function updateClassAction(
     const duplicate = await db.class.findUnique({
       where: {
         schoolId_name_academicYearId: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           name: data.name,
           academicYearId: existing.academicYearId,
         },
@@ -192,7 +178,7 @@ export async function updateClassAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Class",
     entityId: id,
@@ -206,10 +192,10 @@ export async function updateClassAction(
 }
 
 export async function deleteClassAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CLASSES_DELETE);
+  if (denied) return denied;
 
   const existing = await db.class.findUnique({
     where: { id },
@@ -235,7 +221,7 @@ export async function deleteClassAction(id: string) {
   await db.class.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "Class",
     entityId: id,
@@ -250,10 +236,10 @@ export async function deleteClassAction(id: string) {
 // ─── Class Arms ─────────────────────────────────────────────────────
 
 export async function getClassArmsAction(classId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CLASSES_READ);
+  if (denied) return denied;
 
   const classArms = await db.classArm.findMany({
     where: { classId },
@@ -284,10 +270,10 @@ export async function createClassArmAction(data: {
   name: string;
   capacity?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CLASSES_CREATE);
+  if (denied) return denied;
 
   // Check for duplicate name within same class
   const existing = await db.classArm.findUnique({
@@ -310,6 +296,7 @@ export async function createClassArmAction(data: {
 
   const arm = await db.classArm.create({
     data: {
+      schoolId: ctx.schoolId,
       classId: data.classId,
       name: data.name,
       capacity: data.capacity ?? 50,
@@ -317,7 +304,7 @@ export async function createClassArmAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "ClassArm",
     entityId: arm.id,
@@ -337,10 +324,10 @@ export async function updateClassArmAction(
     status?: "ACTIVE" | "INACTIVE";
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CLASSES_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.classArm.findUnique({ where: { id } });
   if (!existing) {
@@ -374,7 +361,7 @@ export async function updateClassArmAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "ClassArm",
     entityId: id,
@@ -388,10 +375,10 @@ export async function updateClassArmAction(
 }
 
 export async function deleteClassArmAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CLASSES_DELETE);
+  if (denied) return denied;
 
   const existing = await db.classArm.findUnique({
     where: { id },
@@ -412,7 +399,7 @@ export async function deleteClassArmAction(id: string) {
   await db.classArm.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "ClassArm",
     entityId: id,

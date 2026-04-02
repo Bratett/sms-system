@@ -48,10 +48,10 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
         description="View a history of all actions performed in the system."
       />
       <AuditLogClient
-        logs={logsResult.data ?? []}
-        pagination={logsResult.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
-        modules={modulesResult.data ?? []}
-        users={usersResult.data ?? []}
+        logs={"data" in logsResult ? logsResult.data : []}
+        pagination={"data" in logsResult && "pagination" in logsResult ? logsResult.pagination : { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
+        modules={"data" in modulesResult ? modulesResult.data : []}
+        users={"data" in usersResult ? usersResult.data : []}
         currentFilters={filters}
       />
     </div>

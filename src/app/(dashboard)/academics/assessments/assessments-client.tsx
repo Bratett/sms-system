@@ -94,7 +94,7 @@ export function AssessmentsClient({
   useEffect(() => {
     startTransition(async () => {
       const result = await getAssessmentTypesAction(selectedTermId || undefined);
-      if (result.data) {
+      if ("data" in result) {
         setAssessmentTypes(result.data);
       }
     });
@@ -140,7 +140,7 @@ export function AssessmentsClient({
     if (!confirm(`Are you sure you want to delete assessment type "${at.name}"?`)) return;
     startTransition(async () => {
       const result = await deleteAssessmentTypeAction(at.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Assessment type "${at.name}" deleted successfully.`);
@@ -175,7 +175,7 @@ export function AssessmentsClient({
           maxScore: form.maxScore,
           termId: form.termId || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success(`Assessment type "${form.name}" updated successfully.`);
@@ -191,7 +191,7 @@ export function AssessmentsClient({
           maxScore: form.maxScore,
           termId: form.termId || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success(`Assessment type "${form.name}" created successfully.`);

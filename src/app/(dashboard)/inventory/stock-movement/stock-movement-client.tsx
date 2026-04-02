@@ -174,7 +174,7 @@ export function StockMovementClient({
         quantity: stockInForm.quantity,
         reason: stockInForm.reason || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -204,7 +204,7 @@ export function StockMovementClient({
         issuedTo: stockOutForm.issuedTo || undefined,
         reason: stockOutForm.reason || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -233,7 +233,7 @@ export function StockMovementClient({
         newQuantity: adjustForm.newQuantity,
         reason: adjustForm.reason,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

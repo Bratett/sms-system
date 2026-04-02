@@ -8,8 +8,8 @@ export default async function MyClassPage() {
   if (!session?.user) return null;
 
   const result = await getClassTeacherDashboardAction();
-  const dashboardData = result.data ?? [];
-  const error = result.error;
+  const dashboardData = "data" in result ? result.data : [];
+  const error = "error" in result ? result.error : undefined;
 
   return (
     <div className="space-y-6">

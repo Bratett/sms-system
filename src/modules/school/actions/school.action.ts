@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import {
   updateSchoolSchema,
@@ -9,27 +10,27 @@ import {
 } from "@/modules/school/schemas/school.schema";
 
 export async function getSchoolAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
+  const school = await db.school.findUnique({ where: { id: ctx.schoolId } });
   return { data: school };
 }
 
 export async function updateSchoolAction(data: UpdateSchoolInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   const parsed = updateSchoolSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
 
-  const school = await db.school.findFirst();
+  const school = await db.school.findUnique({ where: { id: ctx.schoolId } });
   if (!school) {
     return { error: "School record not found" };
   }
@@ -55,7 +56,7 @@ export async function updateSchoolAction(data: UpdateSchoolInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "School",
     entityId: school.id,

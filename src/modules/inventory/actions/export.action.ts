@@ -1,23 +1,23 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
 
 // ─── Export Stock Report ────────────────────────────────────────────
 
 export async function exportStockReportAction(storeId?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_REPORTS_EXPORT);
+  if (denied) return denied;
 
   const items = await db.storeItem.findMany({
     where: {
       status: "ACTIVE",
       store: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         status: "ACTIVE",
         ...(storeId && { id: storeId }),
       },
@@ -52,17 +52,16 @@ export async function exportMovementReportAction(filters?: {
   dateFrom?: string;
   dateTo?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_REPORTS_EXPORT);
+  if (denied) return denied;
 
   const movements = await db.stockMovement.findMany({
     where: {
       storeItem: {
         store: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           ...(filters?.storeId && { id: filters.storeId }),
         },
       },
@@ -119,14 +118,13 @@ export async function exportMovementReportAction(filters?: {
 // ─── Export Asset Register ──────────────────────────────────────────
 
 export async function exportAssetRegisterAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_REPORTS_EXPORT);
+  if (denied) return denied;
 
   const assets = await db.fixedAsset.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     include: {
       category: { select: { name: true } },
       depreciationRecords: { orderBy: { calculatedAt: "desc" }, take: 1 },
@@ -162,11 +160,10 @@ export async function exportAssetRegisterAction() {
 // ─── Export Procurement Report ───────────────────────────────────────
 
 export async function exportProcurementReportAction(dateRange?: { from?: string; to?: string }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_REPORTS_EXPORT);
+  if (denied) return denied;
 
   const dateFilter = {
     ...(dateRange?.from && { gte: new Date(dateRange.from) }),
@@ -176,7 +173,7 @@ export async function exportProcurementReportAction(dateRange?: { from?: string;
 
   const orders = await db.purchaseOrder.findMany({
     where: {
-      supplier: { schoolId: school.id },
+      supplier: { schoolId: ctx.schoolId },
       ...(hasDateFilter && { orderedAt: dateFilter }),
     },
     include: {

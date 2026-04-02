@@ -24,6 +24,7 @@ model Class {
 model ClassArm {
   id          String   @id @default(cuid())
   classId     String
+  schoolId    String
   name        String   // e.g., "A", "B", "1"
   capacity    Int      @default(50)
   classTeacherId String? // Staff ID of the class teacher
@@ -32,17 +33,20 @@ model ClassArm {
   updatedAt   DateTime @updatedAt
 
   class          Class           @relation(fields: [classId], references: [id], onDelete: Cascade)
+  school         School          @relation("SchoolClassArm", fields: [schoolId], references: [id])
   enrollments    Enrollment[]
   timetableSlots TimetableSlot[]
 
   @@unique([classId, name])
   @@index([classId])
+  @@index([schoolId])
 }
 
 model Enrollment {
   id               String           @id @default(cuid())
   studentId        String
   classArmId       String
+  schoolId         String
   academicYearId   String
   termId           String?
   enrollmentDate   DateTime         @default(now())
@@ -53,6 +57,7 @@ model Enrollment {
 
   student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   classArm ClassArm @relation(fields: [classArmId], references: [id], onDelete: Cascade)
+  school   School   @relation("SchoolEnrollment", fields: [schoolId], references: [id])
 
   @@unique([studentId, academicYearId])
   @@index([studentId])
@@ -60,6 +65,7 @@ model Enrollment {
   @@index([academicYearId])
   @@index([status])
   @@index([termId])
+  @@index([schoolId])
 }
 
 enum EnrollmentStatus {
@@ -102,14 +108,17 @@ model ProgrammeSubject {
   id          String @id @default(cuid())
   programmeId String
   subjectId   String
+  schoolId    String
   isCore      Boolean @default(true)
   yearGroup   Int?    // null = all year groups
 
   subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  school  School  @relation("SchoolProgrammeSubject", fields: [schoolId], references: [id])
 
   @@unique([programmeId, subjectId])
   @@index([programmeId])
   @@index([subjectId])
+  @@index([schoolId])
 }
 
 model TeacherSubjectAssignment {
@@ -117,11 +126,13 @@ model TeacherSubjectAssignment {
   staffId        String // references User or Staff id
   subjectId      String
   classArmId     String
+  schoolId       String
   academicYearId String
   termId         String?
   createdAt      DateTime @default(now())
 
   subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  school  School  @relation("SchoolTeacherSubjectAssignment", fields: [schoolId], references: [id])
 
   @@unique([staffId, subjectId, classArmId, academicYearId])
   @@index([staffId])
@@ -129,6 +140,7 @@ model TeacherSubjectAssignment {
   @@index([classArmId])
   @@index([academicYearId])
   @@index([termId])
+  @@index([schoolId])
 }
 
 enum SubjectType {
@@ -166,6 +178,7 @@ model Mark {
   subjectId        String
   assessmentTypeId String
   classArmId       String
+  schoolId         String
   termId           String
   academicYearId   String
   score            Float
@@ -178,6 +191,7 @@ model Mark {
 
   subject        Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   assessmentType AssessmentType @relation(fields: [assessmentTypeId], references: [id], onDelete: Cascade)
+  school         School         @relation("SchoolMark", fields: [schoolId], references: [id])
 
   @@unique([studentId, subjectId, assessmentTypeId, termId])
   @@index([studentId])
@@ -187,6 +201,7 @@ model Mark {
   @@index([assessmentTypeId])
   @@index([status])
   @@index([academicYearId])
+  @@index([schoolId])
 }
 
 // ── Results & Report Cards ──────────────────────────────
@@ -195,6 +210,7 @@ model TerminalResult {
   id               String   @id @default(cuid())
   studentId        String
   classArmId       String
+  schoolId         String
   termId           String
   academicYearId   String
   totalScore       Float?
@@ -208,6 +224,7 @@ model TerminalResult {
   updatedAt        DateTime @updatedAt
 
   subjectResults SubjectResult[]
+  school         School          @relation("SchoolTerminalResult", fields: [schoolId], references: [id])
 
   @@unique([studentId, termId, academicYearId])
   @@index([studentId])
@@ -215,12 +232,14 @@ model TerminalResult {
   @@index([termId])
   @@index([academicYearId])
   @@index([classArmId, academicYearId])
+  @@index([schoolId])
 }
 
 model SubjectResult {
   id               String @id @default(cuid())
   terminalResultId String
   subjectId        String
+  schoolId         String
   classScore       Float?   // weighted CA total
   examScore        Float?   // exam score
   totalScore       Float?   // classScore + examScore
@@ -232,10 +251,12 @@ model SubjectResult {
 
   terminalResult TerminalResult @relation(fields: [terminalResultId], references: [id], onDelete: Cascade)
   subject        Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  school         School         @relation("SchoolSubjectResult", fields: [schoolId], references: [id])
 
   @@unique([terminalResultId, subjectId])
   @@index([terminalResultId])
   @@index([subjectId])
+  @@index([schoolId])
 }
 
 enum AssessmentCategory {
@@ -307,6 +328,7 @@ model AnnualResult {
   id               String   @id @default(cuid())
   studentId        String
   classArmId       String
+  schoolId         String
   academicYearId   String
   totalScore       Float?
   averageScore     Float?
@@ -318,17 +340,20 @@ model AnnualResult {
   updatedAt        DateTime @updatedAt
 
   subjectAnnualResults SubjectAnnualResult[]
+  school               School                @relation("SchoolAnnualResult", fields: [schoolId], references: [id])
 
   @@unique([studentId, academicYearId])
   @@index([classArmId])
   @@index([academicYearId])
   @@index([classArmId, academicYearId])
+  @@index([schoolId])
 }
 
 model SubjectAnnualResult {
   id               String @id @default(cuid())
   annualResultId   String
   subjectId        String
+  schoolId         String
   term1Score       Float?
   term2Score       Float?
   term3Score       Float?
@@ -339,8 +364,10 @@ model SubjectAnnualResult {
 
   annualResult AnnualResult @relation(fields: [annualResultId], references: [id], onDelete: Cascade)
   subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  school       School       @relation("SchoolSubjectAnnualResult", fields: [schoolId], references: [id])
 
   @@unique([annualResultId, subjectId])
   @@index([annualResultId])
   @@index([subjectId])
+  @@index([schoolId])
 }

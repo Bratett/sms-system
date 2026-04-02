@@ -1,24 +1,20 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 
 // ─── Hostels ────────────────────────────────────────────────────────
 
 export async function getHostelsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOSTELS_READ);
+  if (denied) return denied;
 
   const hostels = await db.hostel.findMany({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     include: {
       dormitories: {
         where: { status: "ACTIVE" },
@@ -72,10 +68,10 @@ export async function getHostelsAction() {
 }
 
 export async function getHostelAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOSTELS_READ);
+  if (denied) return denied;
 
   const hostel = await db.hostel.findUnique({
     where: { id },
@@ -154,21 +150,16 @@ export async function createHostelAction(data: {
   wardenId?: string;
   description?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOSTELS_CREATE);
+  if (denied) return denied;
 
   // Check duplicate name
   const existing = await db.hostel.findUnique({
     where: {
       schoolId_name: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: data.name,
       },
     },
@@ -180,7 +171,7 @@ export async function createHostelAction(data: {
 
   const hostel = await db.hostel.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       gender: data.gender,
       capacity: data.capacity ?? 0,
@@ -190,7 +181,7 @@ export async function createHostelAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Hostel",
     entityId: hostel.id,
@@ -213,15 +204,10 @@ export async function updateHostelAction(
     status?: "ACTIVE" | "INACTIVE";
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOSTELS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.hostel.findUnique({ where: { id } });
   if (!existing) {
@@ -232,7 +218,7 @@ export async function updateHostelAction(
     const duplicate = await db.hostel.findUnique({
       where: {
         schoolId_name: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           name: data.name,
         },
       },
@@ -257,7 +243,7 @@ export async function updateHostelAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Hostel",
     entityId: id,
@@ -271,10 +257,10 @@ export async function updateHostelAction(
 }
 
 export async function deleteHostelAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOSTELS_DELETE);
+  if (denied) return denied;
 
   const hostel = await db.hostel.findUnique({
     where: { id },
@@ -301,7 +287,7 @@ export async function deleteHostelAction(id: string) {
   await db.hostel.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Hostel",
     entityId: id,
@@ -316,10 +302,10 @@ export async function deleteHostelAction(id: string) {
 // ─── Dormitories ────────────────────────────────────────────────────
 
 export async function getDormitoriesAction(hostelId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOSTELS_READ);
+  if (denied) return denied;
 
   const dormitories = await db.dormitory.findMany({
     where: { hostelId, status: "ACTIVE" },
@@ -350,10 +336,10 @@ export async function createDormitoryAction(data: {
   floor?: string;
   capacity?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOSTELS_CREATE);
+  if (denied) return denied;
 
   // Check duplicate
   const existing = await db.dormitory.findUnique({
@@ -371,6 +357,7 @@ export async function createDormitoryAction(data: {
 
   const dormitory = await db.dormitory.create({
     data: {
+      schoolId: ctx.schoolId,
       hostelId: data.hostelId,
       name: data.name,
       floor: data.floor || null,
@@ -379,7 +366,7 @@ export async function createDormitoryAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Dormitory",
     entityId: dormitory.id,
@@ -399,10 +386,10 @@ export async function updateDormitoryAction(
     capacity?: number;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOSTELS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.dormitory.findUnique({ where: { id } });
   if (!existing) {
@@ -435,7 +422,7 @@ export async function updateDormitoryAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Dormitory",
     entityId: id,
@@ -449,10 +436,10 @@ export async function updateDormitoryAction(
 }
 
 export async function deleteDormitoryAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOSTELS_DELETE);
+  if (denied) return denied;
 
   const dormitory = await db.dormitory.findUnique({
     where: { id },
@@ -474,7 +461,7 @@ export async function deleteDormitoryAction(id: string) {
   await db.dormitory.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Dormitory",
     entityId: id,
@@ -489,10 +476,10 @@ export async function deleteDormitoryAction(id: string) {
 // ─── Beds ───────────────────────────────────────────────────────────
 
 export async function getBedsAction(dormitoryId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOSTELS_READ);
+  if (denied) return denied;
 
   const beds = await db.bed.findMany({
     where: { dormitoryId },
@@ -540,10 +527,10 @@ export async function createBedsAction(
   count: number,
   prefix?: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOSTELS_CREATE);
+  if (denied) return denied;
 
   const dormitory = await db.dormitory.findUnique({ where: { id: dormitoryId } });
   if (!dormitory) {
@@ -562,6 +549,7 @@ export async function createBedsAction(
   const bedsToCreate = [];
   for (let i = 0; i < count; i++) {
     bedsToCreate.push({
+      schoolId: ctx.schoolId,
       dormitoryId,
       bedNumber: `${bedPrefix} ${startNumber + i}`,
     });
@@ -572,7 +560,7 @@ export async function createBedsAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Bed",
     entityId: dormitoryId,
@@ -585,10 +573,10 @@ export async function createBedsAction(
 }
 
 export async function deleteBedAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOSTELS_DELETE);
+  if (denied) return denied;
 
   const bed = await db.bed.findUnique({ where: { id } });
   if (!bed) {
@@ -602,7 +590,7 @@ export async function deleteBedAction(id: string) {
   await db.bed.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Bed",
     entityId: id,

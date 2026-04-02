@@ -14,8 +14,8 @@ export default async function StudentExeatPage() {
     getStudentPortalDataAction(),
   ]);
 
-  const exeats = exeatsResult.data ?? [];
-  const studentData = studentResult.data ?? null;
+  const exeats = "data" in exeatsResult ? exeatsResult.data : [];
+  const studentData = "data" in studentResult ? studentResult.data : null;
   const isBoardingStudent = studentData?.boardingStatus === "BOARDING";
 
   return <ExeatClient exeats={exeats} isBoardingStudent={isBoardingStudent} />;

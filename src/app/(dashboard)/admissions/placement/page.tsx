@@ -41,7 +41,7 @@ export default async function PlacementPage({
       : Promise.resolve([]),
   ]);
 
-  const apps = result.data;
+  const apps = "data" in result ? result.data : null;
   const classArmOptions = classArms.map((ca) => ({
     id: ca.id,
     label: `${ca.class.name} - ${ca.name}`,

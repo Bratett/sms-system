@@ -16,8 +16,8 @@ export default async function NewTransferPage() {
     getAllocationsAction({ status: "ACTIVE" }),
   ]);
 
-  const hostels = hostelsResult.data ?? [];
-  const allocations = allocationsResult.data ?? [];
+  const hostels = "data" in hostelsResult ? hostelsResult.data : [];
+  const allocations = "data" in allocationsResult ? allocationsResult.data : [];
 
   return (
     <div className="space-y-6">

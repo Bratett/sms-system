@@ -1,23 +1,19 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Assessment Types ────────────────────────────────────────────────
 
 export async function getAssessmentTypesAction(termId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MARKS_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (termId) {
     where.termId = termId;
   }
@@ -56,15 +52,10 @@ export async function createAssessmentTypeAction(data: {
   termId?: string;
   category: "CLASSWORK" | "HOMEWORK" | "PROJECT" | "MIDTERM" | "END_OF_TERM";
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MARKS_CREATE);
+  if (denied) return denied;
 
   // Validate weight
   if (data.weight < 0 || data.weight > 100) {
@@ -78,7 +69,7 @@ export async function createAssessmentTypeAction(data: {
   // Check total weight doesn't exceed 100% for the term
   if (data.termId) {
     const existingTypes = await db.assessmentType.findMany({
-      where: { schoolId: school.id, termId: data.termId },
+      where: { schoolId: ctx.schoolId, termId: data.termId },
       select: { weight: true },
     });
 
@@ -98,7 +89,7 @@ export async function createAssessmentTypeAction(data: {
   const existing = await db.assessmentType.findUnique({
     where: {
       schoolId_name_termId: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: data.name,
         termId: data.termId ?? "",
       },
@@ -113,7 +104,7 @@ export async function createAssessmentTypeAction(data: {
 
   const assessmentType = await db.assessmentType.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       code: data.code || null,
       weight: data.weight,
@@ -124,7 +115,7 @@ export async function createAssessmentTypeAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "AssessmentType",
     entityId: assessmentType.id,
@@ -152,15 +143,10 @@ export async function updateAssessmentTypeAction(
       | "END_OF_TERM";
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MARKS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.assessmentType.findUnique({ where: { id } });
   if (!existing) {
@@ -184,7 +170,7 @@ export async function updateAssessmentTypeAction(
   if (termId) {
     const existingTypes = await db.assessmentType.findMany({
       where: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         termId,
         id: { not: id },
       },
@@ -207,7 +193,7 @@ export async function updateAssessmentTypeAction(
   if (data.name && data.name !== existing.name) {
     const duplicate = await db.assessmentType.findFirst({
       where: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: data.name,
         termId: termId ?? null,
         id: { not: id },
@@ -235,7 +221,7 @@ export async function updateAssessmentTypeAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "AssessmentType",
     entityId: id,
@@ -249,10 +235,10 @@ export async function updateAssessmentTypeAction(
 }
 
 export async function deleteAssessmentTypeAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MARKS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.assessmentType.findUnique({
     where: { id },
@@ -274,7 +260,7 @@ export async function deleteAssessmentTypeAction(id: string) {
   await db.assessmentType.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "AssessmentType",
     entityId: id,

@@ -19,10 +19,10 @@ export default async function FeeTemplatesPage() {
       getTermsAction(),
     ]);
 
-  const templates = templatesResult.data ?? [];
-  const programmes = programmesResult.data ?? [];
-  const academicYears = academicYearsResult.data ?? [];
-  const terms = termsResult.data ?? [];
+  const templates = "data" in templatesResult ? templatesResult.data : [];
+  const programmes = "data" in programmesResult ? programmesResult.data : [];
+  const academicYears = "data" in academicYearsResult ? academicYearsResult.data : [];
+  const terms = "data" in termsResult ? termsResult.data : [];
 
   return (
     <FeeTemplatesClient

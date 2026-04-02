@@ -33,8 +33,8 @@ export default async function AttendanceAlertsPage({
         }
       />
       <AlertsClient
-        alerts={result.data ?? []}
-        pagination={result.pagination ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 }}
+        alerts={"data" in result ? result.data : []}
+        pagination={"pagination" in result ? result.pagination : { page: 1, pageSize: 20, total: 0, totalPages: 0 }}
         filters={params}
       />
     </div>

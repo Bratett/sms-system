@@ -16,7 +16,7 @@ export default async function BookDetailPage({
   const { id } = await params;
   const bookResult = await getBookAction(id);
 
-  if (bookResult.error || !bookResult.data) {
+  if ("error" in bookResult || !("data" in bookResult) || !bookResult.data) {
     return (
       <div className="space-y-6">
         <PageHeader title="Book Not Found" description="The requested book could not be found." />

@@ -34,11 +34,11 @@ export default async function DataRightsPage({
         description="Manage data export and deletion requests."
       />
       <DataRightsClient
-        exportRequests={exportResult.data ?? []}
-        deletionRequests={deletionResult.data ?? []}
-        deletionTotal={deletionResult.total ?? 0}
-        deletionPage={deletionResult.page ?? 1}
-        deletionPageSize={deletionResult.pageSize ?? 20}
+        exportRequests={"data" in exportResult ? exportResult.data : []}
+        deletionRequests={"data" in deletionResult ? deletionResult.data : []}
+        deletionTotal={"total" in deletionResult ? deletionResult.total ?? 0 : 0}
+        deletionPage={"page" in deletionResult ? deletionResult.page ?? 1 : 1}
+        deletionPageSize={"pageSize" in deletionResult ? deletionResult.pageSize ?? 20 : 20}
         currentStatus={params.status}
       />
     </div>

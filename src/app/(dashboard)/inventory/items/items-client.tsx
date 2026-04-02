@@ -173,7 +173,7 @@ export function ItemsClient({
           unitPrice: itemForm.unitPrice,
           description: itemForm.description || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -190,7 +190,7 @@ export function ItemsClient({
           unitPrice: itemForm.unitPrice,
           description: itemForm.description || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -206,7 +206,7 @@ export function ItemsClient({
 
     startTransition(async () => {
       const result = await deleteItemAction(item.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

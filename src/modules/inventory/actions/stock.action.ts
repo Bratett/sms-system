@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import type { Prisma } from "@prisma/client";
 
@@ -14,10 +15,10 @@ export async function recordStockInAction(data: {
   referenceType?: string;
   referenceId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STOCK_MOVEMENT_CREATE);
+  if (denied) return denied;
 
   if (data.quantity <= 0) {
     return { error: "Quantity must be greater than zero." };
@@ -42,7 +43,7 @@ export async function recordStockInAction(data: {
         reason: data.reason || null,
         referenceType: data.referenceType || null,
         referenceId: data.referenceId || null,
-        conductedBy: session.user.id!,
+        conductedBy: ctx.session.user.id,
       },
     }),
     db.storeItem.update({
@@ -52,7 +53,7 @@ export async function recordStockInAction(data: {
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StockMovement",
     entityId: movement.id,
@@ -72,10 +73,10 @@ export async function recordStockOutAction(data: {
   reason?: string;
   issuedTo?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STOCK_MOVEMENT_CREATE);
+  if (denied) return denied;
 
   if (data.quantity <= 0) {
     return { error: "Quantity must be greater than zero." };
@@ -103,7 +104,7 @@ export async function recordStockOutAction(data: {
         newQuantity,
         reason: data.reason || null,
         issuedTo: data.issuedTo || null,
-        conductedBy: session.user.id!,
+        conductedBy: ctx.session.user.id,
       },
     }),
     db.storeItem.update({
@@ -113,7 +114,7 @@ export async function recordStockOutAction(data: {
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StockMovement",
     entityId: movement.id,
@@ -132,10 +133,10 @@ export async function adjustStockAction(data: {
   newQuantity: number;
   reason: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STOCK_MOVEMENT_CREATE);
+  if (denied) return denied;
 
   if (data.newQuantity < 0) {
     return { error: "Quantity cannot be negative." };
@@ -162,7 +163,7 @@ export async function adjustStockAction(data: {
         previousQuantity,
         newQuantity: data.newQuantity,
         reason: data.reason,
-        conductedBy: session.user.id!,
+        conductedBy: ctx.session.user.id,
       },
     }),
     db.storeItem.update({
@@ -172,7 +173,7 @@ export async function adjustStockAction(data: {
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StockMovement",
     entityId: movement.id,
@@ -195,10 +196,10 @@ export async function getStockMovementsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STOCK_MOVEMENT_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;

@@ -117,12 +117,12 @@ export function BillingClient({
         feeStructureId: selectedFeeStructureId,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
 
-      const data = result.data!;
+      const data = result.data;
       toast.success(
         `Bills generated: ${data.generated} new, ${data.skipped} skipped` +
           (data.errors.length > 0 ? `, ${data.errors.length} errors` : "")
@@ -143,7 +143,7 @@ export function BillingClient({
       if (status !== "all") filters.status = status;
 
       const result = await getBillsAction(filters as Parameters<typeof getBillsAction>[0]);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -160,7 +160,7 @@ export function BillingClient({
       if (filterStatus !== "all") filters.status = filterStatus;
 
       const result = await getBillsAction(filters as Parameters<typeof getBillsAction>[0]);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

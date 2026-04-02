@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Get Announcements (paginated) ──────────────────────────────────
@@ -12,21 +13,16 @@ export async function getAnnouncementsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ANNOUNCEMENTS_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
 
   if (filters?.status) {
     where.status = filters.status;
@@ -86,32 +82,27 @@ export async function createAnnouncementAction(data: {
   priority: string;
   expiresAt?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ANNOUNCEMENTS_CREATE);
+  if (denied) return denied;
 
   const announcement = await db.announcement.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       title: data.title,
       content: data.content,
       targetType: data.targetType,
       targetIds: data.targetIds ?? undefined,
       priority: data.priority,
       expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
-      createdBy: session.user.id!,
+      createdBy: ctx.session.user.id,
       status: "DRAFT",
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Announcement",
     entityId: announcement.id,
@@ -126,10 +117,10 @@ export async function createAnnouncementAction(data: {
 // ─── Publish Announcement ───────────────────────────────────────────
 
 export async function publishAnnouncementAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ANNOUNCEMENTS_CREATE);
+  if (denied) return denied;
 
   const existing = await db.announcement.findUnique({ where: { id } });
   if (!existing) {
@@ -145,7 +136,7 @@ export async function publishAnnouncementAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Announcement",
     entityId: id,
@@ -161,10 +152,10 @@ export async function publishAnnouncementAction(id: string) {
 // ─── Archive Announcement ───────────────────────────────────────────
 
 export async function archiveAnnouncementAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ANNOUNCEMENTS_CREATE);
+  if (denied) return denied;
 
   const existing = await db.announcement.findUnique({ where: { id } });
   if (!existing) {
@@ -177,7 +168,7 @@ export async function archiveAnnouncementAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Announcement",
     entityId: id,
@@ -193,10 +184,10 @@ export async function archiveAnnouncementAction(id: string) {
 // ─── Delete Announcement (DRAFT only) ───────────────────────────────
 
 export async function deleteAnnouncementAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ANNOUNCEMENTS_CREATE);
+  if (denied) return denied;
 
   const existing = await db.announcement.findUnique({ where: { id } });
   if (!existing) {
@@ -210,7 +201,7 @@ export async function deleteAnnouncementAction(id: string) {
   await db.announcement.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Announcement",
     entityId: id,

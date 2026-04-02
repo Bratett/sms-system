@@ -148,12 +148,12 @@ export function HomeworkClient({
         selectedSubjectId || undefined,
       );
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
 
-      if (result.data) {
+      if ("data" in result) {
         setHomeworkList(result.data);
         setIsLoaded(true);
         toast.success(`Loaded ${result.data.length} homework item(s).`);
@@ -200,7 +200,7 @@ export function HomeworkClient({
         maxScore: formData.maxScore ? parseInt(formData.maxScore) : undefined,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -226,7 +226,7 @@ export function HomeworkClient({
     startTransition(async () => {
       const result = await deleteHomeworkAction(id);
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -244,12 +244,12 @@ export function HomeworkClient({
     startTransition(async () => {
       const result = await getHomeworkSubmissionsAction(homeworkId);
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
 
-      if (result.data) {
+      if ("data" in result) {
         setSubmissions(result.data);
         setViewingHomeworkTitle(title);
         setShowSubmissionsModal(true);

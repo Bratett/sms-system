@@ -30,6 +30,7 @@ model BookIssue {
   bookId       String
   borrowerId   String
   borrowerType BorrowerType
+  schoolId     String
   issuedBy     String
   issuedAt     DateTime     @default(now())
   dueDate      DateTime
@@ -39,13 +40,15 @@ model BookIssue {
   fineAmount   Decimal? @db.Decimal(18, 2)
   notes        String?
 
-  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  school School @relation("SchoolBookIssues", fields: [schoolId], references: [id])
 
   @@index([bookId])
   @@index([borrowerId])
   @@index([status])
   @@index([dueDate])
   @@index([borrowerId, status])
+  @@index([schoolId])
 }
 
 model DigitalResource {

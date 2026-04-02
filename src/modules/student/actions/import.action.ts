@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 interface ImportError {
@@ -17,15 +18,10 @@ interface ImportResult {
 export async function importStudentsAction(
   rows: Array<Record<string, string>>
 ): Promise<{ data?: ImportResult; error?: string }> {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_IMPORT);
+  if (denied) return denied;
 
   const academicYear = await db.academicYear.findFirst({
     where: { isCurrent: true },
@@ -39,7 +35,7 @@ export async function importStudentsAction(
   const classArms = await db.classArm.findMany({
     where: {
       status: "ACTIVE",
-      class: { schoolId: school.id },
+      class: { schoolId: ctx.schoolId },
     },
     include: {
       class: { select: { name: true } },
@@ -60,7 +56,7 @@ export async function importStudentsAction(
 
   // Get current student count for ID generation
   let studentCount = await db.student.count({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
   });
   const year = new Date().getFullYear();
 
@@ -175,7 +171,7 @@ export async function importStudentsAction(
         // Create Student
         const student = await tx.student.create({
           data: {
-            schoolId: school.id,
+            schoolId: ctx.schoolId,
             studentId,
             firstName,
             lastName,
@@ -195,6 +191,7 @@ export async function importStudentsAction(
 
           const guardian = await tx.guardian.create({
             data: {
+              schoolId: ctx.schoolId,
               firstName: gFirstName,
               lastName: gLastName,
               phone: guardianPhone,
@@ -207,6 +204,7 @@ export async function importStudentsAction(
 
           await tx.studentGuardian.create({
             data: {
+              schoolId: ctx.schoolId,
               studentId: student.id,
               guardianId: guardian.id,
               isPrimary: true,
@@ -218,6 +216,7 @@ export async function importStudentsAction(
         if (classArmId) {
           await tx.enrollment.create({
             data: {
+              schoolId: ctx.schoolId,
               studentId: student.id,
               classArmId,
               academicYearId: academicYear.id,
@@ -235,7 +234,7 @@ export async function importStudentsAction(
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "Student",
     module: "student",

@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { dispatch } from "@/lib/notifications/dispatcher";
 import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
@@ -14,15 +15,8 @@ export async function openAttendanceRegisterAction(data: {
   type?: "DAILY" | "PERIOD";
   periodId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const type = data.type ?? "DAILY";
   const dateObj = new Date(data.date);
@@ -61,7 +55,7 @@ export async function openAttendanceRegisterAction(data: {
           timetableSlotId: slot.id,
           date: dateObj,
           status: "APPROVED",
-          substituteTeacherId: session.user.id!,
+          substituteTeacherId: ctx.session.user.id,
         },
       });
 
@@ -144,12 +138,12 @@ export async function openAttendanceRegisterAction(data: {
   // Create new register
   const register = await db.attendanceRegister.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       classArmId: data.classArmId,
       date: dateObj,
       type,
       periodId: data.periodId ?? null,
-      takenBy: session.user.id!,
+      takenBy: ctx.session.user.id,
       substituteForId: substituteForId ?? null,
     },
   });
@@ -201,10 +195,8 @@ export async function openAttendanceRegisterAction(data: {
 }
 
 export async function getAttendanceRegisterAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const register = await db.attendanceRegister.findUnique({
     where: { id },
@@ -279,10 +271,10 @@ export async function recordAttendanceAction(
     arrivalTime?: string;
   }>,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ATTENDANCE_CREATE);
+  if (denied) return denied;
 
   const register = await db.attendanceRegister.findUnique({
     where: { id: registerId },
@@ -306,6 +298,7 @@ export async function recordAttendanceAction(
         },
       },
       create: {
+        schoolId: ctx.schoolId,
         registerId,
         studentId: record.studentId,
         status: record.status,
@@ -323,7 +316,7 @@ export async function recordAttendanceAction(
   await db.$transaction(upserts);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "AttendanceRegister",
     entityId: registerId,
@@ -416,10 +409,8 @@ export async function recordAttendanceAction(
 // ─── Close Register ──────────────────────────────────────────────────
 
 export async function closeAttendanceRegisterAction(registerId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const register = await db.attendanceRegister.findUnique({
     where: { id: registerId },
@@ -439,7 +430,7 @@ export async function closeAttendanceRegisterAction(registerId: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "AttendanceRegister",
     entityId: registerId,
@@ -459,19 +450,15 @@ export async function getAttendanceHistoryAction(filters: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
 
   const where: Record<string, unknown> = {};
-  if (school) where.schoolId = school.id;
+  where.schoolId = ctx.schoolId;
   if (filters.classArmId) where.classArmId = filters.classArmId;
   if (filters.date) {
     const dateObj = new Date(filters.date);
@@ -538,10 +525,10 @@ export async function getAttendanceHistoryAction(filters: {
 // ─── Attendance Summary ──────────────────────────────────────────────
 
 export async function getAttendanceSummaryAction(classArmId: string, termId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ATTENDANCE_READ);
+  if (denied) return denied;
 
   // Get term date range
   const term = await db.term.findUnique({
@@ -625,10 +612,10 @@ export async function getAttendanceSummaryAction(classArmId: string, termId: str
 // ─── Student Attendance ──────────────────────────────────────────────
 
 export async function getStudentAttendanceAction(studentId: string, termId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ATTENDANCE_READ);
+  if (denied) return denied;
 
   const where: Record<string, unknown> = {
     studentId,
@@ -691,15 +678,8 @@ export async function generateDailyRegistersFromTimetableAction(data: {
   classArmId: string;
   date: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const dateObj = new Date(data.date);
   dateObj.setHours(0, 0, 0, 0);
@@ -750,19 +730,19 @@ export async function generateDailyRegistersFromTimetableAction(data: {
 
     await db.attendanceRegister.create({
       data: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         classArmId: data.classArmId,
         date: dateObj,
         type: "PERIOD",
         periodId: slot.period.id,
-        takenBy: session.user.id!,
+        takenBy: ctx.session.user.id,
       },
     });
     created++;
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "AttendanceRegister",
     entityId: data.classArmId,

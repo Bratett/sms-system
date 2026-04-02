@@ -30,10 +30,10 @@ export default async function BooksPage({
         description="Browse and manage the book catalog."
       />
       <BooksClient
-        books={booksResult.data ?? []}
-        total={booksResult.total ?? 0}
-        page={booksResult.page ?? 1}
-        pageSize={booksResult.pageSize ?? 25}
+        books={"data" in booksResult ? booksResult.data : []}
+        total={"total" in booksResult ? booksResult.total : 0}
+        page={"page" in booksResult ? booksResult.page : 1}
+        pageSize={"pageSize" in booksResult ? booksResult.pageSize : 25}
         filters={params}
       />
     </div>

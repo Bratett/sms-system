@@ -90,7 +90,7 @@ export function ApprovalClient({
       if (termFilter) filters.termId = termFilter;
 
       const result = await getSubmittedMarksAction(filters);
-      if (result.data) {
+      if ("data" in result) {
         setMarkGroups(result.data);
       }
     });
@@ -120,7 +120,7 @@ export function ApprovalClient({
         group.assessmentTypeId,
         group.termId,
       );
-      if (result.data) {
+      if ("data" in result) {
         setExpandedDetails(result.data);
       }
       setLoadingDetails(false);
@@ -142,7 +142,7 @@ export function ApprovalClient({
         group.termId,
       );
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`${result.data?.count} mark(s) approved successfully.`);
@@ -176,7 +176,7 @@ export function ApprovalClient({
         rejectReason.trim(),
       );
 
-      if (result.error) {
+      if ("error" in result) {
         setRejectError(result.error);
       } else {
         toast.success(`${result.data?.count} mark(s) rejected and returned to draft.`);

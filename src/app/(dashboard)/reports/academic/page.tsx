@@ -18,7 +18,7 @@ export default async function AcademicReportsPage() {
         description="View class averages, subject performance, and pass/fail rates."
       />
       <AcademicReportsClient
-        filters={filtersResult.data ?? { academicYears: [], terms: [], classArms: [] }}
+        filters={"data" in filtersResult ? filtersResult.data : { academicYears: [], terms: [], classArms: [] }}
       />
     </div>
   );

@@ -71,7 +71,7 @@ export function DepartmentsClient({ departments }: { departments: Department[] }
     }
     startTransition(async () => {
       const result = await deleteDepartmentAction(dept.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Department "${dept.name}" deleted successfully.`);
@@ -95,7 +95,7 @@ export function DepartmentsClient({ departments }: { departments: Department[] }
           code: formData.code.trim(),
           description: formData.description.trim(),
         });
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success(`Department "${formData.name}" updated successfully.`);
@@ -108,7 +108,7 @@ export function DepartmentsClient({ departments }: { departments: Department[] }
           code: formData.code.trim() || undefined,
           description: formData.description.trim() || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success(`Department "${formData.name}" created successfully.`);

@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import {
   getAllModules,
@@ -16,17 +17,16 @@ import type { SchoolModuleConfig } from "@/lib/plugins/types";
  * Get all available modules with their enabled/disabled state for the current school.
  */
 export async function getModulesAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   const allModules = getAllModules();
 
   // Get school's module config from system settings
   const setting = await db.systemSetting.findUnique({
-    where: { key: `school:${school.id}:modules` },
+    where: { key: `school:${ctx.schoolId}:modules` },
   });
 
   const schoolConfig: SchoolModuleConfig[] = setting
@@ -48,11 +48,10 @@ export async function getModulesAction() {
  * Enable or disable a module for the current school.
  */
 export async function toggleModuleAction(moduleId: string, enabled: boolean) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   const mod = getModule(moduleId);
   if (!mod) return { error: "Module not found" };
@@ -61,7 +60,7 @@ export async function toggleModuleAction(moduleId: string, enabled: boolean) {
   // Check dependencies when enabling
   if (enabled && mod.dependencies) {
     const setting = await db.systemSetting.findUnique({
-      where: { key: `school:${school.id}:modules` },
+      where: { key: `school:${ctx.schoolId}:modules` },
     });
     const currentConfig: SchoolModuleConfig[] = setting
       ? (JSON.parse(setting.value) as SchoolModuleConfig[])
@@ -78,7 +77,7 @@ export async function toggleModuleAction(moduleId: string, enabled: boolean) {
   }
 
   // Get current config
-  const settingKey = `school:${school.id}:modules`;
+  const settingKey = `school:${ctx.schoolId}:modules`;
   const existing = await db.systemSetting.findUnique({ where: { key: settingKey } });
   const config: SchoolModuleConfig[] = existing
     ? (JSON.parse(existing.value) as SchoolModuleConfig[])
@@ -105,7 +104,7 @@ export async function toggleModuleAction(moduleId: string, enabled: boolean) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "ModuleConfig",
     module: "admin",
@@ -120,14 +119,11 @@ export async function toggleModuleAction(moduleId: string, enabled: boolean) {
  * Get navigation items for the current school's enabled modules.
  */
 export async function getSchoolNavigationAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const setting = await db.systemSetting.findUnique({
-    where: { key: `school:${school.id}:modules` },
+    where: { key: `school:${ctx.schoolId}:modules` },
   });
 
   const schoolConfig: SchoolModuleConfig[] = setting

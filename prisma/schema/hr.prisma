@@ -45,6 +45,7 @@ model Staff {
 model Employment {
   id              String          @id @default(cuid())
   staffId         String
+  schoolId        String
   position        String
   rank            String?
   departmentId    String?
@@ -56,11 +57,13 @@ model Employment {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  staff  Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  school School @relation("SchoolEmployment", fields: [schoolId], references: [id])
 
   @@index([staffId])
   @@index([departmentId])
   @@index([status])
+  @@index([schoolId])
 }
 
 model LeaveType {
@@ -84,22 +87,26 @@ model LeaveBalance {
   id             String @id @default(cuid())
   staffId        String
   leaveTypeId    String
+  schoolId       String
   academicYearId String
   totalDays      Int
   usedDays       Int    @default(0)
   remainingDays  Int
 
   leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  school    School    @relation("SchoolLeaveBalance", fields: [schoolId], references: [id])
 
   @@unique([staffId, leaveTypeId, academicYearId])
   @@index([staffId])
   @@index([academicYearId])
+  @@index([schoolId])
 }
 
 model LeaveRequest {
   id            String      @id @default(cuid())
   staffId       String
   leaveTypeId   String
+  schoolId      String
   startDate     DateTime
   endDate       DateTime
   daysRequested Int
@@ -112,11 +119,13 @@ model LeaveRequest {
 
   staff     Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
   leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  school    School    @relation("SchoolLeaveRequest", fields: [schoolId], references: [id])
 
   @@index([staffId])
   @@index([leaveTypeId])
   @@index([status])
   @@index([staffId, status])
+  @@index([schoolId])
 }
 
 model PayrollPeriod {
@@ -138,6 +147,7 @@ model PayrollEntry {
   id              String @id @default(cuid())
   payrollPeriodId String
   staffId         String
+  schoolId        String
   basicSalary     Decimal @db.Decimal(18, 2)
   totalAllowances Decimal @default(0) @db.Decimal(18, 2)
   totalDeductions Decimal @default(0) @db.Decimal(18, 2)
@@ -146,10 +156,12 @@ model PayrollEntry {
   createdAt       DateTime @default(now())
 
   payrollPeriod PayrollPeriod @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+  school        School        @relation("SchoolPayrollEntry", fields: [schoolId], references: [id])
 
   @@unique([payrollPeriodId, staffId])
   @@index([payrollPeriodId])
   @@index([staffId])
+  @@index([schoolId])
 }
 
 model Allowance {
@@ -383,15 +395,18 @@ model StaffLoan {
 model LoanRepayment {
   id              String   @id @default(cuid())
   loanId          String
+  schoolId        String
   payrollPeriodId String?  // Null if manual payment
   amount          Decimal  @db.Decimal(18, 2)
   date            DateTime @default(now())
   method          String   @default("PAYROLL_DEDUCTION") // PAYROLL_DEDUCTION, MANUAL
 
-  loan StaffLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loan   StaffLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  school School    @relation("SchoolLoanRepayment", fields: [schoolId], references: [id])
 
   @@index([loanId])
   @@index([payrollPeriodId])
+  @@index([schoolId])
 }
 
 enum LoanStatus {

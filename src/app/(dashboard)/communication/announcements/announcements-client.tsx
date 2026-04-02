@@ -119,7 +119,7 @@ export function AnnouncementsClient({
         priority: form.priority,
         expiresAt: form.expiresAt || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -132,7 +132,7 @@ export function AnnouncementsClient({
   function handlePublish(id: string) {
     startTransition(async () => {
       const result = await publishAnnouncementAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -144,7 +144,7 @@ export function AnnouncementsClient({
   function handleArchive(id: string) {
     startTransition(async () => {
       const result = await archiveAnnouncementAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -158,7 +158,7 @@ export function AnnouncementsClient({
 
     startTransition(async () => {
       const result = await deleteAnnouncementAction(announcement.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

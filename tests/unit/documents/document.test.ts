@@ -33,7 +33,7 @@ describe("createDocumentAction", () => {
   });
 
   it("should return error if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await createDocumentAction({
       title: "Test Document",
       fileKey: "uploads/test.pdf",
@@ -42,7 +42,7 @@ describe("createDocumentAction", () => {
       contentType: "application/pdf",
       category: "POLICY",
     });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should create document successfully", async () => {
@@ -120,9 +120,9 @@ describe("getDocumentsAction", () => {
   });
 
   it("should return error if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getDocumentsAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return paginated documents", async () => {

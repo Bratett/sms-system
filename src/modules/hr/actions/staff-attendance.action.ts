@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { z } from "zod";
@@ -47,15 +47,12 @@ type BulkRecordInput = z.infer<typeof bulkRecordSchema>;
 // ─── Record Single Attendance ───────────────────────────────
 
 export async function recordStaffAttendanceAction(data: RecordAttendanceInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_ATTENDANCE_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_ATTENDANCE_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = recordAttendanceSchema.safeParse(data);
-  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
 
   const date = new Date(parsed.data.date);
 
@@ -71,23 +68,23 @@ export async function recordStaffAttendanceAction(data: RecordAttendanceInput) {
       clockIn: parsed.data.clockIn ? new Date(parsed.data.clockIn) : null,
       clockOut: parsed.data.clockOut ? new Date(parsed.data.clockOut) : null,
       remarks: parsed.data.remarks || null,
-      recordedBy: session.user.id!,
+      recordedBy: ctx.session.user.id,
     },
     create: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       staffId: parsed.data.staffId,
       date,
       status: parsed.data.status,
       clockIn: parsed.data.clockIn ? new Date(parsed.data.clockIn) : null,
       clockOut: parsed.data.clockOut ? new Date(parsed.data.clockOut) : null,
       remarks: parsed.data.remarks || null,
-      recordedBy: session.user.id!,
+      recordedBy: ctx.session.user.id,
       source: "MANUAL",
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StaffAttendance",
     entityId: record.id,
@@ -102,15 +99,12 @@ export async function recordStaffAttendanceAction(data: RecordAttendanceInput) {
 // ─── Bulk Record Attendance (Daily Register) ────────────────
 
 export async function bulkRecordStaffAttendanceAction(data: BulkRecordInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_ATTENDANCE_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_ATTENDANCE_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = bulkRecordSchema.safeParse(data);
-  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
 
   const date = new Date(parsed.data.date);
   let saved = 0;
@@ -125,17 +119,17 @@ export async function bulkRecordStaffAttendanceAction(data: BulkRecordInput) {
           clockIn: rec.clockIn ? new Date(rec.clockIn) : null,
           clockOut: rec.clockOut ? new Date(rec.clockOut) : null,
           remarks: rec.remarks || null,
-          recordedBy: session.user.id!,
+          recordedBy: ctx.session.user.id,
         },
         create: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           staffId: rec.staffId,
           date,
           status: rec.status,
           clockIn: rec.clockIn ? new Date(rec.clockIn) : null,
           clockOut: rec.clockOut ? new Date(rec.clockOut) : null,
           remarks: rec.remarks || null,
-          recordedBy: session.user.id!,
+          recordedBy: ctx.session.user.id,
           source: "MANUAL",
         },
       });
@@ -149,7 +143,7 @@ export async function bulkRecordStaffAttendanceAction(data: BulkRecordInput) {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StaffAttendance",
     module: "hr",
@@ -170,19 +164,16 @@ export async function getStaffAttendanceAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_ATTENDANCE_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_ATTENDANCE_READ)) return { error: "Insufficient permissions" };
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: any = { schoolId: school.id };
+  const where: any = { schoolId: ctx.schoolId };
   if (filters?.staffId) where.staffId = filters.staffId;
   if (filters?.status) where.status = filters.status;
   if (filters?.dateFrom || filters?.dateTo) {
@@ -210,19 +201,16 @@ export async function getStaffAttendanceAction(filters?: {
 // ─── Attendance Summary ─────────────────────────────────────
 
 export async function getStaffAttendanceSummaryAction(staffId: string, month: number, year: number) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_ATTENDANCE_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_ATTENDANCE_READ)) return { error: "Insufficient permissions" };
 
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0); // Last day of month
 
   const records = await db.staffAttendance.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       staffId,
       date: { gte: startDate, lte: endDate },
     },
@@ -257,19 +245,16 @@ export async function getStaffAttendanceSummaryAction(staffId: string, month: nu
 // ─── Daily Overview ─────────────────────────────────────────
 
 export async function getDailyAttendanceOverviewAction(date: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_ATTENDANCE_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_ATTENDANCE_READ)) return { error: "Insufficient permissions" };
 
   const targetDate = new Date(date);
 
   const [totalActive, records] = await Promise.all([
-    db.staff.count({ where: { schoolId: school.id, status: "ACTIVE", deletedAt: null } }),
+    db.staff.count({ where: { schoolId: ctx.schoolId, status: "ACTIVE", deletedAt: null } }),
     db.staffAttendance.findMany({
-      where: { schoolId: school.id, date: targetDate },
+      where: { schoolId: ctx.schoolId, date: targetDate },
       select: { status: true },
     }),
   ]);

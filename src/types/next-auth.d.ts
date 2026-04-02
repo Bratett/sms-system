@@ -9,6 +9,14 @@ declare module "next-auth" {
       image?: string;
       roles: string[];
       permissions: string[];
+      schoolId: string | null;
+      schoolName: string | null;
+      schools: Array<{
+        id: string;
+        name: string;
+        logoUrl: string | null;
+        isDefault: boolean;
+      }>;
     };
   }
 
@@ -19,6 +27,14 @@ declare module "next-auth" {
     image?: string;
     roles: string[];
     permissions: string[];
+    schoolId: string | null;
+    schoolName: string | null;
+    schools: Array<{
+      id: string;
+      name: string;
+      logoUrl: string | null;
+      isDefault: boolean;
+    }>;
   }
 }
 
@@ -27,5 +43,13 @@ declare module "next-auth/jwt" {
     id: string;
     roles: string[];
     permissions: string[];
+    schoolId: string | null;
+    schoolName: string | null;
+    schools: Array<{
+      id: string;
+      name: string;
+      logoUrl: string | null;
+      isDefault: boolean;
+    }>;
   }
 }

@@ -134,16 +134,19 @@ model GraduationRecord {
   id                String   @id @default(cuid())
   graduationBatchId String
   studentId         String
+  schoolId          String
   certificateNumber String?
   honours           String?  // First Class, Second Class, Pass
   status            String   @default("PENDING") // PENDING, CONFIRMED
   createdAt         DateTime @default(now())
 
-  batch GraduationBatch @relation(fields: [graduationBatchId], references: [id], onDelete: Cascade)
+  batch  GraduationBatch @relation(fields: [graduationBatchId], references: [id], onDelete: Cascade)
+  school School          @relation("SchoolGraduationRecords", fields: [schoolId], references: [id])
 
   @@unique([graduationBatchId, studentId])
   @@index([graduationBatchId])
   @@index([studentId])
+  @@index([schoolId])
 }
 
 // ─── Alumni Profiles ─────────────────────────────────────────────────

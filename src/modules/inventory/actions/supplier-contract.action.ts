@@ -1,15 +1,18 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 
 // ─── List Supplier Contracts ────────────────────────────────────────
 
 export async function getSupplierContractsAction(supplierId?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_SUPPLIER_CONTRACTS_MANAGE);
+  if (denied) return denied;
 
   const contracts = await db.supplierContract.findMany({
     where: {
@@ -49,8 +52,10 @@ export async function createSupplierContractAction(data: {
   value?: number;
   documentUrl?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_SUPPLIER_CONTRACTS_MANAGE);
+  if (denied) return denied;
 
   const supplier = await db.supplier.findUnique({ where: { id: data.supplierId } });
   if (!supplier) return { error: "Supplier not found." };
@@ -68,7 +73,7 @@ export async function createSupplierContractAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "SupplierContract",
     entityId: contract.id,
@@ -94,8 +99,10 @@ export async function updateSupplierContractAction(
     documentUrl?: string;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_SUPPLIER_CONTRACTS_MANAGE);
+  if (denied) return denied;
 
   const contract = await db.supplierContract.findUnique({ where: { id } });
   if (!contract) return { error: "Contract not found." };
@@ -114,7 +121,7 @@ export async function updateSupplierContractAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "SupplierContract",
     entityId: id,
@@ -130,8 +137,10 @@ export async function updateSupplierContractAction(
 // ─── Expiring Contracts ─────────────────────────────────────────────
 
 export async function getExpiringContractsAction(withinDays: number = 90) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_SUPPLIER_CONTRACTS_MANAGE);
+  if (denied) return denied;
 
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() + withinDays);

@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth-context";
 import { toNum } from "@/lib/decimal";
 
 // ─── Helper: get student record by userId ─────────────────────────────
@@ -15,13 +15,11 @@ async function getStudentByUserId(userId: string) {
 // ─── Get Student Portal Data ──────────────────────────────────────────
 
 export async function getStudentPortalDataAction() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
   const student = await db.student.findUnique({
-    where: { userId: session.user.id },
+    where: { userId: ctx.session.user.id },
     include: {
       enrollments: {
         where: { status: "ACTIVE" },
@@ -149,12 +147,10 @@ export async function getStudentPortalDataAction() {
 // ─── Get My Results ───────────────────────────────────────────────────
 
 export async function getMyResultsAction(termId?: string) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
-  const student = await getStudentByUserId(session.user.id);
+  const student = await getStudentByUserId(ctx.session.user.id);
   if (!student) {
     return { error: "No student profile linked to your account." };
   }
@@ -245,12 +241,10 @@ export async function getMyResultsAction(termId?: string) {
 // ─── Get My Attendance ────────────────────────────────────────────────
 
 export async function getMyAttendanceAction(termId?: string) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
-  const student = await getStudentByUserId(session.user.id);
+  const student = await getStudentByUserId(ctx.session.user.id);
   if (!student) {
     return { error: "No student profile linked to your account." };
   }
@@ -353,12 +347,10 @@ export async function getMyAttendanceAction(termId?: string) {
 // ─── Get My Fees ──────────────────────────────────────────────────────
 
 export async function getMyFeesAction() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
-  const student = await getStudentByUserId(session.user.id);
+  const student = await getStudentByUserId(ctx.session.user.id);
   if (!student) {
     return { error: "No student profile linked to your account." };
   }
@@ -420,12 +412,10 @@ export async function getMyFeesAction() {
 // ─── Get My Timetable ────────────────────────────────────────────────
 
 export async function getMyTimetableAction() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
-  const student = await getStudentByUserId(session.user.id);
+  const student = await getStudentByUserId(ctx.session.user.id);
   if (!student) {
     return { error: "No student profile linked to your account." };
   }
@@ -485,12 +475,10 @@ export async function getMyTimetableAction() {
 // ─── Get My Announcements ───────────────────────────────────────────
 
 export async function getMyAnnouncementsAction() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
-  const student = await getStudentByUserId(session.user.id);
+  const student = await getStudentByUserId(ctx.session.user.id);
   if (!student) {
     return { error: "No student profile linked to your account." };
   }
@@ -523,12 +511,10 @@ export async function getMyAnnouncementsAction() {
 // ─── Get My Exeats ───────────────────────────────────────────────────
 
 export async function getMyExeatsAction() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
-  const student = await getStudentByUserId(session.user.id);
+  const student = await getStudentByUserId(ctx.session.user.id);
   if (!student) {
     return { error: "No student profile linked to your account." };
   }
@@ -574,12 +560,10 @@ export async function requestStudentExeatAction(input: {
   guardianName?: string;
   guardianPhone?: string;
 }) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
-  const student = await getStudentByUserId(session.user.id);
+  const student = await getStudentByUserId(ctx.session.user.id);
   if (!student) {
     return { error: "No student profile linked to your account." };
   }
@@ -627,6 +611,7 @@ export async function requestStudentExeatAction(input: {
 
   const exeat = await db.exeat.create({
     data: {
+      schoolId: student.schoolId,
       exeatNumber,
       studentId: student.id,
       termId: currentTerm.id,
@@ -637,7 +622,7 @@ export async function requestStudentExeatAction(input: {
       expectedReturnDate: new Date(input.expectedReturnDate),
       guardianName: guardianName || null,
       guardianPhone: guardianPhone || null,
-      requestedBy: session.user.id,
+      requestedBy: ctx.session.user.id,
     },
   });
 

@@ -117,7 +117,7 @@ export function GraduationClient({
         name: createForm.name,
         ceremonyDate: createForm.ceremonyDate || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -132,7 +132,7 @@ export function GraduationClient({
 
     startTransition(async () => {
       const result = await completeBatchAction(batchId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -156,7 +156,7 @@ export function GraduationClient({
     if (value.length >= 2) {
       startTransition(async () => {
         const result = await searchGraduationEligibleStudentsAction(value);
-        if (result.data) {
+        if ("data" in result) {
           setStudentResults(result.data);
           setShowStudentDropdown(true);
         }
@@ -190,11 +190,11 @@ export function GraduationClient({
         addToBatchId,
         selectedStudents.map((s) => s.id),
       );
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
-      toast.success(`${result.data?.added ?? 0} students added to batch.`);
+      toast.success(`${"data" in result ? result.data?.added ?? 0 : 0} students added to batch.`);
       setShowAddGraduates(false);
       router.refresh();
     });
@@ -219,7 +219,7 @@ export function GraduationClient({
         certificateNumber: confirmForm.certificateNumber || undefined,
         honours: confirmForm.honours || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

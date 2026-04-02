@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Allocations ────────────────────────────────────────────────────
@@ -11,10 +12,10 @@ export async function getAllocationsAction(filters?: {
   termId?: string;
   status?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BED_ALLOCATIONS_READ);
+  if (denied) return denied;
 
   const where: Record<string, unknown> = {};
   if (filters?.status) where.status = filters.status;
@@ -83,10 +84,10 @@ export async function allocateBedAction(data: {
   termId: string;
   academicYearId: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BED_ALLOCATIONS_CREATE);
+  if (denied) return denied;
 
   // Check student exists and is boarding
   const student = await db.student.findUnique({
@@ -138,11 +139,12 @@ export async function allocateBedAction(data: {
   const [allocation] = await db.$transaction([
     db.bedAllocation.create({
       data: {
+        schoolId: ctx.schoolId,
         bedId: data.bedId,
         studentId: data.studentId,
         termId: data.termId,
         academicYearId: data.academicYearId,
-        allocatedBy: session.user.id!,
+        allocatedBy: ctx.session.user.id,
       },
     }),
     db.bed.update({
@@ -152,7 +154,7 @@ export async function allocateBedAction(data: {
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "BedAllocation",
     entityId: allocation.id,
@@ -165,10 +167,10 @@ export async function allocateBedAction(data: {
 }
 
 export async function vacateBedAction(allocationId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BED_ALLOCATIONS_UPDATE);
+  if (denied) return denied;
 
   const allocation = await db.bedAllocation.findUnique({
     where: { id: allocationId },
@@ -206,7 +208,7 @@ export async function vacateBedAction(allocationId: string) {
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "BedAllocation",
     entityId: allocationId,
@@ -223,10 +225,10 @@ export async function bulkAllocateAction(
   termId: string,
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BED_ALLOCATIONS_CREATE);
+  if (denied) return denied;
 
   const errors: string[] = [];
   let successCount = 0;
@@ -239,7 +241,7 @@ export async function bulkAllocateAction(
       academicYearId,
     });
 
-    if (result.error) {
+    if ("error" in result) {
       errors.push(`Student ${alloc.studentId}: ${result.error}`);
     } else {
       successCount++;
@@ -247,7 +249,7 @@ export async function bulkAllocateAction(
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "BedAllocation",
     module: "boarding",
@@ -263,18 +265,13 @@ export async function bulkAllocateAction(
 }
 
 export async function getOccupancyReportAction(termId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BED_ALLOCATIONS_READ);
+  if (denied) return denied;
 
   const hostels = await db.hostel.findMany({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     include: {
       dormitories: {
         where: { status: "ACTIVE" },

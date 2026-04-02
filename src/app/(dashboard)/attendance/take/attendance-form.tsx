@@ -94,12 +94,12 @@ export function AttendanceForm({
         periodId: attendanceMode === "PERIOD" ? selectedPeriodId : undefined,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
 
-      if (result.data) {
+      if ("data" in result) {
         setRegisterId(result.data.register.id);
         setRegisterStatus(result.data.register.status);
         setStudents(result.data.students);
@@ -139,9 +139,9 @@ export function AttendanceForm({
         date: selectedDate,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
-      } else if (result.data) {
+      } else if ("data" in result) {
         toast.success(
           `Generated ${result.data.created} period registers (${result.data.existing} already existed).`,
         );
@@ -204,7 +204,7 @@ export function AttendanceForm({
 
     startTransition(async () => {
       const result = await recordAttendanceAction(registerId, attendanceRecords);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Attendance saved successfully.");
@@ -219,7 +219,7 @@ export function AttendanceForm({
 
     startTransition(async () => {
       const result = await closeAttendanceRegisterAction(registerId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Register closed successfully.");

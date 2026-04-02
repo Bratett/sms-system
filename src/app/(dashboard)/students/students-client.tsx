@@ -94,7 +94,7 @@ export function StudentsClient({
         page: newPage,
         pageSize,
       });
-      if (result.students) {
+      if ("students" in result) {
         setStudents(result.students);
         setTotal(result.total ?? 0);
         setPage(result.page ?? 1);
@@ -121,7 +121,7 @@ export function StudentsClient({
     setFilterBoarding("");
     startTransition(async () => {
       const result = await getStudentsAction({ page: 1, pageSize });
-      if (result.students) {
+      if ("students" in result) {
         setStudents(result.students);
         setTotal(result.total ?? 0);
         setPage(1);

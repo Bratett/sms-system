@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import type { Prisma } from "@prisma/client";
 
@@ -14,22 +15,17 @@ export async function getVehiclesAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
   const where: Prisma.VehicleWhereInput = {
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
     ...(filters?.status && { status: filters.status as any }),
     ...(filters?.type && { type: filters.type as any }),
     ...(filters?.search && {
@@ -79,21 +75,16 @@ export async function createVehicleAction(data: {
   insuranceExpiry?: Date;
   lastServiceDate?: Date;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_CREATE);
+  if (denied) return denied;
 
   // Check duplicate registration number
   const existing = await db.vehicle.findUnique({
     where: {
       schoolId_registrationNumber: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         registrationNumber: data.registrationNumber,
       },
     },
@@ -105,7 +96,7 @@ export async function createVehicleAction(data: {
 
   const vehicle = await db.vehicle.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       registrationNumber: data.registrationNumber,
       type: data.type,
       capacity: data.capacity,
@@ -117,7 +108,7 @@ export async function createVehicleAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Vehicle",
     entityId: vehicle.id,
@@ -142,15 +133,10 @@ export async function updateVehicleAction(
     lastServiceDate?: Date;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.vehicle.findUnique({ where: { id } });
   if (!existing) {
@@ -161,7 +147,7 @@ export async function updateVehicleAction(
     const duplicate = await db.vehicle.findUnique({
       where: {
         schoolId_registrationNumber: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           registrationNumber: data.registrationNumber,
         },
       },
@@ -188,7 +174,7 @@ export async function updateVehicleAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Vehicle",
     entityId: id,
@@ -202,10 +188,10 @@ export async function updateVehicleAction(
 }
 
 export async function deleteVehicleAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_DELETE);
+  if (denied) return denied;
 
   const vehicle = await db.vehicle.findUnique({
     where: { id },
@@ -227,7 +213,7 @@ export async function deleteVehicleAction(id: string) {
   await db.vehicle.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Vehicle",
     entityId: id,
@@ -248,22 +234,17 @@ export async function getRoutesAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
   const where: Prisma.RouteWhereInput = {
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
     ...(filters?.status && { status: filters.status as any }),
     ...(filters?.vehicleId && { vehicleId: filters.vehicleId }),
     ...(filters?.search && {
@@ -311,10 +292,10 @@ export async function getRoutesAction(filters?: {
 }
 
 export async function getRouteAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_READ);
+  if (denied) return denied;
 
   const route = await db.route.findUnique({
     where: { id },
@@ -384,21 +365,16 @@ export async function createRouteAction(data: {
   estimatedDuration?: number;
   fee?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_CREATE);
+  if (denied) return denied;
 
   // Check duplicate name
   const existing = await db.route.findUnique({
     where: {
       schoolId_name: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: data.name,
       },
     },
@@ -410,7 +386,7 @@ export async function createRouteAction(data: {
 
   const route = await db.route.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       description: data.description || null,
       vehicleId: data.vehicleId || null,
@@ -423,7 +399,7 @@ export async function createRouteAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Route",
     entityId: route.id,
@@ -449,15 +425,10 @@ export async function updateRouteAction(
     status?: "ACTIVE" | "INACTIVE";
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.route.findUnique({ where: { id } });
   if (!existing) {
@@ -468,7 +439,7 @@ export async function updateRouteAction(
     const duplicate = await db.route.findUnique({
       where: {
         schoolId_name: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           name: data.name,
         },
       },
@@ -496,7 +467,7 @@ export async function updateRouteAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Route",
     entityId: id,
@@ -510,10 +481,10 @@ export async function updateRouteAction(
 }
 
 export async function deleteRouteAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_DELETE);
+  if (denied) return denied;
 
   const route = await db.route.findUnique({
     where: { id },
@@ -533,7 +504,7 @@ export async function deleteRouteAction(id: string) {
   await db.route.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Route",
     entityId: id,
@@ -553,10 +524,10 @@ export async function addRouteStopAction(data: {
   pickupTime?: string;
   dropoffTime?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_CREATE);
+  if (denied) return denied;
 
   const route = await db.route.findUnique({ where: { id: data.routeId } });
   if (!route) {
@@ -573,6 +544,7 @@ export async function addRouteStopAction(data: {
 
   const stop = await db.routeStop.create({
     data: {
+      schoolId: ctx.schoolId,
       routeId: data.routeId,
       name: data.name,
       orderIndex,
@@ -582,7 +554,7 @@ export async function addRouteStopAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "RouteStop",
     entityId: stop.id,
@@ -595,10 +567,10 @@ export async function addRouteStopAction(data: {
 }
 
 export async function removeRouteStopAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_DELETE);
+  if (denied) return denied;
 
   const stop = await db.routeStop.findUnique({
     where: { id },
@@ -612,7 +584,7 @@ export async function removeRouteStopAction(id: string) {
   await db.routeStop.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "RouteStop",
     entityId: id,
@@ -634,10 +606,10 @@ export async function assignStudentToRouteAction(data: {
   pickupPoint?: string;
   dropoffPoint?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_ASSIGN);
+  if (denied) return denied;
 
   // Check if student already assigned for this academic year
   const existing = await db.studentTransport.findUnique({
@@ -660,6 +632,7 @@ export async function assignStudentToRouteAction(data: {
 
   const assignment = await db.studentTransport.create({
     data: {
+      schoolId: ctx.schoolId,
       studentId: data.studentId,
       routeId: data.routeId,
       stopId: data.stopId || null,
@@ -670,7 +643,7 @@ export async function assignStudentToRouteAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StudentTransport",
     entityId: assignment.id,
@@ -683,10 +656,10 @@ export async function assignStudentToRouteAction(data: {
 }
 
 export async function removeStudentFromRouteAction(assignmentId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_ASSIGN);
+  if (denied) return denied;
 
   const assignment = await db.studentTransport.findUnique({
     where: { id: assignmentId },
@@ -700,7 +673,7 @@ export async function removeStudentFromRouteAction(assignmentId: string) {
   await db.studentTransport.delete({ where: { id: assignmentId } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "StudentTransport",
     entityId: assignmentId,
@@ -715,24 +688,19 @@ export async function removeStudentFromRouteAction(assignmentId: string) {
 // ─── Transport Stats ───────────────────────────────────────────────
 
 export async function getTransportStatsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSPORT_READ);
+  if (denied) return denied;
 
   const [vehicles, activeRoutes, assignedStudents, allVehicles] = await Promise.all([
-    db.vehicle.count({ where: { schoolId: school.id, status: "ACTIVE" } }),
-    db.route.count({ where: { schoolId: school.id, status: "ACTIVE" } }),
+    db.vehicle.count({ where: { schoolId: ctx.schoolId, status: "ACTIVE" } }),
+    db.route.count({ where: { schoolId: ctx.schoolId, status: "ACTIVE" } }),
     db.studentTransport.count({
-      where: { route: { schoolId: school.id } },
+      where: { route: { schoolId: ctx.schoolId } },
     }),
     db.vehicle.findMany({
-      where: { schoolId: school.id, status: "ACTIVE" },
+      where: { schoolId: ctx.schoolId, status: "ACTIVE" },
       select: { capacity: true },
     }),
   ]);

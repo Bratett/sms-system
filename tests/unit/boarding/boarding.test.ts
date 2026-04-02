@@ -63,10 +63,10 @@ describe("getHostelsAction", () => {
   });
 
   it("should return error when no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await getHostelsAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return hostels with bed counts", async () => {
@@ -163,10 +163,10 @@ describe("createHostelAction", () => {
   });
 
   it("should return error when no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await createHostelAction({ name: "Boys Hostel", gender: "MALE" });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should reject duplicate hostel name", async () => {
@@ -570,9 +570,9 @@ describe("createBedsAction", () => {
     expect(result).toEqual({ success: true, count: 3 });
     expect(prismaMock.bed.createMany).toHaveBeenCalledWith({
       data: [
-        { dormitoryId: "dorm-1", bedNumber: "Bed 3" },
-        { dormitoryId: "dorm-1", bedNumber: "Bed 4" },
-        { dormitoryId: "dorm-1", bedNumber: "Bed 5" },
+        { dormitoryId: "dorm-1", bedNumber: "Bed 3", schoolId: "default-school" },
+        { dormitoryId: "dorm-1", bedNumber: "Bed 4", schoolId: "default-school" },
+        { dormitoryId: "dorm-1", bedNumber: "Bed 5", schoolId: "default-school" },
       ],
     });
   });
@@ -903,10 +903,10 @@ describe("getOccupancyReportAction", () => {
   });
 
   it("should return error when no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await getOccupancyReportAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return occupancy report with percentages", async () => {

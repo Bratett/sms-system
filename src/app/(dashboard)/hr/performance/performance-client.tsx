@@ -60,7 +60,7 @@ export function PerformanceClient({
   function fetchNotes(newPage: number) {
     startTransition(async () => {
       const result = await getPerformanceNotesAction({ page: newPage, pageSize: 25 });
-      if (result.data) {
+      if ("data" in result) {
         setNotes(result.data);
         setPagination(
           result.pagination ?? { page: newPage, pageSize: 25, total: 0, totalPages: 0 },
@@ -86,7 +86,7 @@ export function PerformanceClient({
         comments: form.comments || undefined,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Performance review created.");

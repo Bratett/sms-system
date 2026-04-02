@@ -102,7 +102,7 @@ export function StoresClient({
           description: storeForm.description || undefined,
           managerId: storeForm.managerId || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -113,7 +113,7 @@ export function StoresClient({
           description: storeForm.description || undefined,
           managerId: storeForm.managerId || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -129,7 +129,7 @@ export function StoresClient({
 
     startTransition(async () => {
       const result = await deleteStoreAction(store.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -156,7 +156,7 @@ export function StoresClient({
         name: categoryForm.name,
         description: categoryForm.description || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -171,7 +171,7 @@ export function StoresClient({
 
     startTransition(async () => {
       const result = await deleteCategoryAction(cat.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

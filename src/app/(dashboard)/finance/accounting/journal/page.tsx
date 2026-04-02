@@ -14,9 +14,9 @@ export default async function JournalPage() {
 
   return (
     <JournalClient
-      transactions={transactionsResult.data ?? []}
-      pagination={transactionsResult.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
-      accounts={accountsResult.data ?? []}
+      transactions={"data" in transactionsResult ? transactionsResult.data : []}
+      pagination={"pagination" in transactionsResult ? transactionsResult.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 } : { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
+      accounts={"data" in accountsResult ? accountsResult.data : []}
     />
   );
 }

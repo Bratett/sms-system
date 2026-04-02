@@ -53,7 +53,7 @@ export function InspectionForm({ hostels }: { hostels: HostelOption[] }) {
 
     setLoadingDorms(true);
     const result = await getDormitoriesAction(hostelId);
-    if (result.data) {
+    if ("data" in result) {
       setDormitories(result.data);
     }
     setLoadingDorms(false);

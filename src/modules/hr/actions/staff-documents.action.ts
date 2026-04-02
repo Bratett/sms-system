@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { deleteFile } from "@/lib/storage/r2";
@@ -33,9 +33,9 @@ type UploadStaffDocumentInput = z.infer<typeof uploadStaffDocumentSchema>;
 // ─── Actions ────────────────────────────────────────────────
 
 export async function getStaffDocumentsAction(staffId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_DOCUMENTS_READ)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_DOCUMENTS_READ)) return { error: "Insufficient permissions" };
 
   const documents = await db.document.findMany({
     where: {
@@ -49,22 +49,19 @@ export async function getStaffDocumentsAction(staffId: string) {
 }
 
 export async function uploadStaffDocumentAction(data: UploadStaffDocumentInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_DOCUMENTS_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_DOCUMENTS_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = uploadStaffDocumentSchema.safeParse(data);
-  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
 
   const staff = await db.staff.findUnique({ where: { id: parsed.data.staffId } });
   if (!staff) return { error: "Staff member not found." };
 
   const document = await db.document.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       title: parsed.data.title,
       category: parsed.data.category,
       fileKey: parsed.data.fileKey,
@@ -73,13 +70,13 @@ export async function uploadStaffDocumentAction(data: UploadStaffDocumentInput) 
       contentType: parsed.data.contentType,
       entityType: "Staff",
       entityId: parsed.data.staffId,
-      uploadedBy: session.user.id!,
+      uploadedBy: ctx.session.user.id,
       accessLevel: "STAFF",
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Document",
     entityId: document.id,
@@ -92,9 +89,9 @@ export async function uploadStaffDocumentAction(data: UploadStaffDocumentInput) 
 }
 
 export async function deleteStaffDocumentAction(documentId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_DOCUMENTS_DELETE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_DOCUMENTS_DELETE)) return { error: "Insufficient permissions" };
 
   const document = await db.document.findUnique({ where: { id: documentId } });
   if (!document) return { error: "Document not found." };
@@ -113,7 +110,7 @@ export async function deleteStaffDocumentAction(documentId: string) {
   await db.document.delete({ where: { id: documentId } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Document",
     entityId: documentId,

@@ -71,10 +71,10 @@ export function ExeatClient({ exeats: initialExeats, isBoardingStudent }: ExeatC
         guardianPhone: formData.guardianPhone || undefined,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
-        toast.success(`Exeat request ${result.data?.exeatNumber} submitted successfully.`);
+        toast.success(`Exeat request ${"data" in result ? result.data?.exeatNumber : ""} submitted successfully.`);
         setShowForm(false);
         setFormData({
           reason: "",
@@ -88,7 +88,7 @@ export function ExeatClient({ exeats: initialExeats, isBoardingStudent }: ExeatC
 
         // Refresh exeats list
         const refreshResult = await getMyExeatsAction();
-        if (refreshResult.data) {
+        if ("data" in refreshResult && refreshResult.data) {
           setExeats(refreshResult.data as unknown as ExeatData[]);
         }
       }

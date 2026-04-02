@@ -75,11 +75,11 @@ export function FinanceDashboardClient({
     setSelectedTermId(termId);
     startTransition(async () => {
       const result = await getFinanceDashboardAction(termId || undefined);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
-      setData(result.data ?? null);
+      setData("data" in result ? result.data : null);
     });
   }
 

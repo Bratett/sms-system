@@ -9,7 +9,7 @@ export default async function ChildrenPage() {
   }
 
   const result = await getParentChildrenAction();
-  const children = result.data ?? [];
+  const children = "data" in result ? result.data : [];
 
   return <ChildrenClient students={children} />;
 }

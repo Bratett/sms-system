@@ -10,7 +10,7 @@ export default async function SubjectsPage() {
   }
 
   const result = await getSubjectsAction();
-  const subjects = result.data ?? [];
+  const subjects = "data" in result ? result.data : [];
 
   return (
     <div className="space-y-6">

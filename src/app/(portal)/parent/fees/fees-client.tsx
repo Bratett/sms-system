@@ -64,7 +64,7 @@ export function FeesClient({ students }: FeesClientProps) {
     getChildFeesAction(selectedStudentId)
       .then((result) => {
         if (cancelled) return;
-        if (result.data) {
+        if ("data" in result && result.data) {
           setFeesData(result.data as unknown as FeesData);
         }
       })

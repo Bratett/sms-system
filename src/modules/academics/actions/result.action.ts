@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { lookupGrade } from "@/modules/academics/utils/grading";
 
@@ -12,21 +13,16 @@ export async function computeTerminalResultsAction(
   termId: string,
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_COMPUTE);
+  if (denied) return denied;
 
   const errors: string[] = [];
 
   // 1. Get the default grading scale
   const gradingScale = await db.gradingScale.findFirst({
-    where: { schoolId: school.id, isDefault: true },
+    where: { schoolId: ctx.schoolId, isDefault: true },
     include: {
       gradeDefinitions: {
         orderBy: { minScore: "desc" },
@@ -52,7 +48,7 @@ export async function computeTerminalResultsAction(
   // 2. Get assessment types and their weights/categories
   const assessmentTypes = await db.assessmentType.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       OR: [{ termId }, { termId: null }],
     },
   });
@@ -171,6 +167,7 @@ export async function computeTerminalResultsAction(
     // Create the terminal result record first
     const terminalResult = await db.terminalResult.create({
       data: {
+        schoolId: ctx.schoolId,
         studentId,
         classArmId,
         termId,
@@ -224,6 +221,7 @@ export async function computeTerminalResultsAction(
         data: {
           terminalResultId: terminalResult.id,
           subjectId,
+          schoolId: ctx.schoolId,
           classScore: Math.round(classScore * 100) / 100,
           examScore: Math.round(examScore * 100) / 100,
           totalScore,
@@ -327,7 +325,7 @@ export async function computeTerminalResultsAction(
 
   // 8. Audit log
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "TerminalResult",
     entityId: classArmId,
@@ -345,10 +343,10 @@ export async function getTerminalResultsAction(
   classArmId: string,
   termId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_READ);
+  if (denied) return denied;
 
   const results = await db.terminalResult.findMany({
     where: { classArmId, termId },
@@ -423,10 +421,10 @@ export async function getStudentTerminalResultAction(
   studentId: string,
   termId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_READ);
+  if (denied) return denied;
 
   const result = await db.terminalResult.findFirst({
     where: { studentId, termId },
@@ -498,10 +496,10 @@ export async function updateTerminalResultRemarksAction(
   id: string,
   data: { teacherRemarks?: string; headmasterRemarks?: string },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_COMPUTE);
+  if (denied) return denied;
 
   const existing = await db.terminalResult.findUnique({ where: { id } });
   if (!existing) {
@@ -528,7 +526,7 @@ export async function updateTerminalResultRemarksAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "TerminalResult",
     entityId: id,
@@ -550,10 +548,10 @@ export async function publishResultsAction(
   classArmId: string,
   termId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_PUBLISH);
+  if (denied) return denied;
 
   const results = await db.terminalResult.findMany({
     where: { classArmId, termId },
@@ -567,7 +565,7 @@ export async function publishResultsAction(
   // For now, we log the action as an audit trail.
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "TerminalResult",
     entityId: classArmId,
@@ -585,10 +583,10 @@ export async function getResultSummaryAction(
   classArmId: string,
   termId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_READ);
+  if (denied) return denied;
 
   const results = await db.terminalResult.findMany({
     where: { classArmId, termId },

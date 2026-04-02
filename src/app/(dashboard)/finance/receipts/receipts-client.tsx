@@ -121,11 +121,11 @@ export function ReceiptsClient({
   function handleViewReceipt(payment: PaymentRecord) {
     startTransition(async () => {
       const result = await getPaymentAction(payment.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
-      setSelectedReceipt(result.data as ReceiptDetail);
+      setSelectedReceipt(("data" in result ? result.data : null) as ReceiptDetail);
     });
   }
 

@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { logMarkChange } from "@/modules/academics/utils/mark-audit";
 
@@ -13,10 +14,10 @@ export async function getMarkEntryDataAction(
   assessmentTypeId: string,
   termId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MARKS_READ);
+  if (denied) return denied;
 
   // Get assessment type info
   const assessmentType = await db.assessmentType.findUnique({
@@ -98,10 +99,10 @@ export async function enterMarksAction(data: {
   academicYearId: string;
   marks: Array<{ studentId: string; score: number }>;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MARKS_CREATE);
+  if (denied) return denied;
 
   // Validate assessment type exists and get maxScore + deadline info
   const assessmentType = await db.assessmentType.findUnique({
@@ -177,13 +178,14 @@ export async function enterMarksAction(data: {
         update: {
           score: mark.score,
           maxScore: assessmentType.maxScore,
-          enteredBy: session.user.id!,
+          enteredBy: ctx.session.user.id!,
           enteredAt: new Date(),
           status: "DRAFT",
           approvedBy: null,
           approvedAt: null,
         },
         create: {
+          schoolId: ctx.schoolId,
           studentId: mark.studentId,
           subjectId: data.subjectId,
           classArmId: data.classArmId,
@@ -192,7 +194,7 @@ export async function enterMarksAction(data: {
           academicYearId: data.academicYearId,
           score: mark.score,
           maxScore: assessmentType.maxScore,
-          enteredBy: session.user.id!,
+          enteredBy: ctx.session.user.id!,
           status: "DRAFT",
         },
       }),
@@ -204,6 +206,7 @@ export async function enterMarksAction(data: {
     const existing = existingMap.get(result.studentId);
     if (existing && existing.score !== result.score) {
       await logMarkChange({
+        schoolId: ctx.schoolId,
         markId: result.id,
         studentId: result.studentId,
         subjectId: data.subjectId,
@@ -213,13 +216,13 @@ export async function enterMarksAction(data: {
         newScore: result.score,
         previousStatus: existing.status,
         newStatus: result.status,
-        changedBy: session.user.id!,
+        changedBy: ctx.session.user.id!,
       });
     }
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "Mark",
     module: "academics",
@@ -244,10 +247,10 @@ export async function submitMarksForApprovalAction(
   assessmentTypeId: string,
   termId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MARKS_CREATE);
+  if (denied) return denied;
 
   // Check submission deadline
   const assessmentType = await db.assessmentType.findUnique({
@@ -292,7 +295,7 @@ export async function submitMarksForApprovalAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Mark",
     module: "academics",
@@ -317,10 +320,10 @@ export async function getSubmittedMarksAction(filters?: {
   termId?: string;
   status?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MARKS_READ);
+  if (denied) return denied;
 
   const where: Record<string, unknown> = {};
   if (filters?.subjectId) where.subjectId = filters.subjectId;
@@ -440,10 +443,10 @@ export async function getMarkDetailsAction(
   assessmentTypeId: string,
   termId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MARKS_READ);
+  if (denied) return denied;
 
   const marks = await db.mark.findMany({
     where: {
@@ -495,10 +498,10 @@ export async function approveMarksAction(
   assessmentTypeId: string,
   termId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MARKS_APPROVE);
+  if (denied) return denied;
 
   const submittedMarks = await db.mark.findMany({
     where: {
@@ -525,7 +528,7 @@ export async function approveMarksAction(
     },
     data: {
       status: "APPROVED",
-      approvedBy: session.user.id!,
+      approvedBy: ctx.session.user.id!,
       approvedAt: new Date(),
     },
   });
@@ -533,6 +536,7 @@ export async function approveMarksAction(
   // Log audit trail for status change
   for (const mark of submittedMarks) {
     await logMarkChange({
+      schoolId: ctx.schoolId,
       markId: mark.id,
       studentId: mark.studentId,
       subjectId,
@@ -542,12 +546,12 @@ export async function approveMarksAction(
       newScore: mark.score,
       previousStatus: "SUBMITTED",
       newStatus: "APPROVED",
-      changedBy: session.user.id!,
+      changedBy: ctx.session.user.id!,
     });
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Mark",
     module: "academics",
@@ -573,10 +577,10 @@ export async function rejectMarksAction(
   termId: string,
   reason: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MARKS_APPROVE);
+  if (denied) return denied;
 
   if (!reason.trim()) {
     return { error: "A reason is required when rejecting marks." };
@@ -615,6 +619,7 @@ export async function rejectMarksAction(
   // Log audit trail for rejection
   for (const mark of submittedMarks) {
     await logMarkChange({
+      schoolId: ctx.schoolId,
       markId: mark.id,
       studentId: mark.studentId,
       subjectId,
@@ -624,13 +629,13 @@ export async function rejectMarksAction(
       newScore: mark.score,
       previousStatus: "SUBMITTED",
       newStatus: "DRAFT",
-      changedBy: session.user.id!,
+      changedBy: ctx.session.user.id!,
       changeReason: reason,
     });
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Mark",
     module: "academics",

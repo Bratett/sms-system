@@ -38,6 +38,7 @@ model Student {
 
 model Guardian {
   id           String   @id @default(cuid())
+  schoolId     String
   userId       String?  @unique // Optional link to User for parent portal
   firstName    String
   lastName     String
@@ -51,34 +52,42 @@ model Guardian {
   updatedAt    DateTime @updatedAt
 
   students StudentGuardian[]
+  school   School            @relation("SchoolGuardian", fields: [schoolId], references: [id])
 
   @@index([phone])
   @@index([firstName, lastName])
+  @@index([schoolId])
 }
 
 model StudentGuardian {
   id         String  @id @default(cuid())
   studentId  String
   guardianId String
+  schoolId   String
   isPrimary  Boolean @default(false)
 
   student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   guardian Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  school   School   @relation("SchoolStudentGuardian", fields: [schoolId], references: [id])
 
   @@unique([studentId, guardianId])
   @@index([guardianId])
+  @@index([schoolId])
 }
 
 model StudentHouse {
   id             String @id @default(cuid())
   studentId      String @unique
   houseId        String
+  schoolId       String
   academicYearId String
 
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  school  School  @relation("SchoolStudentHouse", fields: [schoolId], references: [id])
 
   @@index([houseId])
   @@index([academicYearId])
+  @@index([schoolId])
 }
 
 model AdmissionApplication {
@@ -132,14 +141,17 @@ model AdmissionApplication {
 model AdmissionDocument {
   id            String   @id @default(cuid())
   applicationId String
+  schoolId      String
   documentType  String   // e.g., "Birth Certificate", "JHS Report", "Passport Photo"
   fileName      String
   fileUrl       String
   uploadedAt    DateTime @default(now())
 
   application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  school      School               @relation("SchoolAdmissionDocument", fields: [schoolId], references: [id])
 
   @@index([applicationId])
+  @@index([schoolId])
 }
 
 // ─── Medical Records ────────────────────────────────────────────────

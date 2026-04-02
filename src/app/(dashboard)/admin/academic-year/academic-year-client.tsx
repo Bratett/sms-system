@@ -83,14 +83,14 @@ export function AcademicYearClient({
     startTransition(async () => {
       if (editingYear) {
         const result = await updateAcademicYearAction(editingYear.id, formData);
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
         toast.success("Academic year updated successfully");
       } else {
         const result = await createAcademicYearAction(formData);
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -105,7 +105,7 @@ export function AcademicYearClient({
   function handleDelete(year: AcademicYear) {
     startTransition(async () => {
       const result = await deleteAcademicYearAction(year.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -117,7 +117,7 @@ export function AcademicYearClient({
   function handleSetCurrent(year: AcademicYear) {
     startTransition(async () => {
       const result = await setCurrentAcademicYearAction(year.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

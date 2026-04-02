@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import {
   createApplicationSchema,
@@ -14,15 +15,10 @@ import {
 import type { AdmissionStats } from "@/modules/admissions/types";
 
 export async function getApplicationsAction(filters: ApplicationFilterInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ADMISSIONS_READ);
+  if (denied) return denied;
 
   const parsed = applicationFilterSchema.safeParse(filters);
   if (!parsed.success) {
@@ -32,7 +28,7 @@ export async function getApplicationsAction(filters: ApplicationFilterInput) {
   const { search, status, academicYearId, page, pageSize } = parsed.data;
 
   const where: Record<string, unknown> = {
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
   };
 
   if (search) {
@@ -94,10 +90,8 @@ export async function getApplicationsAction(filters: ApplicationFilterInput) {
 }
 
 export async function getApplicationAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const application = await db.admissionApplication.findUnique({
     where: { id },
@@ -142,19 +136,14 @@ export async function getApplicationAction(id: string) {
 }
 
 export async function createApplicationAction(input: CreateApplicationInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ADMISSIONS_CREATE);
+  if (denied) return denied;
 
   const parsed = createApplicationSchema.safeParse(input);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
   }
 
   // Get current academic year
@@ -169,7 +158,7 @@ export async function createApplicationAction(input: CreateApplicationInput) {
   // Generate application number
   const year = new Date().getFullYear();
   const count = await db.admissionApplication.count({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
   });
   const applicationNumber = `APP/${year}/${String(count + 1).padStart(4, "0")}`;
 
@@ -177,7 +166,7 @@ export async function createApplicationAction(input: CreateApplicationInput) {
 
   const application = await db.admissionApplication.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       academicYearId: academicYear.id,
       applicationNumber,
       firstName: data.firstName,
@@ -205,7 +194,7 @@ export async function createApplicationAction(input: CreateApplicationInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "AdmissionApplication",
     entityId: application.id,
@@ -221,10 +210,8 @@ export async function updateApplicationAction(
   id: string,
   input: CreateApplicationInput
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const parsed = createApplicationSchema.safeParse(input);
   if (!parsed.success) {
@@ -271,7 +258,7 @@ export async function updateApplicationAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "AdmissionApplication",
     entityId: id,
@@ -288,10 +275,10 @@ export async function reviewApplicationAction(
   id: string,
   decision: ReviewApplicationInput
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ADMISSIONS_APPROVE);
+  if (denied) return denied;
 
   const parsed = reviewApplicationSchema.safeParse(decision);
   if (!parsed.success) {
@@ -313,13 +300,13 @@ export async function reviewApplicationAction(
     data: {
       status: parsed.data.status,
       notes: parsed.data.notes || existing.notes,
-      reviewedBy: session.user.id,
+      reviewedBy: ctx.session.user.id,
       reviewedAt: new Date(),
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "AdmissionApplication",
     entityId: id,
@@ -333,10 +320,8 @@ export async function reviewApplicationAction(
 }
 
 export async function enrollApplicationAction(id: string, classArmId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const application = await db.admissionApplication.findUnique({
     where: { id },
@@ -348,11 +333,6 @@ export async function enrollApplicationAction(id: string, classArmId: string) {
 
   if (application.status !== "ACCEPTED") {
     return { error: "Only accepted applications can be enrolled." };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
   }
 
   // Get current academic year
@@ -377,7 +357,7 @@ export async function enrollApplicationAction(id: string, classArmId: string) {
   // Generate student ID
   const year = new Date().getFullYear();
   const studentCount = await db.student.count({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
   });
   const studentId = `STU/${year}/${String(studentCount + 1).padStart(4, "0")}`;
 
@@ -386,7 +366,7 @@ export async function enrollApplicationAction(id: string, classArmId: string) {
     // 1. Create Student record
     const student = await tx.student.create({
       data: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         studentId,
         firstName: application.firstName,
         lastName: application.lastName,
@@ -405,6 +385,7 @@ export async function enrollApplicationAction(id: string, classArmId: string) {
 
     const guardian = await tx.guardian.create({
       data: {
+        schoolId: ctx.schoolId,
         firstName: guardianFirstName,
         lastName: guardianLastName,
         phone: application.guardianPhone,
@@ -418,6 +399,7 @@ export async function enrollApplicationAction(id: string, classArmId: string) {
     // 3. Link guardian to student (isPrimary = true)
     await tx.studentGuardian.create({
       data: {
+        schoolId: ctx.schoolId,
         studentId: student.id,
         guardianId: guardian.id,
         isPrimary: true,
@@ -427,6 +409,7 @@ export async function enrollApplicationAction(id: string, classArmId: string) {
     // 4. Create Enrollment record
     const enrollment = await tx.enrollment.create({
       data: {
+        schoolId: ctx.schoolId,
         studentId: student.id,
         classArmId,
         academicYearId: academicYear.id,
@@ -447,7 +430,7 @@ export async function enrollApplicationAction(id: string, classArmId: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "Student",
     entityId: result.student.id,
@@ -464,10 +447,8 @@ export async function enrollApplicationAction(id: string, classArmId: string) {
 }
 
 export async function deleteApplicationAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const application = await db.admissionApplication.findUnique({
     where: { id },
@@ -486,7 +467,7 @@ export async function deleteApplicationAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "AdmissionApplication",
     entityId: id,
@@ -502,18 +483,13 @@ export async function getAdmissionStatsAction(academicYearId?: string): Promise<
   data?: AdmissionStats;
   error?: string;
 }> {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ADMISSIONS_READ);
+  if (denied) return denied;
 
   const where: Record<string, unknown> = {
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
   };
 
   if (academicYearId) {

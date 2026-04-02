@@ -22,8 +22,8 @@ export default async function RequisitionsPage() {
         description="Manage item requisitions from departments."
       />
       <RequisitionsClient
-        requisitions={requisitionsResult.data ?? []}
-        stores={storesResult.data ?? []}
+        requisitions={"data" in requisitionsResult ? requisitionsResult.data : []}
+        stores={"data" in storesResult ? storesResult.data : []}
       />
     </div>
   );

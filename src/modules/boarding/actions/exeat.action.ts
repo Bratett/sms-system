@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Exeats ─────────────────────────────────────────────────────────
@@ -15,10 +16,10 @@ export async function getExeatsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXEAT_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
@@ -104,10 +105,10 @@ export async function getExeatsAction(filters?: {
 }
 
 export async function getExeatAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXEAT_READ);
+  if (denied) return denied;
 
   const exeat = await db.exeat.findUnique({
     where: { id },
@@ -194,10 +195,10 @@ export async function requestExeatAction(data: {
   guardianName?: string;
   guardianPhone?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXEAT_CREATE);
+  if (denied) return denied;
 
   // Generate exeat number
   const year = new Date().getFullYear();
@@ -210,6 +211,7 @@ export async function requestExeatAction(data: {
 
   const exeat = await db.exeat.create({
     data: {
+      schoolId: ctx.schoolId,
       exeatNumber,
       studentId: data.studentId,
       termId: data.termId,
@@ -220,12 +222,12 @@ export async function requestExeatAction(data: {
       expectedReturnDate: new Date(data.expectedReturnDate),
       guardianName: data.guardianName || null,
       guardianPhone: data.guardianPhone || null,
-      requestedBy: session.user.id!,
+      requestedBy: ctx.session.user.id,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Exeat",
     entityId: exeat.id,
@@ -242,10 +244,10 @@ export async function approveExeatAction(
   role: "housemaster" | "headmaster",
   comments?: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXEAT_APPROVE);
+  if (denied) return denied;
 
   const exeat = await db.exeat.findUnique({
     where: { id },
@@ -281,9 +283,10 @@ export async function approveExeatAction(
   await db.$transaction([
     db.exeatApproval.create({
       data: {
+        schoolId: ctx.schoolId,
         exeatId: id,
         approverRole: role,
-        approverId: session.user.id!,
+        approverId: ctx.session.user.id,
         action: "APPROVED",
         comments: comments || null,
       },
@@ -295,7 +298,7 @@ export async function approveExeatAction(
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Exeat",
     entityId: id,
@@ -313,10 +316,10 @@ export async function rejectExeatAction(
   role: "housemaster" | "headmaster",
   comments?: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXEAT_APPROVE);
+  if (denied) return denied;
 
   const exeat = await db.exeat.findUnique({ where: { id } });
   if (!exeat) {
@@ -330,9 +333,10 @@ export async function rejectExeatAction(
   await db.$transaction([
     db.exeatApproval.create({
       data: {
+        schoolId: ctx.schoolId,
         exeatId: id,
         approverRole: role,
-        approverId: session.user.id!,
+        approverId: ctx.session.user.id,
         action: "REJECTED",
         comments: comments || null,
       },
@@ -344,7 +348,7 @@ export async function rejectExeatAction(
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Exeat",
     entityId: id,
@@ -358,10 +362,10 @@ export async function rejectExeatAction(
 }
 
 export async function recordDepartureAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXEAT_APPROVE);
+  if (denied) return denied;
 
   const exeat = await db.exeat.findUnique({ where: { id } });
   if (!exeat) {
@@ -378,7 +382,7 @@ export async function recordDepartureAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Exeat",
     entityId: id,
@@ -392,10 +396,10 @@ export async function recordDepartureAction(id: string) {
 }
 
 export async function recordReturnAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXEAT_APPROVE);
+  if (denied) return denied;
 
   const exeat = await db.exeat.findUnique({ where: { id } });
   if (!exeat) {
@@ -418,7 +422,7 @@ export async function recordReturnAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Exeat",
     entityId: id,
@@ -432,10 +436,10 @@ export async function recordReturnAction(id: string) {
 }
 
 export async function getOverdueExeatsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXEAT_READ);
+  if (denied) return denied;
 
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -479,10 +483,10 @@ export async function getOverdueExeatsAction() {
 }
 
 export async function getExeatStatsAction(termId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXEAT_READ);
+  if (denied) return denied;
 
   const where: Record<string, unknown> = {};
   if (termId) where.termId = termId;

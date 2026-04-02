@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Get Incidents (paginated) ──────────────────────────────────────
@@ -13,21 +14,16 @@ export async function getIncidentsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DISCIPLINE_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
 
   if (filters?.studentId) {
     where.studentId = filters.studentId;
@@ -100,15 +96,10 @@ export async function createIncidentAction(data: {
   severity: string;
   sanction?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DISCIPLINE_CREATE);
+  if (denied) return denied;
 
   const student = await db.student.findUnique({
     where: { id: data.studentId },
@@ -121,9 +112,9 @@ export async function createIncidentAction(data: {
 
   const incident = await db.disciplinaryIncident.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       studentId: data.studentId,
-      reportedBy: session.user.id!,
+      reportedBy: ctx.session.user.id,
       date: new Date(data.date),
       type: data.type,
       description: data.description,
@@ -134,7 +125,7 @@ export async function createIncidentAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "DisciplinaryIncident",
     entityId: incident.id,
@@ -158,10 +149,10 @@ export async function updateIncidentAction(
     status?: string;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DISCIPLINE_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.disciplinaryIncident.findUnique({ where: { id } });
   if (!existing) {
@@ -182,7 +173,7 @@ export async function updateIncidentAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "DisciplinaryIncident",
     entityId: id,
@@ -198,10 +189,10 @@ export async function updateIncidentAction(
 // ─── Resolve Incident ───────────────────────────────────────────────
 
 export async function resolveIncidentAction(id: string, notes?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DISCIPLINE_APPROVE);
+  if (denied) return denied;
 
   const existing = await db.disciplinaryIncident.findUnique({ where: { id } });
   if (!existing) {
@@ -214,14 +205,14 @@ export async function resolveIncidentAction(id: string, notes?: string) {
     where: { id },
     data: {
       status: "RESOLVED",
-      resolvedBy: session.user.id!,
+      resolvedBy: ctx.session.user.id,
       resolvedAt: new Date(),
       notes: notes || existing.notes,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "DisciplinaryIncident",
     entityId: id,
@@ -237,10 +228,10 @@ export async function resolveIncidentAction(id: string, notes?: string) {
 // ─── Get Incident Types ─────────────────────────────────────────────
 
 export async function getIncidentTypesAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DISCIPLINE_READ);
+  if (denied) return denied;
 
   return {
     data: [
@@ -261,15 +252,10 @@ export async function getIncidentTypesAction() {
 // ─── Search Students (for incident form) ────────────────────────────
 
 export async function searchStudentsForDisciplineAction(search: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DISCIPLINE_READ);
+  if (denied) return denied;
 
   if (!search || search.length < 2) {
     return { data: [] };
@@ -277,7 +263,7 @@ export async function searchStudentsForDisciplineAction(search: string) {
 
   const students = await db.student.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       status: "ACTIVE",
       OR: [
         { firstName: { contains: search, mode: "insensitive" } },

@@ -550,11 +550,11 @@ export const ALL_PERMISSIONS = Object.values(PERMISSIONS);
  * Returns an error object if unauthorized, or null if allowed.
  */
 export function requirePermission(
-  session: { user?: { id?: string | null } } | null,
+  session: { user?: { id?: string | null; permissions?: string[] } } | null,
   permission: Permission,
 ): { error: string } | null {
   if (!session?.user?.id) return { error: "Unauthorized" };
-  const perms = (session.user as unknown as { permissions?: string[] }).permissions;
+  const perms = session.user.permissions;
   if (!perms) return { error: "No permissions found" };
   if (perms.includes("*") || perms.includes(permission)) return null;
   return { error: "Insufficient permissions" };
@@ -565,13 +565,39 @@ export function requirePermission(
  * Usage: if (denyPermission(session, PERMISSIONS.X)) return { error: "Insufficient permissions" };
  */
 export function denyPermission(
-  session: { user?: { id?: string | null } } | null,
+  session: { user?: { id?: string | null; permissions?: string[] } } | null,
   permission: Permission,
 ): boolean {
   if (!session?.user?.id) return true;
-  const perms = (session.user as unknown as { permissions?: string[] }).permissions;
+  const perms = session.user.permissions;
   if (!perms) return true;
   return !perms.includes("*") && !perms.includes(permission);
+}
+
+/**
+ * Assert that the session has the required permission.
+ * Returns an error object if denied, or null if allowed.
+ * Designed for use with requireSchoolContext():
+ *
+ * ```ts
+ * const ctx = await requireSchoolContext();
+ * if ("error" in ctx) return ctx;
+ * const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_READ);
+ * if (denied) return denied;
+ * ```
+ */
+export function assertPermission(
+  session: { user?: { id?: string | null; permissions?: string[] } } | null,
+  ...permissions: Permission[]
+): { error: string } | null {
+  if (!session?.user?.id) return { error: "Unauthorized" };
+  const perms = session.user.permissions;
+  if (!perms) return { error: "No permissions found" };
+  if (perms.includes("*")) return null;
+  for (const permission of permissions) {
+    if (perms.includes(permission)) return null;
+  }
+  return { error: "Insufficient permissions" };
 }
 
 // Default role-permission mappings

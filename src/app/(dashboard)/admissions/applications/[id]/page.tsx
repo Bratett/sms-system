@@ -18,9 +18,11 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
   }
 
   const result = await getApplicationAction(id);
-  if (result.error || !result.data) {
+  if ("error" in result || !("data" in result)) {
     notFound();
   }
+
+  const appData = result.data;
 
   const school = await db.school.findFirst();
 
@@ -58,8 +60,8 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Application: ${result.data.applicationNumber}`}
-        description={`${result.data.firstName} ${result.data.lastName}`}
+        title={`Application: ${appData.applicationNumber}`}
+        description={`${appData.firstName} ${appData.lastName}`}
         actions={
           <Link
             href="/admissions/applications"
@@ -70,7 +72,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
         }
       />
       <ApplicationDetail
-        application={result.data}
+        application={appData}
         classArmOptions={classArmOptions}
         programmes={programmes}
       />

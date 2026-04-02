@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import type { Prisma } from "@prisma/client";
@@ -16,10 +17,10 @@ export async function getItemsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
@@ -89,10 +90,10 @@ export async function getItemsAction(filters?: {
 }
 
 export async function getItemAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_READ);
+  if (denied) return denied;
 
   const item = await db.storeItem.findUnique({
     where: { id },
@@ -167,10 +168,10 @@ export async function createItemAction(data: {
   unitPrice?: number;
   description?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_CREATE);
+  if (denied) return denied;
 
   // Check duplicate name in same store
   const existing = await db.storeItem.findUnique({
@@ -201,7 +202,7 @@ export async function createItemAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StoreItem",
     entityId: item.id,
@@ -226,10 +227,10 @@ export async function updateItemAction(
     status?: "ACTIVE" | "INACTIVE";
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.storeItem.findUnique({ where: { id } });
   if (!existing) {
@@ -267,7 +268,7 @@ export async function updateItemAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "StoreItem",
     entityId: id,
@@ -281,10 +282,10 @@ export async function updateItemAction(
 }
 
 export async function deleteItemAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_DELETE);
+  if (denied) return denied;
 
   const item = await db.storeItem.findUnique({
     where: { id },
@@ -302,7 +303,7 @@ export async function deleteItemAction(id: string) {
   await db.storeItem.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "StoreItem",
     entityId: id,
@@ -315,18 +316,13 @@ export async function deleteItemAction(id: string) {
 }
 
 export async function getLowStockAlertsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_READ);
+  if (denied) return denied;
 
   const stores = await db.store.findMany({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     include: {
       items: {
         where: { status: "ACTIVE" },

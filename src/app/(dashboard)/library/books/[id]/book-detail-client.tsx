@@ -112,7 +112,7 @@ export function BookDetailClient({ book }: { book: Book }) {
         borrowerType: issueForm.borrowerType,
         dueDate: new Date(issueForm.dueDate),
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -128,7 +128,7 @@ export function BookDetailClient({ book }: { book: Book }) {
 
     startTransition(async () => {
       const result = await returnBookAction(issueId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

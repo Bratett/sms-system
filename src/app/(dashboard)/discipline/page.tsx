@@ -18,8 +18,8 @@ export default async function DisciplinePage() {
         description="Manage disciplinary incidents and sanctions."
       />
       <DisciplineClient
-        incidents={result.data ?? []}
-        pagination={result.pagination ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 }}
+        incidents={"data" in result ? result.data : []}
+        pagination={"pagination" in result ? result.pagination ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 } : { page: 1, pageSize: 20, total: 0, totalPages: 0 }}
       />
     </div>
   );

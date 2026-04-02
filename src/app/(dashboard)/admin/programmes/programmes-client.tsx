@@ -97,7 +97,7 @@ export function ProgrammesClient({
     }
     startTransition(async () => {
       const result = await deleteProgrammeAction(prog.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Programme "${prog.name}" deleted successfully.`);
@@ -127,7 +127,7 @@ export function ProgrammesClient({
           departmentId: formData.departmentId || null,
           duration: formData.duration,
         });
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success(`Programme "${formData.name}" updated successfully.`);
@@ -142,7 +142,7 @@ export function ProgrammesClient({
           departmentId: formData.departmentId || undefined,
           duration: formData.duration,
         });
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success(`Programme "${formData.name}" created successfully.`);

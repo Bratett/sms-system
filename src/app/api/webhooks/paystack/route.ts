@@ -86,6 +86,7 @@ async function handleChargeSuccess(data: {
   await db.$transaction(async (tx) => {
     const payment = await tx.payment.create({
       data: {
+        schoolId: bill.schoolId,
         studentBillId: bill.id,
         studentId: bill.studentId,
         amount,
@@ -124,6 +125,7 @@ async function handleChargeSuccess(data: {
 
     await tx.receipt.create({
       data: {
+        schoolId: bill.schoolId,
         paymentId: payment.id,
         receiptNumber,
       },

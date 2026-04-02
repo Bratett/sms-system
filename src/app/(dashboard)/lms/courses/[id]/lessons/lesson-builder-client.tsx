@@ -120,7 +120,7 @@ export function LessonBuilderClient({
 
       if (editingLessonId) {
         const result = await updateLessonAction(editingLessonId, payload);
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success("Lesson updated.");
@@ -129,7 +129,7 @@ export function LessonBuilderClient({
         }
       } else {
         const result = await createLessonAction({ courseId, ...payload });
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success("Lesson created.");
@@ -144,7 +144,7 @@ export function LessonBuilderClient({
     if (!confirm(`Delete lesson "${lesson.title}"?`)) return;
     startTransition(async () => {
       const result = await deleteLessonAction(lesson.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Lesson deleted.");
@@ -161,7 +161,7 @@ export function LessonBuilderClient({
     const lessonIds = updated.map((l) => l.id);
     startTransition(async () => {
       const result = await reorderLessonsAction(courseId, lessonIds);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         router.refresh();
       }
@@ -176,7 +176,7 @@ export function LessonBuilderClient({
     const lessonIds = updated.map((l) => l.id);
     startTransition(async () => {
       const result = await reorderLessonsAction(courseId, lessonIds);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         router.refresh();
       }

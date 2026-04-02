@@ -14,7 +14,7 @@ export default async function HRPage() {
     getStaffStatsAction(),
     getExpiringContractsAction(30),
   ]);
-  const stats = statsResult.data;
+  const stats = "data" in statsResult ? statsResult.data : undefined;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const expiringContracts: any[] = "data" in expiringResult && expiringResult.data ? expiringResult.data : [];
 

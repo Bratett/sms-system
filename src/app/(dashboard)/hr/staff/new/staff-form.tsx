@@ -216,9 +216,9 @@ export function StaffForm({
         createUserAccount: formData.createUserAccount,
       });
 
-      if (result.error) {
-        setFormError(result.error);
-      } else if (result.data) {
+      if ("error" in result) {
+        setFormError(result.error ?? null);
+      } else if ("data" in result && result.data) {
         toast.success(
           `Staff "${result.data.firstName} ${result.data.lastName}" registered successfully.`,
         );

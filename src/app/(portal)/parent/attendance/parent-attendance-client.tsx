@@ -50,7 +50,7 @@ export function ParentAttendanceClient({
   function loadAttendance(studentId: string, termId?: string) {
     startTransition(async () => {
       const result = await getChildAttendanceAction(studentId, termId || undefined);
-      if (result.data) {
+      if ("data" in result && result.data) {
         setSummary(result.data.summary);
         setTerms(result.data.terms);
         setLoaded(true);

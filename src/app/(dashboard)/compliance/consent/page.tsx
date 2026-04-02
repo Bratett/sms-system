@@ -33,11 +33,11 @@ export default async function ConsentPage({
         description="Manage data processing consent and view audit trail."
       />
       <ConsentClient
-        consentStatus={consentResult.data ?? []}
-        auditTrail={auditResult.data ?? []}
-        auditTotal={auditResult.total ?? 0}
-        auditPage={auditResult.page ?? 1}
-        auditPageSize={auditResult.pageSize ?? 20}
+        consentStatus={"data" in consentResult ? consentResult.data : []}
+        auditTrail={"data" in auditResult ? auditResult.data : []}
+        auditTotal={"total" in auditResult ? auditResult.total ?? 0 : 0}
+        auditPage={"page" in auditResult ? auditResult.page ?? 1 : 1}
+        auditPageSize={"pageSize" in auditResult ? auditResult.pageSize ?? 20 : 20}
       />
     </div>
   );

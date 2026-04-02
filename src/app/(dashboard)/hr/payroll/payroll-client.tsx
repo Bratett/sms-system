@@ -132,7 +132,7 @@ export function PayrollClient({
         month: periodForm.month,
         year: periodForm.year,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Payroll period ${MONTHS[periodForm.month - 1]} ${periodForm.year} created.`);
@@ -145,7 +145,7 @@ export function PayrollClient({
   function handleGeneratePayroll(periodId: string) {
     startTransition(async () => {
       const result = await generatePayrollAction(periodId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(
@@ -166,7 +166,7 @@ export function PayrollClient({
 
     startTransition(async () => {
       const result = await approvePayrollAction(periodId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Payroll approved.");
@@ -184,7 +184,7 @@ export function PayrollClient({
 
     startTransition(async () => {
       const result = await getPayrollEntriesAction(periodId);
-      if (result.data) {
+      if ("data" in result) {
         setPeriodEntries(result.data);
         setExpandedPeriod(periodId);
       }
@@ -205,7 +205,7 @@ export function PayrollClient({
         type: allowanceForm.type,
         amount: allowanceForm.amount,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Allowance created.");
@@ -221,7 +221,7 @@ export function PayrollClient({
 
     startTransition(async () => {
       const result = await deleteAllowanceAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Allowance deleted.");
@@ -245,7 +245,7 @@ export function PayrollClient({
         amount: deductionForm.amount,
         isStatutory: deductionForm.isStatutory,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Deduction created.");
@@ -261,7 +261,7 @@ export function PayrollClient({
 
     startTransition(async () => {
       const result = await deleteDeductionAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Deduction deleted.");

@@ -1,10 +1,10 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
-import { PERMISSIONS, requirePermission } from "@/lib/permissions";
+import { PERMISSIONS, requirePermission, assertPermission } from "@/lib/permissions";
 import {
   requestFeeWaiverSchema,
   type RequestFeeWaiverInput,
@@ -15,19 +15,16 @@ export async function getWaiversAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.FEE_WAIVERS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.FEE_WAIVERS_READ);
   if (permErr) return permErr;
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.status) where.status = filters.status;
 
   const [waivers, total] = await Promise.all([
@@ -105,19 +102,15 @@ export async function getWaiversAction(filters?: {
 }
 
 export async function requestFeeWaiverAction(data: RequestFeeWaiverInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.FEE_WAIVERS_CREATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.FEE_WAIVERS_CREATE);
   if (permErr) return permErr;
 
   const parsed = requestFeeWaiverSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   // Wrap in transaction to ensure bill balances are fresh
   const result = await db.$transaction(async (tx) => {
     const bill = await tx.studentBill.findUnique({
@@ -157,10 +150,10 @@ export async function requestFeeWaiverAction(data: RequestFeeWaiverInput) {
 
     const waiver = await tx.feeWaiver.create({
       data: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         studentBillId: bill.id,
         studentBillItemId: parsed.data.studentBillItemId,
-        requestedBy: session.user.id!,
+        requestedBy: ctx.session.user.id,
         reason: parsed.data.reason,
         waiverType: parsed.data.waiverType,
         value: parsed.data.value,
@@ -177,7 +170,7 @@ export async function requestFeeWaiverAction(data: RequestFeeWaiverInput) {
   const { waiver, calculatedAmount } = result;
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "FeeWaiver",
     entityId: waiver.id,
@@ -189,9 +182,9 @@ export async function requestFeeWaiverAction(data: RequestFeeWaiverInput) {
 }
 
 export async function approveFeeWaiverAction(waiverId: string, notes?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.FEE_WAIVERS_APPROVE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.FEE_WAIVERS_APPROVE);
   if (permErr) return permErr;
 
   const waiver = await db.feeWaiver.findUnique({
@@ -207,7 +200,7 @@ export async function approveFeeWaiverAction(waiverId: string, notes?: string) {
       where: { id: waiverId },
       data: {
         status: "APPROVED",
-        approvedBy: session.user.id!,
+        approvedBy: ctx.session.user.id,
         reviewedAt: new Date(),
         notes: notes ?? waiver.notes,
       },
@@ -245,7 +238,7 @@ export async function approveFeeWaiverAction(waiverId: string, notes?: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "FeeWaiver",
     entityId: waiverId,
@@ -257,9 +250,9 @@ export async function approveFeeWaiverAction(waiverId: string, notes?: string) {
 }
 
 export async function rejectFeeWaiverAction(waiverId: string, notes?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.FEE_WAIVERS_APPROVE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.FEE_WAIVERS_APPROVE);
   if (permErr) return permErr;
 
   const waiver = await db.feeWaiver.findUnique({ where: { id: waiverId } });
@@ -270,14 +263,14 @@ export async function rejectFeeWaiverAction(waiverId: string, notes?: string) {
     where: { id: waiverId },
     data: {
       status: "REJECTED",
-      approvedBy: session.user.id!,
+      approvedBy: ctx.session.user.id,
       reviewedAt: new Date(),
       notes: notes ?? waiver.notes,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "FeeWaiver",
     entityId: waiverId,

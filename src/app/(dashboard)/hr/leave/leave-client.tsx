@@ -107,10 +107,10 @@ export function LeaveClient({
         page: newPage,
         pageSize,
       });
-      if (result.data) {
+      if ("data" in result) {
         setRequests(result.data);
-        setTotal(result.total ?? 0);
-        setPage(result.page ?? 1);
+        setTotal("total" in result ? result.total ?? 0 : 0);
+        setPage("page" in result ? result.page ?? 1 : 1);
       }
     });
   }
@@ -147,7 +147,7 @@ export function LeaveClient({
           requiresApproval: typeForm.requiresApproval,
           applicableGender: typeForm.applicableGender || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
         } else {
           toast.success("Leave type updated.");
@@ -161,7 +161,7 @@ export function LeaveClient({
           requiresApproval: typeForm.requiresApproval,
           applicableGender: typeForm.applicableGender || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
         } else {
           toast.success("Leave type created.");
@@ -177,7 +177,7 @@ export function LeaveClient({
 
     startTransition(async () => {
       const result = await deleteLeaveTypeAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Leave type deleted.");
@@ -203,7 +203,7 @@ export function LeaveClient({
         reason: requestForm.reason || undefined,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Leave request submitted.");
@@ -217,7 +217,7 @@ export function LeaveClient({
   function handleApprove(id: string) {
     startTransition(async () => {
       const result = await approveLeaveAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Leave request approved.");
@@ -231,7 +231,7 @@ export function LeaveClient({
 
     startTransition(async () => {
       const result = await rejectLeaveAction(showRejectModal, rejectNotes);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Leave request rejected.");
@@ -247,7 +247,7 @@ export function LeaveClient({
 
     startTransition(async () => {
       const result = await cancelLeaveAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Leave request cancelled.");

@@ -14,8 +14,8 @@ export default async function DonorFundsPage() {
 
   return (
     <DonorFundsClient
-      funds={fundsResult.data ?? []}
-      terms={termsResult.data ?? []}
+      funds={"data" in fundsResult ? fundsResult.data : []}
+      terms={"data" in termsResult ? termsResult.data : []}
     />
   );
 }

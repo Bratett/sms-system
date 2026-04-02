@@ -60,7 +60,7 @@ export function RiskProfilesClient() {
 
       const result = await getRiskProfilesAction(filters as never);
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

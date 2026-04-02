@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── List Requisitions ──────────────────────────────────────────────
@@ -11,15 +12,14 @@ export async function getRequisitionsAction(filters?: {
   department?: string;
   storeId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_REQUISITIONS_READ);
+  if (denied) return denied;
 
   const requisitions = await db.requisition.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       ...(filters?.status && { status: filters.status as any }),
       ...(filters?.department && { department: filters.department }),
       ...(filters?.storeId && { storeId: filters.storeId }),
@@ -68,8 +68,10 @@ export async function getRequisitionsAction(filters?: {
 // ─── Get Requisition Detail ─────────────────────────────────────────
 
 export async function getRequisitionAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_REQUISITIONS_READ);
+  if (denied) return denied;
 
   const requisition = await db.requisition.findUnique({
     where: { id },
@@ -116,11 +118,10 @@ export async function createRequisitionAction(data: {
   purpose?: string;
   items: Array<{ storeItemId: string; quantityRequested: number }>;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_REQUISITIONS_CREATE);
+  if (denied) return denied;
 
   if (!data.items || data.items.length === 0) {
     return { error: "At least one item is required." };
@@ -145,11 +146,11 @@ export async function createRequisitionAction(data: {
 
   const requisition = await db.requisition.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       requisitionNumber,
       storeId: data.storeId,
       department: data.department,
-      requestedBy: session.user.id!,
+      requestedBy: ctx.session.user.id,
       purpose: data.purpose || null,
       items: {
         create: data.items.map((item) => ({
@@ -162,7 +163,7 @@ export async function createRequisitionAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Requisition",
     entityId: requisition.id,
@@ -177,8 +178,10 @@ export async function createRequisitionAction(data: {
 // ─── Approve Requisition ────────────────────────────────────────────
 
 export async function approveRequisitionAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_REQUISITIONS_APPROVE);
+  if (denied) return denied;
 
   const requisition = await db.requisition.findUnique({ where: { id } });
   if (!requisition) return { error: "Requisition not found." };
@@ -186,11 +189,11 @@ export async function approveRequisitionAction(id: string) {
 
   const updated = await db.requisition.update({
     where: { id },
-    data: { status: "APPROVED", approvedBy: session.user.id!, approvedAt: new Date() },
+    data: { status: "APPROVED", approvedBy: ctx.session.user.id, approvedAt: new Date() },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Requisition",
     entityId: id,
@@ -206,8 +209,10 @@ export async function approveRequisitionAction(id: string) {
 // ─── Reject Requisition ─────────────────────────────────────────────
 
 export async function rejectRequisitionAction(id: string, reason?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_REQUISITIONS_APPROVE);
+  if (denied) return denied;
 
   const requisition = await db.requisition.findUnique({ where: { id } });
   if (!requisition) return { error: "Requisition not found." };
@@ -215,11 +220,11 @@ export async function rejectRequisitionAction(id: string, reason?: string) {
 
   const updated = await db.requisition.update({
     where: { id },
-    data: { status: "REJECTED", approvedBy: session.user.id!, approvedAt: new Date() },
+    data: { status: "REJECTED", approvedBy: ctx.session.user.id, approvedAt: new Date() },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Requisition",
     entityId: id,
@@ -238,8 +243,10 @@ export async function issueRequisitionAction(
   id: string,
   issuedItems: Array<{ requisitionItemId: string; quantityIssued: number }>,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_REQUISITIONS_ISSUE);
+  if (denied) return denied;
 
   const requisition = await db.requisition.findUnique({
     where: { id },
@@ -284,7 +291,7 @@ export async function issueRequisitionAction(
           referenceType: "requisition",
           referenceId: requisition.id,
           issuedTo: requisition.department,
-          conductedBy: session.user.id!,
+          conductedBy: ctx.session.user.id,
         },
       }),
       db.requisitionItem.update({
@@ -311,13 +318,13 @@ export async function issueRequisitionAction(
     where: { id },
     data: {
       status: newStatus as any,
-      issuedBy: session.user.id!,
+      issuedBy: ctx.session.user.id,
       ...(allFullyIssued && { issuedAt: new Date() }),
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Requisition",
     entityId: id,

@@ -103,14 +103,14 @@ export function ReportTemplatesClient({
           editingItem.id,
           payload
         );
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
         toast.success("Template updated successfully");
       } else {
         const result = await createReportTemplateAction(payload);
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -125,7 +125,7 @@ export function ReportTemplatesClient({
   function handleSetDefault(id: string) {
     startTransition(async () => {
       const result = await setDefaultTemplateAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -138,7 +138,7 @@ export function ReportTemplatesClient({
     if (!deleteId) return;
     startTransition(async () => {
       const result = await deleteReportTemplateAction(deleteId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

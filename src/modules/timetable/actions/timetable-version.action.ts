@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Create Version Snapshot ─────────────────────────────────────────
@@ -11,16 +12,15 @@ export async function createTimetableVersionAction(data: {
   academicYearId: string;
   name: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TIMETABLE_VERSION_CREATE);
+  if (denied) return denied;
 
   // Get all current slots for this term
   const slots = await db.timetableSlot.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       termId: data.termId,
       academicYearId: data.academicYearId,
     },
@@ -40,17 +40,17 @@ export async function createTimetableVersionAction(data: {
 
   const version = await db.timetableVersion.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       termId: data.termId,
       academicYearId: data.academicYearId,
       name: data.name,
       slots: slots as unknown as object,
-      createdBy: session.user.id!,
+      createdBy: ctx.session.user.id,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "TimetableVersion",
     entityId: version.id,
@@ -64,13 +64,12 @@ export async function createTimetableVersionAction(data: {
 // ─── List Versions ───────────────────────────────────────────────────
 
 export async function getTimetableVersionsAction(termId?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TIMETABLE_VERSION_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (termId) where.termId = termId;
 
   const versions = await db.timetableVersion.findMany({
@@ -102,8 +101,10 @@ export async function getTimetableVersionsAction(termId?: string) {
 // ─── Publish Version ─────────────────────────────────────────────────
 
 export async function publishTimetableVersionAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TIMETABLE_VERSION_PUBLISH);
+  if (denied) return denied;
 
   const version = await db.timetableVersion.findUnique({ where: { id } });
   if (!version) return { error: "Version not found." };
@@ -128,7 +129,7 @@ export async function publishTimetableVersionAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "PUBLISH",
     entity: "TimetableVersion",
     entityId: id,
@@ -142,8 +143,10 @@ export async function publishTimetableVersionAction(id: string) {
 // ─── Restore Version ─────────────────────────────────────────────────
 
 export async function restoreTimetableVersionAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TIMETABLE_VERSION_RESTORE);
+  if (denied) return denied;
 
   const version = await db.timetableVersion.findUnique({ where: { id } });
   if (!version) return { error: "Version not found." };
@@ -186,7 +189,7 @@ export async function restoreTimetableVersionAction(id: string) {
   await db.timetableSlot.createMany({ data: createData });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "TimetableVersion",
     entityId: id,

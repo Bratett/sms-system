@@ -17,7 +17,7 @@ export default async function LessonsPage({ params }: PageProps) {
   }
 
   const result = await getCourseAction(id);
-  if (result.error || !result.data) {
+  if ("error" in result || !("data" in result) || !result.data) {
     notFound();
   }
 

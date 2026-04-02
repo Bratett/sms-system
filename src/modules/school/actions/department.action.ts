@@ -1,22 +1,18 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 export async function getDepartmentsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DEPARTMENTS_READ);
+  if (denied) return denied;
 
   const departments = await db.department.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: { name: "asc" },
     include: {
       _count: {
@@ -44,21 +40,16 @@ export async function createDepartmentAction(data: {
   code?: string;
   description?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DEPARTMENTS_CREATE);
+  if (denied) return denied;
 
   // Check for duplicate name
   const existing = await db.department.findUnique({
     where: {
       schoolId_name: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: data.name,
       },
     },
@@ -70,7 +61,7 @@ export async function createDepartmentAction(data: {
 
   const department = await db.department.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       code: data.code || null,
       description: data.description || null,
@@ -78,7 +69,7 @@ export async function createDepartmentAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "Department",
     entityId: department.id,
@@ -99,15 +90,10 @@ export async function updateDepartmentAction(
     status?: "ACTIVE" | "INACTIVE";
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DEPARTMENTS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.department.findUnique({
     where: { id },
@@ -122,7 +108,7 @@ export async function updateDepartmentAction(
     const duplicate = await db.department.findUnique({
       where: {
         schoolId_name: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           name: data.name,
         },
       },
@@ -146,7 +132,7 @@ export async function updateDepartmentAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Department",
     entityId: id,
@@ -160,10 +146,10 @@ export async function updateDepartmentAction(
 }
 
 export async function deleteDepartmentAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DEPARTMENTS_DELETE);
+  if (denied) return denied;
 
   const department = await db.department.findUnique({
     where: { id },
@@ -189,7 +175,7 @@ export async function deleteDepartmentAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "Department",
     entityId: id,

@@ -8,5 +8,5 @@ export default async function PettyCashPage() {
 
   const result = await getPettyCashFundsAction();
 
-  return <PettyCashClient funds={result.data ?? []} />;
+  return <PettyCashClient funds={"data" in result ? result.data : []} />;
 }

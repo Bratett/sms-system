@@ -1,18 +1,17 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 /**
  * Check graduation eligibility for a student.
  * Criteria: all fees paid, required credits earned, no unresolved discipline.
  */
 export async function checkGraduationEligibilityAction(studentId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.GRADUATION_READ);
+  if (denied) return denied;
 
   const student = await db.student.findUnique({
     where: { id: studentId },
@@ -58,7 +57,7 @@ export async function checkGraduationEligibilityAction(studentId: string) {
 
   // 4. Check if terminal results exist for all required terms
   const activeAcademicYear = await db.academicYear.findFirst({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     include: { terms: true },
   });
 

@@ -98,8 +98,8 @@ export function AssetAuditsClient({
         locationFilter: createForm.locationFilter || undefined,
         notes: createForm.notes || undefined,
       });
-      if (result.error) { toast.error(result.error); return; }
-      toast.success(`Audit ${result.data!.reference} created with ${result.data!.items.length} asset(s)`);
+      if ("error" in result) { toast.error(result.error); return; }
+      toast.success(`Audit ${result.data.reference} created with ${result.data.items.length} asset(s)`);
       setShowCreateModal(false);
       setCreateForm({ scheduledDate: "", categoryId: "", locationFilter: "", notes: "" });
       router.refresh();
@@ -110,8 +110,8 @@ export function AssetAuditsClient({
     setSelectedAudit(audit);
     startTransition(async () => {
       const result = await getAssetAuditAction(audit.id);
-      if (result.error) { toast.error(result.error); return; }
-      const items = result.data!.items;
+      if ("error" in result) { toast.error(result.error); return; }
+      const items = result.data.items;
       setAuditItems(items);
       // Initialize findings state from existing data
       const initial: Record<string, { found: boolean; condition: AssetCondition; locationVerified: boolean; notes: string }> = {};
@@ -147,7 +147,7 @@ export function AssetAuditsClient({
         notes: data.notes || undefined,
       }));
       const result = await recordAuditFindingsAction(selectedAudit.id, payload);
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success(`Findings recorded for ${payload.length} asset(s)`);
       setShowFindingsModal(false);
       router.refresh();
@@ -161,8 +161,8 @@ export function AssetAuditsClient({
   function handleComplete(audit: Audit) {
     startTransition(async () => {
       const result = await completeAssetAuditAction(audit.id);
-      if (result.error) { toast.error(result.error); return; }
-      const summary = result.data!.summary;
+      if ("error" in result) { toast.error(result.error); return; }
+      const summary = result.data.summary;
       toast.success(`Audit completed — Found: ${summary.found}, Missing: ${summary.notFound}, Location issues: ${summary.locationMismatch}`);
       router.refresh();
     });

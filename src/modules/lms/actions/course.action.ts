@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 export async function getCoursesAction(filters: {
@@ -12,16 +13,15 @@ export async function getCoursesAction(filters: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_COURSE_READ);
+  if (denied) return denied;
 
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 20;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters.search) {
     where.OR = [
       { title: { contains: filters.search, mode: "insensitive" } },
@@ -49,8 +49,10 @@ export async function getCoursesAction(filters: {
 }
 
 export async function getCourseAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_COURSE_READ);
+  if (denied) return denied;
 
   const course = await db.course.findUnique({
     where: { id },
@@ -71,28 +73,27 @@ export async function createCourseAction(data: {
   subjectId?: string;
   classArmId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_COURSE_CREATE);
+  if (denied) return denied;
 
   if (!data.title?.trim()) return { error: "Course title is required" };
 
   const course = await db.course.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       title: data.title.trim(),
       description: data.description?.trim() || null,
       subjectId: data.subjectId || null,
       classArmId: data.classArmId || null,
-      teacherId: session.user.id!,
+      teacherId: ctx.session.user.id,
       status: "DRAFT",
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Course",
     entityId: course.id,
@@ -110,8 +111,10 @@ export async function updateCourseAction(id: string, data: {
   subjectId?: string;
   classArmId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_COURSE_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.course.findUnique({ where: { id } });
   if (!existing) return { error: "Course not found" };
@@ -127,7 +130,7 @@ export async function updateCourseAction(id: string, data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Course",
     entityId: id,
@@ -141,8 +144,10 @@ export async function updateCourseAction(id: string, data: {
 }
 
 export async function publishCourseAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_COURSE_UPDATE);
+  if (denied) return denied;
 
   const course = await db.course.findUnique({
     where: { id },
@@ -158,7 +163,7 @@ export async function publishCourseAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Course",
     entityId: id,
@@ -170,8 +175,10 @@ export async function publishCourseAction(id: string) {
 }
 
 export async function archiveCourseAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_COURSE_UPDATE);
+  if (denied) return denied;
 
   const course = await db.course.findUnique({ where: { id } });
   if (!course) return { error: "Course not found" };
@@ -185,8 +192,10 @@ export async function archiveCourseAction(id: string) {
 }
 
 export async function deleteCourseAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_COURSE_UPDATE);
+  if (denied) return denied;
 
   const course = await db.course.findUnique({ where: { id } });
   if (!course) return { error: "Course not found" };
@@ -198,7 +207,7 @@ export async function deleteCourseAction(id: string) {
   await db.course.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Course",
     entityId: id,

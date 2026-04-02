@@ -98,7 +98,7 @@ export function DonorFundsClient({ funds, terms }: { funds: Fund[]; terms: Term[
           contactEmail: formData.contactEmail || null, contactPhone: formData.contactPhone || null,
           totalPledged: formData.totalPledged, purpose: formData.purpose || null,
         });
-        if (result.error) { toast.error(result.error); return; }
+        if ("error" in result) { toast.error(result.error); return; }
         toast.success("Donor fund updated");
       } else {
         const result = await createDonorFundAction({
@@ -108,7 +108,7 @@ export function DonorFundsClient({ funds, terms }: { funds: Fund[]; terms: Term[
           startDate: formData.startDate ? new Date(formData.startDate) : undefined,
           endDate: formData.endDate ? new Date(formData.endDate) : undefined,
         });
-        if (result.error) { toast.error(result.error); return; }
+        if ("error" in result) { toast.error(result.error); return; }
         toast.success("Donor fund created");
       }
       setShowCreateModal(false);
@@ -129,7 +129,7 @@ export function DonorFundsClient({ funds, terms }: { funds: Fund[]; terms: Term[
       const result = await updateDonorFundAction(selectedFund.id, {
         totalReceived: Number(selectedFund.totalReceived) + receiptAmount,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success(`Receipt of ${formatCurrency(receiptAmount)} recorded`);
       setShowReceiptModal(false);
       router.refresh();
@@ -151,7 +151,7 @@ export function DonorFundsClient({ funds, terms }: { funds: Fund[]; terms: Term[
         termId: allocateData.termId, amount: allocateData.amount,
         description: allocateData.description || undefined,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Fund allocated to student");
       setShowAllocateModal(false);
       router.refresh();
@@ -161,7 +161,7 @@ export function DonorFundsClient({ funds, terms }: { funds: Fund[]; terms: Term[
   function handleToggleActive(fund: Fund) {
     startTransition(async () => {
       const result = await updateDonorFundAction(fund.id, { isActive: !fund.isActive });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success(`Fund ${fund.isActive ? "deactivated" : "activated"}`);
       router.refresh();
     });
@@ -170,7 +170,7 @@ export function DonorFundsClient({ funds, terms }: { funds: Fund[]; terms: Term[
   function handleDelete(fund: Fund) {
     startTransition(async () => {
       const result = await deleteDonorFundAction(fund.id);
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Donor fund deleted");
       router.refresh();
     });

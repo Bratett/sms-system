@@ -76,7 +76,7 @@ export function ConsentClient({
     });
     setTogglingType(null);
 
-    if (result.error) {
+    if ("error" in result) {
       toast.error(result.error);
       return;
     }

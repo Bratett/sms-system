@@ -1,20 +1,20 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 
 export async function runDepreciationAction(period: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DEPRECIATION_RUN);
+  if (denied) return denied;
 
   const assets = await db.fixedAsset.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       status: "ACTIVE",
       depreciationMethod: { not: "NONE" },
       usefulLifeYears: { not: null },
@@ -80,14 +80,16 @@ export async function runDepreciationAction(period: string) {
     processed++;
   }
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "AssetDepreciation", entityId: period, module: "inventory", description: `Ran depreciation for period ${period}: ${processed} assets processed, ${skipped} skipped` });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "AssetDepreciation", entityId: period, module: "inventory", description: `Ran depreciation for period ${period}: ${processed} assets processed, ${skipped} skipped` });
 
   return { data: { processed, skipped, total: assets.length } };
 }
 
 export async function getDepreciationScheduleAction(assetId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DEPRECIATION_READ);
+  if (denied) return denied;
 
   const asset = await db.fixedAsset.findUnique({
     where: { id: assetId },
@@ -106,14 +108,13 @@ export async function getDepreciationScheduleAction(assetId: string) {
 }
 
 export async function getDepreciationSummaryAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DEPRECIATION_READ);
+  if (denied) return denied;
 
   const assets = await db.fixedAsset.findMany({
-    where: { schoolId: school.id, status: "ACTIVE", depreciationMethod: { not: "NONE" } },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE", depreciationMethod: { not: "NONE" } },
     include: {
       category: { select: { name: true } },
       depreciationRecords: { orderBy: { period: "desc" }, take: 1 },

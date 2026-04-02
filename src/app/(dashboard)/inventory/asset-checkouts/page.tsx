@@ -16,9 +16,9 @@ export default async function AssetCheckoutsPage() {
     <div className="space-y-6">
       <PageHeader title="Asset Checkouts" description="Check out and return fixed assets to staff and departments." />
       <AssetCheckoutsClient
-        activeCheckouts={activeResult.data ?? []}
-        overdueCheckouts={overdueResult.data ?? []}
-        availableAssets={assetsResult.data ?? []}
+        activeCheckouts={"data" in activeResult ? activeResult.data : []}
+        overdueCheckouts={"data" in overdueResult ? overdueResult.data : []}
+        availableAssets={"data" in assetsResult ? assetsResult.data : []}
       />
     </div>
   );

@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { getQueue, QUEUE_NAMES, type SmsJobData } from "@/lib/queue";
 
@@ -12,19 +13,14 @@ export async function sendSmsAction(data: {
   recipientName?: string;
   message: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SMS_SEND);
+  if (denied) return denied;
 
   const smsLog = await db.smsLog.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       recipientPhone: data.recipientPhone,
       recipientName: data.recipientName || null,
       message: data.message,
@@ -41,7 +37,7 @@ export async function sendSmsAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "SmsLog",
     entityId: smsLog.id,
@@ -59,15 +55,10 @@ export async function sendBulkSmsAction(data: {
   recipients: Array<{ phone: string; name?: string }>;
   message: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SMS_SEND);
+  if (denied) return denied;
 
   if (data.recipients.length === 0) {
     return { error: "No recipients provided." };
@@ -76,7 +67,7 @@ export async function sendBulkSmsAction(data: {
   const smsQueue = getQueue<SmsJobData>(QUEUE_NAMES.SMS);
 
   const records = data.recipients.map((r) => ({
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
     recipientPhone: r.phone,
     recipientName: r.name || null,
     message: data.message,
@@ -87,7 +78,7 @@ export async function sendBulkSmsAction(data: {
 
   // Fetch created records to dispatch to queue
   const createdLogs = await db.smsLog.findMany({
-    where: { schoolId: school.id, status: "QUEUED", message: data.message },
+    where: { schoolId: ctx.schoolId, status: "QUEUED", message: data.message },
     orderBy: { createdAt: "desc" },
     take: data.recipients.length,
   });
@@ -101,7 +92,7 @@ export async function sendBulkSmsAction(data: {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "SmsLog",
     module: "communication",
@@ -120,21 +111,16 @@ export async function getSmsLogsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MESSAGES_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
 
   if (filters?.status) {
     where.status = filters.status;

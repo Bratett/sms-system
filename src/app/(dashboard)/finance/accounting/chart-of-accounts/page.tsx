@@ -16,8 +16,8 @@ export default async function ChartOfAccountsPage() {
 
   return (
     <ChartOfAccountsClient
-      categories={categoriesResult.data ?? []}
-      accounts={accountsResult.data ?? []}
+      categories={"data" in categoriesResult ? categoriesResult.data : []}
+      accounts={"data" in accountsResult ? accountsResult.data : []}
     />
   );
 }

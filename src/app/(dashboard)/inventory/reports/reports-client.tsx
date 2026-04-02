@@ -82,7 +82,7 @@ export function ReportsClient({
     startTransition(async () => {
       if (activeTab === "levels") {
         const result = await getStockLevelReportAction(storeFilter || undefined);
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -91,7 +91,7 @@ export function ReportsClient({
         const result = await getStockMovementReportAction({
           storeId: storeFilter || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -113,7 +113,7 @@ export function ReportsClient({
         result = await exportMovementReportAction({ storeId: storeFilter || undefined });
         filename = "stock-movements-report.csv";
       }
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       if (!result.data || result.data.length === 0) { toast.error("No data to export."); return; }
 
       // Convert to CSV

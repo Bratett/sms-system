@@ -76,7 +76,7 @@ export function DataRightsClient({
 
   async function handleRequestExport() {
     const result = await requestDataExportAction();
-    if (result.error) {
+    if ("error" in result) {
       toast.error(result.error);
       return;
     }
@@ -86,7 +86,7 @@ export function DataRightsClient({
 
   async function handleProcessExport(requestId: string) {
     const result = await processDataExportAction(requestId);
-    if (result.error) {
+    if ("error" in result) {
       toast.error(result.error);
       return;
     }
@@ -109,7 +109,7 @@ export function DataRightsClient({
       reason: reason || undefined,
     });
 
-    if (result.error) {
+    if ("error" in result) {
       toast.error(result.error);
       return;
     }
@@ -127,7 +127,7 @@ export function DataRightsClient({
     status: "APPROVED" | "REJECTED"
   ) {
     const result = await reviewDeletionRequestAction(requestId, { status });
-    if (result.error) {
+    if ("error" in result) {
       toast.error(result.error);
       return;
     }

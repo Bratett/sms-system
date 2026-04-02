@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Exam Schedules ─────────────────────────────────────────────────
@@ -18,19 +19,14 @@ export async function createExamScheduleAction(data: {
   invigilatorId?: string;
   notes?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXAM_SCHEDULE_CREATE);
+  if (denied) return denied;
 
   const examSchedule = await db.examSchedule.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       academicYearId: data.academicYearId,
       termId: data.termId,
       subjectId: data.subjectId,
@@ -51,7 +47,7 @@ export async function createExamScheduleAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "ExamSchedule",
     entityId: examSchedule.id,
@@ -69,17 +65,12 @@ export async function getExamSchedulesAction(filters: {
   classId?: string;
   subjectId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXAM_SCHEDULE_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
 
   if (filters.termId) {
     where.termId = filters.termId;
@@ -144,10 +135,10 @@ export async function updateExamScheduleAction(
     notes?: string | null;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXAM_SCHEDULE_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.examSchedule.findUnique({ where: { id } });
   if (!existing) {
@@ -175,7 +166,7 @@ export async function updateExamScheduleAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "ExamSchedule",
     entityId: id,
@@ -189,10 +180,10 @@ export async function updateExamScheduleAction(
 }
 
 export async function deleteExamScheduleAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXAM_SCHEDULE_DELETE);
+  if (denied) return denied;
 
   const existing = await db.examSchedule.findUnique({
     where: { id },
@@ -209,7 +200,7 @@ export async function deleteExamScheduleAction(id: string) {
   await db.examSchedule.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "ExamSchedule",
     entityId: id,

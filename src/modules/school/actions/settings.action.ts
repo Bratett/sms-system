@@ -1,12 +1,15 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 export async function getSystemSettingsAction(module?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   const where = module ? { module } : {};
   const settings = await db.systemSetting.findMany({
@@ -18,8 +21,10 @@ export async function getSystemSettingsAction(module?: string) {
 }
 
 export async function updateSystemSettingAction(key: string, value: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.systemSetting.findUnique({ where: { key } });
 
@@ -34,7 +39,7 @@ export async function updateSystemSettingAction(key: string, value: string) {
   });
 
   await audit({
-    userId: session.user.id,
+    userId: ctx.session.user.id,
     action: existing ? "UPDATE" : "CREATE",
     entity: "SystemSetting",
     entityId: setting.id,
@@ -48,8 +53,10 @@ export async function updateSystemSettingAction(key: string, value: string) {
 }
 
 export async function deleteSystemSettingAction(key: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.systemSetting.findUnique({ where: { key } });
   if (!existing) return { error: "Setting not found" };
@@ -57,7 +64,7 @@ export async function deleteSystemSettingAction(key: string) {
   await db.systemSetting.delete({ where: { key } });
 
   await audit({
-    userId: session.user.id,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "SystemSetting",
     entityId: existing.id,

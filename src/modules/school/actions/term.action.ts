@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import {
   createTermSchema,
@@ -11,10 +12,10 @@ import {
 } from "@/modules/school/schemas/term.schema";
 
 export async function getTermsAction(academicYearId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TERMS_READ);
+  if (denied) return denied;
 
   const terms = await db.term.findMany({
     where: academicYearId ? { academicYearId } : undefined,
@@ -30,10 +31,10 @@ export async function getTermsAction(academicYearId?: string) {
 }
 
 export async function createTermAction(data: CreateTermInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TERMS_CREATE);
+  if (denied) return denied;
 
   const parsed = createTermSchema.safeParse(data);
   if (!parsed.success) {
@@ -63,6 +64,7 @@ export async function createTermAction(data: CreateTermInput) {
 
   const term = await db.term.create({
     data: {
+      schoolId: ctx.schoolId,
       academicYearId: parsed.data.academicYearId,
       name: parsed.data.name,
       termNumber: parsed.data.termNumber,
@@ -72,7 +74,7 @@ export async function createTermAction(data: CreateTermInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "Term",
     entityId: term.id,
@@ -85,10 +87,10 @@ export async function createTermAction(data: CreateTermInput) {
 }
 
 export async function updateTermAction(id: string, data: UpdateTermInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TERMS_UPDATE);
+  if (denied) return denied;
 
   const parsed = updateTermSchema.safeParse(data);
   if (!parsed.success) {
@@ -132,7 +134,7 @@ export async function updateTermAction(id: string, data: UpdateTermInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Term",
     entityId: id,
@@ -146,10 +148,10 @@ export async function updateTermAction(id: string, data: UpdateTermInput) {
 }
 
 export async function deleteTermAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TERMS_DELETE);
+  if (denied) return denied;
 
   const existing = await db.term.findUnique({
     where: { id },
@@ -162,7 +164,7 @@ export async function deleteTermAction(id: string) {
   await db.term.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "Term",
     entityId: id,
@@ -175,10 +177,10 @@ export async function deleteTermAction(id: string) {
 }
 
 export async function setCurrentTermAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TERMS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.term.findUnique({
     where: { id },
@@ -207,7 +209,7 @@ export async function setCurrentTermAction(id: string) {
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Term",
     entityId: id,

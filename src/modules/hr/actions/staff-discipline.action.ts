@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { dispatch } from "@/lib/notifications/dispatcher";
@@ -16,18 +16,15 @@ export async function reportStaffDisciplinaryAction(data: {
   description: string;
   severity?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_DISCIPLINE_CREATE)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_DISCIPLINE_CREATE)) return { error: "Insufficient permissions" };
 
   const record = await db.staffDisciplinary.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       staffId: data.staffId,
-      reportedBy: session.user.id!,
+      reportedBy: ctx.session.user.id,
       date: new Date(data.date),
       type: data.type,
       description: data.description,
@@ -36,7 +33,7 @@ export async function reportStaffDisciplinaryAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StaffDisciplinary",
     entityId: record.id,
@@ -55,7 +52,7 @@ export async function reportStaffDisciplinaryAction(data: {
       title: "Disciplinary Report Filed",
       message: `A disciplinary report (${data.type}) has been filed. Please contact HR for details.`,
       recipients: [{ userId: staffMember.userId, name: `${staffMember.firstName} ${staffMember.lastName}` }],
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
     }).catch(() => {});
   }
 
@@ -70,18 +67,15 @@ export async function getStaffDisciplinaryRecordsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_DISCIPLINE_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_DISCIPLINE_READ)) return { error: "Insufficient permissions" };
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.staffId) where.staffId = filters.staffId;
   if (filters?.status) where.status = filters.status;
 
@@ -108,9 +102,9 @@ export async function resolveStaffDisciplinaryAction(
   id: string,
   data: { sanction?: string; status: string; notes?: string },
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_DISCIPLINE_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_DISCIPLINE_CREATE)) return { error: "Insufficient permissions" };
 
   const previous = await db.staffDisciplinary.findUnique({ where: { id } });
   if (!previous) return { error: "Record not found" };
@@ -121,13 +115,13 @@ export async function resolveStaffDisciplinaryAction(
       sanction: data.sanction,
       status: data.status,
       notes: data.notes,
-      resolvedBy: session.user.id!,
+      resolvedBy: ctx.session.user.id,
       resolvedAt: new Date(),
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "StaffDisciplinary",
     entityId: id,

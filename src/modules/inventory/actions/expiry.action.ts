@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Add Expiry Tracking ────────────────────────────────────────────
@@ -12,8 +13,10 @@ export async function addExpiryTrackingAction(data: {
   quantity: number;
   expiryDate: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_EXPIRY_MANAGE);
+  if (denied) return denied;
 
   if (data.quantity <= 0) return { error: "Quantity must be greater than zero." };
 
@@ -33,7 +36,7 @@ export async function addExpiryTrackingAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "ItemExpiryTracking",
     entityId: tracking.id,
@@ -48,11 +51,10 @@ export async function addExpiryTrackingAction(data: {
 // ─── Get Expiring Items ─────────────────────────────────────────────
 
 export async function getExpiringItemsAction(withinDays: number = 30) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_EXPIRY_MANAGE);
+  if (denied) return denied;
 
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() + withinDays);
@@ -60,7 +62,7 @@ export async function getExpiringItemsAction(withinDays: number = 30) {
   const expiring = await db.itemExpiryTracking.findMany({
     where: {
       expiryDate: { lte: cutoffDate, gt: new Date() },
-      storeItem: { store: { schoolId: school.id }, status: "ACTIVE" },
+      storeItem: { store: { schoolId: ctx.schoolId }, status: "ACTIVE" },
     },
     include: {
       storeItem: {
@@ -101,16 +103,15 @@ export async function getExpiringItemsAction(withinDays: number = 30) {
 // ─── Get Expired Items ──────────────────────────────────────────────
 
 export async function getExpiredItemsAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_EXPIRY_MANAGE);
+  if (denied) return denied;
 
   const expired = await db.itemExpiryTracking.findMany({
     where: {
       expiryDate: { lte: new Date() },
-      storeItem: { store: { schoolId: school.id }, status: "ACTIVE" },
+      storeItem: { store: { schoolId: ctx.schoolId }, status: "ACTIVE" },
     },
     include: {
       storeItem: {

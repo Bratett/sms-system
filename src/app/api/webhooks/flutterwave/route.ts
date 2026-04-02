@@ -73,6 +73,7 @@ async function handleChargeCompleted(data: {
   await db.$transaction(async (tx) => {
     const payment = await tx.payment.create({
       data: {
+        schoolId: bill.schoolId,
         studentBillId: bill.id,
         studentId: bill.studentId,
         amount,
@@ -100,7 +101,7 @@ async function handleChargeCompleted(data: {
 
     const receiptNumber = await generateOnlineReceiptNumber(tx);
     await tx.receipt.create({
-      data: { paymentId: payment.id, receiptNumber },
+      data: { schoolId: bill.schoolId, paymentId: payment.id, receiptNumber },
     });
 
     await tx.auditLog.create({

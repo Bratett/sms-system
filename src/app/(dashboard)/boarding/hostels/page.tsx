@@ -10,7 +10,7 @@ export default async function HostelsPage() {
   }
 
   const result = await getHostelsAction();
-  const hostels = result.data ?? [];
+  const hostels = "data" in result ? result.data : [];
 
   return (
     <div className="space-y-6">

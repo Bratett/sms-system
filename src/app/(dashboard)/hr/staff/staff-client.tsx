@@ -79,7 +79,7 @@ export function StaffClient({
         page: newPage,
         pageSize,
       });
-      if (result.staff) {
+      if ("staff" in result) {
         setStaff(result.staff);
         setTotal(result.total ?? 0);
         setPage(result.page ?? 1);
@@ -104,7 +104,7 @@ export function StaffClient({
     setFilterDepartment("");
     startTransition(async () => {
       const result = await getStaffAction({ page: 1, pageSize });
-      if (result.staff) {
+      if ("staff" in result) {
         setStaff(result.staff);
         setTotal(result.total ?? 0);
         setPage(1);

@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { dispatch } from "@/lib/notifications/dispatcher";
 import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
@@ -19,11 +19,9 @@ export async function getMaintenanceRequestsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.MAINTENANCE_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.MAINTENANCE_READ);
   if (permErr) return permErr;
 
   const page = filters?.page ?? 1;
@@ -166,22 +164,15 @@ export async function createMaintenanceRequestAction(data: {
   category: string;
   priority: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.MAINTENANCE_CREATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.MAINTENANCE_CREATE);
   if (permErr) return permErr;
 
   const parsed = createMaintenanceSchema.safeParse(data);
   if (!parsed.success) {
     return { error: parsed.error.issues.map((e: { message: string }) => e.message).join(", ") };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "School not found." };
-  }
+  }
 
   // Generate request number: MNT/YYYY/NNNN
   const year = new Date().getFullYear();
@@ -194,12 +185,12 @@ export async function createMaintenanceRequestAction(data: {
 
   const request = await db.maintenanceRequest.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       requestNumber,
       hostelId: parsed.data.hostelId,
       dormitoryId: parsed.data.dormitoryId || null,
       bedId: parsed.data.bedId || null,
-      reportedBy: session.user.id!,
+      reportedBy: ctx.session.user.id,
       title: parsed.data.title,
       description: parsed.data.description,
       category: parsed.data.category as never,
@@ -208,7 +199,7 @@ export async function createMaintenanceRequestAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "MaintenanceRequest",
     entityId: request.id,
@@ -223,7 +214,7 @@ export async function createMaintenanceRequestAction(data: {
       title: "Urgent Maintenance Request",
       message: `Urgent maintenance request: ${parsed.data.title}`,
       recipients: [],
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
     }).catch(() => {});
   }
 
@@ -231,11 +222,9 @@ export async function createMaintenanceRequestAction(data: {
 }
 
 export async function assignMaintenanceAction(id: string, staffId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.MAINTENANCE_ASSIGN);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.MAINTENANCE_ASSIGN);
   if (permErr) return permErr;
 
   const request = await db.maintenanceRequest.findUnique({ where: { id } });
@@ -259,7 +248,7 @@ export async function assignMaintenanceAction(id: string, staffId: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "MaintenanceRequest",
     entityId: id,
@@ -283,11 +272,9 @@ export async function updateMaintenanceStatusAction(
   status: string,
   notes?: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.MAINTENANCE_UPDATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.MAINTENANCE_UPDATE);
   if (permErr) return permErr;
 
   const request = await db.maintenanceRequest.findUnique({ where: { id } });
@@ -315,7 +302,7 @@ export async function updateMaintenanceStatusAction(
 
   if (status === "RESOLVED") {
     updateData.resolvedAt = new Date();
-    updateData.resolvedBy = session.user.id!;
+    updateData.resolvedBy = ctx.session.user.id;
     if (notes) updateData.resolutionNotes = notes;
   }
 
@@ -325,7 +312,7 @@ export async function updateMaintenanceStatusAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "MaintenanceRequest",
     entityId: id,
@@ -339,11 +326,9 @@ export async function updateMaintenanceStatusAction(
 }
 
 export async function resolveMaintenanceAction(id: string, notes: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.MAINTENANCE_UPDATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.MAINTENANCE_UPDATE);
   if (permErr) return permErr;
 
   const request = await db.maintenanceRequest.findUnique({ where: { id } });
@@ -356,13 +341,13 @@ export async function resolveMaintenanceAction(id: string, notes: string) {
     data: {
       status: "RESOLVED",
       resolvedAt: new Date(),
-      resolvedBy: session.user.id!,
+      resolvedBy: ctx.session.user.id,
       resolutionNotes: notes,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "MaintenanceRequest",
     entityId: id,
@@ -379,11 +364,9 @@ export async function resolveMaintenanceAction(id: string, notes: string) {
 }
 
 export async function getMaintenanceStatsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.MAINTENANCE_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.MAINTENANCE_READ);
   if (permErr) return permErr;
 
   // Count by status

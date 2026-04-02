@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import {
   computeStudentRiskProfiles,
@@ -14,14 +15,13 @@ export async function computeRiskProfilesAction(data: {
   termId: string;
   classArmId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ANALYTICS_READ);
+  if (denied) return denied;
 
   const assessments = await computeStudentRiskProfiles(
-    school.id,
+    ctx.schoolId,
     data.academicYearId,
     data.termId,
     data.classArmId,
@@ -39,7 +39,7 @@ export async function computeRiskProfilesAction(data: {
       },
       create: {
         studentId: assessment.studentId,
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         academicYearId: data.academicYearId,
         termId: data.termId,
         riskScore: assessment.riskScore,
@@ -61,7 +61,7 @@ export async function computeRiskProfilesAction(data: {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StudentRiskProfile",
     module: "ai",
@@ -87,17 +87,16 @@ export async function getRiskProfilesAction(filters: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ANALYTICS_READ);
+  if (denied) return denied;
 
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 25;
 
   const where: Record<string, unknown> = {
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
     academicYearId: filters.academicYearId,
     termId: filters.termId,
   };
@@ -134,11 +133,10 @@ export async function getClassPerformanceNarrativeAction(data: {
   classArmId: string;
   termId: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ANALYTICS_READ);
+  if (denied) return denied;
 
   // Get class info
   const classArm = await db.classArm.findUnique({
@@ -205,18 +203,17 @@ export async function getClassPerformanceNarrativeAction(data: {
 }
 
 export async function getAttendanceAnomaliesAction(termId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ANALYTICS_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
-
-  const anomalies = await detectAttendanceAnomalies(school.id, termId);
+  const anomalies = await detectAttendanceAnomalies(ctx.schoolId, termId);
 
   // Enrich with student names
   const studentIds = [...new Set(anomalies.map((a) => a.studentId))];
   const students = await db.student.findMany({
-    where: { id: { in: studentIds }, schoolId: school.id },
+    where: { id: { in: studentIds }, schoolId: ctx.schoolId },
     select: { id: true, studentId: true, firstName: true, lastName: true },
   });
   const studentMap = new Map(students.map((s) => [s.id, s]));
@@ -233,21 +230,20 @@ export async function getAiDashboardAction(data: {
   academicYearId: string;
   termId: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ANALYTICS_READ);
+  if (denied) return denied;
 
   const [riskProfiles, totalStudents] = await Promise.all([
     db.studentRiskProfile.findMany({
       where: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         academicYearId: data.academicYearId,
         termId: data.termId,
       },
     }),
-    db.student.count({ where: { schoolId: school.id, status: "ACTIVE" } }),
+    db.student.count({ where: { schoolId: ctx.schoolId, status: "ACTIVE" } }),
   ]);
 
   const riskDistribution = {

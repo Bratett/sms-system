@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import {
   createAcademicYearSchema,
@@ -11,10 +12,10 @@ import {
 } from "@/modules/school/schemas/academic-year.schema";
 
 export async function getAcademicYearsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ACADEMIC_YEAR_READ);
+  if (denied) return denied;
 
   const academicYears = await db.academicYear.findMany({
     include: {
@@ -34,24 +35,19 @@ export async function getAcademicYearsAction() {
 }
 
 export async function createAcademicYearAction(data: CreateAcademicYearInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ACADEMIC_YEAR_CREATE);
+  if (denied) return denied;
 
   const parsed = createAcademicYearSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
 
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "School not found. Please configure school settings first." };
-  }
-
   const academicYear = await db.academicYear.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: parsed.data.name,
       startDate: new Date(parsed.data.startDate),
       endDate: new Date(parsed.data.endDate),
@@ -59,7 +55,7 @@ export async function createAcademicYearAction(data: CreateAcademicYearInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "AcademicYear",
     entityId: academicYear.id,
@@ -72,10 +68,10 @@ export async function createAcademicYearAction(data: CreateAcademicYearInput) {
 }
 
 export async function updateAcademicYearAction(id: string, data: UpdateAcademicYearInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ACADEMIC_YEAR_UPDATE);
+  if (denied) return denied;
 
   const parsed = updateAcademicYearSchema.safeParse(data);
   if (!parsed.success) {
@@ -99,7 +95,7 @@ export async function updateAcademicYearAction(id: string, data: UpdateAcademicY
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "AcademicYear",
     entityId: id,
@@ -113,10 +109,10 @@ export async function updateAcademicYearAction(id: string, data: UpdateAcademicY
 }
 
 export async function deleteAcademicYearAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ACADEMIC_YEAR_DELETE);
+  if (denied) return denied;
 
   const existing = await db.academicYear.findUnique({
     where: { id },
@@ -134,7 +130,7 @@ export async function deleteAcademicYearAction(id: string) {
   await db.academicYear.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "AcademicYear",
     entityId: id,
@@ -147,10 +143,10 @@ export async function deleteAcademicYearAction(id: string) {
 }
 
 export async function setCurrentAcademicYearAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ACADEMIC_YEAR_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.academicYear.findUnique({ where: { id } });
   if (!existing) {
@@ -169,7 +165,7 @@ export async function setCurrentAcademicYearAction(id: string) {
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "AcademicYear",
     entityId: id,

@@ -9,7 +9,7 @@ export default async function StudentTimetablePage() {
   }
 
   const result = await getMyTimetableAction();
-  const data = result.data ?? { timetable: [], periods: [] };
+  const data = "data" in result ? result.data : { timetable: [], periods: [] };
 
   return <TimetableClient timetable={data.timetable} periods={data.periods} />;
 }

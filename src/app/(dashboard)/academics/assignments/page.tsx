@@ -29,16 +29,16 @@ export default async function AssignmentsPage() {
     getTermsAction(),
   ]);
 
-  const assignments = assignmentsResult.data ?? [];
-  const teachers = teachersResult.data ?? [];
-  const subjects = (subjectsResult.data ?? []).map((s) => ({
+  const assignments = "data" in assignmentsResult ? assignmentsResult.data : [];
+  const teachers = "data" in teachersResult ? teachersResult.data : [];
+  const subjects = ("data" in subjectsResult ? subjectsResult.data : []).map((s) => ({
     id: s.id,
     name: s.name,
   }));
 
   // Build class arms list from classes
   const classArms: { id: string; name: string; className: string }[] = [];
-  for (const cls of classesResult.data ?? []) {
+  for (const cls of "data" in classesResult ? classesResult.data : []) {
     for (const arm of cls.classArms) {
       classArms.push({
         id: arm.id,
@@ -48,13 +48,13 @@ export default async function AssignmentsPage() {
     }
   }
 
-  const academicYears = (academicYearsResult.data ?? []).map((ay) => ({
+  const academicYears = ("data" in academicYearsResult ? academicYearsResult.data : []).map((ay) => ({
     id: ay.id,
     name: ay.name,
     isCurrent: ay.isCurrent,
   }));
 
-  const terms = (termsResult.data ?? []).map((t) => ({
+  const terms = ("data" in termsResult ? termsResult.data : []).map((t) => ({
     id: t.id,
     name: t.name,
     academicYearId: t.academicYearId,

@@ -17,7 +17,7 @@ export function Providers({
     <SessionProvider>
       <NextIntlClientProvider locale={locale} messages={messages}>
         {children}
-        <Toaster position="top-right" richColors />
+        <Toaster position="top-right" richColors closeButton />
       </NextIntlClientProvider>
     </SessionProvider>
   );

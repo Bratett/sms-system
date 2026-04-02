@@ -74,10 +74,10 @@ export function VersionsClient({
         academicYearId: selectedTerm.academicYearId,
         name: snapshotName.trim(),
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
-        toast.success(`Snapshot created with ${result.data?.slotCount} slots.`);
+        toast.success(`Snapshot created with ${"data" in result ? result.data?.slotCount : 0} slots.`);
         setShowForm(false);
         setSnapshotName("");
         router.refresh();
@@ -90,7 +90,7 @@ export function VersionsClient({
 
     startTransition(async () => {
       const result = await publishTimetableVersionAction(id);
-      if (result.error) toast.error(result.error);
+      if ("error" in result) toast.error(result.error);
       else {
         toast.success(`Version "${name}" published.`);
         router.refresh();
@@ -108,9 +108,9 @@ export function VersionsClient({
 
     startTransition(async () => {
       const result = await restoreTimetableVersionAction(id);
-      if (result.error) toast.error(result.error);
+      if ("error" in result) toast.error(result.error);
       else {
-        toast.success(`Restored ${result.data?.restored} slots from "${name}".`);
+        toast.success(`Restored ${"data" in result ? result.data?.restored : 0} slots from "${name}".`);
         router.refresh();
       }
     });

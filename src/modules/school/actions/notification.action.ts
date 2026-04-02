@@ -1,31 +1,31 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth-context";
 
 export async function getNotificationsAction(limit = 10) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
   const notifications = await db.notification.findMany({
-    where: { userId: session.user.id },
+    where: { userId: ctx.session.user.id },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
 
   const unreadCount = await db.notification.count({
-    where: { userId: session.user.id, isRead: false },
+    where: { userId: ctx.session.user.id, isRead: false },
   });
 
   return { notifications, unreadCount };
 }
 
 export async function markNotificationReadAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
   await db.notification.update({
-    where: { id, userId: session.user.id },
+    where: { id, userId: ctx.session.user.id },
     data: { isRead: true },
   });
 
@@ -33,11 +33,11 @@ export async function markNotificationReadAction(id: string) {
 }
 
 export async function markAllNotificationsReadAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
   await db.notification.updateMany({
-    where: { userId: session.user.id, isRead: false },
+    where: { userId: ctx.session.user.id, isRead: false },
     data: { isRead: true },
   });
 

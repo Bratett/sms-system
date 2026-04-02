@@ -32,9 +32,9 @@ export default async function CompliancePage({
         description="Manage consent, data rights, and privacy policies."
       />
       <ComplianceClient
-        consentStatus={consentResult.data ?? []}
-        exportRequests={exportResult.data ?? []}
-        deletionRequests={deletionResult.data ?? []}
+        consentStatus={"data" in consentResult ? consentResult.data : []}
+        exportRequests={"data" in exportResult ? exportResult.data : []}
+        deletionRequests={"data" in deletionResult ? deletionResult.data : []}
       />
     </div>
   );

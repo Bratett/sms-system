@@ -151,7 +151,7 @@ export function ActivitiesClient({
     if (!deletingItem) return;
     startTransition(async () => {
       const result = await deleteActivityAction(deletingItem.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Activity "${deletingItem.name}" deleted.`);
@@ -181,7 +181,7 @@ export function ActivitiesClient({
     startTransition(async () => {
       if (editingItem) {
         const result = await updateActivityAction(editingItem.id, payload);
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
         } else {
           toast.success(`Activity "${formData.name}" updated.`);
@@ -190,7 +190,7 @@ export function ActivitiesClient({
         }
       } else {
         const result = await createActivityAction(payload);
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
         } else {
           toast.success(`Activity "${formData.name}" created.`);

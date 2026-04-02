@@ -18,8 +18,8 @@ export default async function AnnouncementsPage() {
         description="Create and manage school announcements."
       />
       <AnnouncementsClient
-        announcements={result.data ?? []}
-        pagination={result.pagination ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 }}
+        announcements={"data" in result ? result.data : []}
+        pagination={"pagination" in result ? result.pagination ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 } : { page: 1, pageSize: 20, total: 0, totalPages: 0 }}
       />
     </div>
   );

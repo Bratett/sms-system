@@ -16,7 +16,7 @@ export default async function FeeStructureDetailPage({
   const { id } = await params;
   const result = await getFeeStructureAction(id);
 
-  if (result.error || !result.data) {
+  if ("error" in result || !("data" in result)) {
     notFound();
   }
 

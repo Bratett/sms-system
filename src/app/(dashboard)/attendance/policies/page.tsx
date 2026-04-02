@@ -24,7 +24,7 @@ export default async function AttendancePoliciesPage() {
           </Link>
         }
       />
-      <PoliciesClient policies={result.data ?? []} />
+      <PoliciesClient policies={"data" in result ? result.data : []} />
     </div>
   );
 }

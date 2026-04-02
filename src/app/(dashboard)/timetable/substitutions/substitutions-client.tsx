@@ -63,7 +63,7 @@ export function SubstitutionsClient({
         date: createForm.date,
         reason: createForm.reason || undefined,
       });
-      if (result.error) toast.error(result.error);
+      if ("error" in result) toast.error(result.error);
       else {
         toast.success("Substitution created.");
         setShowCreateForm(false);
@@ -75,7 +75,7 @@ export function SubstitutionsClient({
   function handleApprove(id: string) {
     startTransition(async () => {
       const result = await approveSubstitutionAction(id);
-      if (result.error) toast.error(result.error);
+      if ("error" in result) toast.error(result.error);
       else {
         toast.success("Substitution approved.");
         router.refresh();
@@ -87,7 +87,7 @@ export function SubstitutionsClient({
     if (!confirm("Reject this substitution?")) return;
     startTransition(async () => {
       const result = await rejectSubstitutionAction(id);
-      if (result.error) toast.error(result.error);
+      if ("error" in result) toast.error(result.error);
       else {
         toast.success("Substitution rejected.");
         router.refresh();
@@ -259,7 +259,7 @@ export function SubstitutionsClient({
                         dayOfWeek,
                         date: createForm.date,
                       });
-                      if (result.data) setAvailableSubs(result.data);
+                      if ("data" in result && result.data) setAvailableSubs(result.data);
                     });
                   }}
                   className="mt-1 text-xs text-primary hover:underline"

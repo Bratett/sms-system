@@ -11,7 +11,7 @@ export default async function NewIncidentPage() {
   }
 
   const hostelsResult = await getHostelsAction();
-  const hostels = hostelsResult.data ?? [];
+  const hostels = "data" in hostelsResult ? hostelsResult.data : [];
 
   return (
     <div className="space-y-6">

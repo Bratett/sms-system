@@ -50,7 +50,7 @@ export function AlertsClient({
   function handleAcknowledge(id: string) {
     startTransition(async () => {
       const result = await acknowledgeAlertAction(id);
-      if (result.error) toast.error(result.error);
+      if ("error" in result) toast.error(result.error);
       else {
         toast.success("Alert acknowledged.");
         router.refresh();
@@ -62,7 +62,7 @@ export function AlertsClient({
     const notes = prompt("Resolution notes (optional):");
     startTransition(async () => {
       const result = await resolveAlertAction(id, notes ?? undefined);
-      if (result.error) toast.error(result.error);
+      if ("error" in result) toast.error(result.error);
       else {
         toast.success("Alert resolved.");
         router.refresh();

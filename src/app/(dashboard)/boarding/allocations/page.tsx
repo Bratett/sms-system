@@ -21,11 +21,11 @@ export default async function AllocationsPage() {
       getAcademicYearsAction(),
     ]);
 
-  const allocations = allocationsResult.data ?? [];
-  const occupancy = occupancyResult.data ?? [];
-  const hostels = hostelsResult.data ?? [];
-  const terms = termsResult.data ?? [];
-  const academicYears = academicYearsResult.data ?? [];
+  const allocations = "data" in allocationsResult ? allocationsResult.data : [];
+  const occupancy = "data" in occupancyResult ? occupancyResult.data : [];
+  const hostels = "data" in hostelsResult ? hostelsResult.data : [];
+  const terms = "data" in termsResult ? termsResult.data : [];
+  const academicYears = "data" in academicYearsResult ? academicYearsResult.data : [];
 
   return (
     <div className="space-y-6">

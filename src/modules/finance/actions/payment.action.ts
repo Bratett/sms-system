@@ -1,8 +1,9 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
 import {
   recordPaymentSchema,
@@ -42,10 +43,10 @@ async function generateReceiptNumber(termId: string): Promise<string> {
 }
 
 export async function recordPaymentAction(data: RecordPaymentInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PAYMENTS_CREATE);
+  if (denied) return denied;
 
   const parsed = recordPaymentSchema.safeParse(data);
   if (!parsed.success) {
@@ -73,12 +74,13 @@ export async function recordPaymentAction(data: RecordPaymentInput) {
     // Create payment
     const payment = await tx.payment.create({
       data: {
+        schoolId: ctx.schoolId,
         studentBillId: bill.id,
         studentId: bill.studentId,
         amount: parsed.data.amount,
         paymentMethod: parsed.data.paymentMethod,
         referenceNumber: parsed.data.referenceNumber || null,
-        receivedBy: session.user!.id!,
+        receivedBy: ctx.session.user.id!,
         status: "CONFIRMED",
         notes: parsed.data.notes || null,
       },
@@ -112,6 +114,7 @@ export async function recordPaymentAction(data: RecordPaymentInput) {
     const receiptNumber = await generateReceiptNumber(bill.termId);
     const receipt = await tx.receipt.create({
       data: {
+        schoolId: ctx.schoolId,
         paymentId: payment.id,
         receiptNumber,
       },
@@ -121,7 +124,7 @@ export async function recordPaymentAction(data: RecordPaymentInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Payment",
     entityId: result.payment.id,
@@ -135,7 +138,8 @@ export async function recordPaymentAction(data: RecordPaymentInput) {
     result.payment.id,
     parsed.data.amount,
     parsed.data.paymentMethod,
-    session.user.id!,
+    ctx.session.user.id!,
+    ctx.schoolId,
   ).catch((err) => {
     console.error("[Payment] Auto-journal generation failed:", err);
   });
@@ -153,9 +157,8 @@ async function generatePaymentJournalEntry(
   amount: number,
   paymentMethod: string,
   userId: string,
+  schoolId: string,
 ) {
-  const school = await db.school.findFirst();
-  if (!school) return;
 
   // Map payment method to debit account code
   const accountCodeMap: Record<string, string> = {
@@ -170,8 +173,8 @@ async function generatePaymentJournalEntry(
   const creditCode = "4000"; // Tuition Fees revenue
 
   const [debitAccount, creditAccount] = await Promise.all([
-    db.account.findFirst({ where: { schoolId: school.id, code: debitCode } }),
-    db.account.findFirst({ where: { schoolId: school.id, code: creditCode } }),
+    db.account.findFirst({ where: { schoolId: schoolId, code: debitCode } }),
+    db.account.findFirst({ where: { schoolId: schoolId, code: creditCode } }),
   ]);
 
   // Only create journal if Chart of Accounts has been seeded
@@ -180,7 +183,7 @@ async function generatePaymentJournalEntry(
   const year = new Date().getFullYear();
   const prefix = `JRN/${year}/`;
   const lastTxn = await db.journalTransaction.findFirst({
-    where: { schoolId: school.id, transactionNumber: { startsWith: prefix } },
+    where: { schoolId: schoolId, transactionNumber: { startsWith: prefix } },
     orderBy: { transactionNumber: "desc" },
   });
   const nextNum = lastTxn ? parseInt(lastTxn.transactionNumber.split("/").pop()!) + 1 : 1;
@@ -189,7 +192,7 @@ async function generatePaymentJournalEntry(
   await db.$transaction(async (tx) => {
     const journal = await tx.journalTransaction.create({
       data: {
-        schoolId: school.id,
+        schoolId: schoolId,
         transactionNumber,
         date: new Date(),
         description: `Fee payment received via ${paymentMethod.replace("_", " ")}`,
@@ -205,6 +208,7 @@ async function generatePaymentJournalEntry(
 
     await tx.journalEntry.create({
       data: {
+        schoolId: schoolId,
         journalTransactionId: journal.id,
         debitAccountId: debitAccount.id,
         creditAccountId: creditAccount.id,
@@ -233,10 +237,10 @@ export async function getPaymentsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PAYMENTS_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
@@ -317,10 +321,10 @@ export async function getPaymentsAction(filters?: {
 }
 
 export async function getPaymentAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PAYMENTS_READ);
+  if (denied) return denied;
 
   const payment = await db.payment.findUnique({
     where: { id },
@@ -367,10 +371,10 @@ export async function getPaymentAction(id: string) {
 }
 
 export async function getDailyCollectionAction(date: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PAYMENTS_READ);
+  if (denied) return denied;
 
   const dateStart = new Date(date);
   dateStart.setHours(0, 0, 0, 0);
@@ -434,10 +438,10 @@ export async function getDailyCollectionAction(date: string) {
 }
 
 export async function initiateReversalAction(data: InitiateReversalInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PAYMENTS_REVERSE);
+  if (denied) return denied;
 
   const parsed = initiateReversalSchema.safeParse(data);
   if (!parsed.success) {
@@ -463,15 +467,16 @@ export async function initiateReversalAction(data: InitiateReversalInput) {
 
   const reversal = await db.paymentReversal.create({
     data: {
+      schoolId: ctx.schoolId,
       paymentId: payment.id,
       reason: parsed.data.reason,
-      reversedBy: session.user.id!,
+      reversedBy: ctx.session.user.id!,
       status: "PENDING",
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "PaymentReversal",
     entityId: reversal.id,
@@ -484,10 +489,10 @@ export async function initiateReversalAction(data: InitiateReversalInput) {
 }
 
 export async function approveReversalAction(reversalId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PAYMENTS_REVERSE);
+  if (denied) return denied;
 
   const reversal = await db.paymentReversal.findUnique({
     where: { id: reversalId },
@@ -512,7 +517,7 @@ export async function approveReversalAction(reversalId: string) {
       where: { id: reversalId },
       data: {
         status: "APPROVED",
-        approvedBy: session.user!.id!,
+        approvedBy: ctx.session.user.id!,
         approvedAt: new Date(),
       },
     });
@@ -548,7 +553,7 @@ export async function approveReversalAction(reversalId: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "PaymentReversal",
     entityId: reversalId,
@@ -561,10 +566,10 @@ export async function approveReversalAction(reversalId: string) {
 }
 
 export async function rejectReversalAction(reversalId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PAYMENTS_REVERSE);
+  if (denied) return denied;
 
   const reversal = await db.paymentReversal.findUnique({
     where: { id: reversalId },
@@ -584,7 +589,7 @@ export async function rejectReversalAction(reversalId: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "PaymentReversal",
     entityId: reversalId,

@@ -79,7 +79,7 @@ export function SubjectsClient({
     if (!confirm(`Are you sure you want to delete subject "${subject.name}"?`)) return;
     startTransition(async () => {
       const result = await deleteSubjectAction(subject.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Subject "${subject.name}" deleted successfully.`);
@@ -104,7 +104,7 @@ export function SubjectsClient({
           description: formData.description.trim() || undefined,
           type: formData.type,
         });
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success(`Subject "${formData.name}" updated successfully.`);
@@ -118,7 +118,7 @@ export function SubjectsClient({
           description: formData.description.trim() || undefined,
           type: formData.type,
         });
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success(`Subject "${formData.name}" created successfully.`);

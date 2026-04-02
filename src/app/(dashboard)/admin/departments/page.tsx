@@ -10,7 +10,7 @@ export default async function DepartmentsPage() {
   }
 
   const result = await getDepartmentsAction();
-  const departments = result.data ?? [];
+  const departments = "data" in result ? result.data : [];
 
   return (
     <div className="space-y-6">

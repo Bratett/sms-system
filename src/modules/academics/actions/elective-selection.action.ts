@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Get Available Electives for a Student ───────────────────────────
@@ -10,10 +11,10 @@ export async function getAvailableElectivesAction(
   studentId: string,
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ELECTIVE_SELECTION_READ);
+  if (denied) return denied;
 
   const enrollment = await db.enrollment.findFirst({
     where: { studentId, academicYearId, status: "ACTIVE" },
@@ -69,10 +70,10 @@ export async function submitElectiveSelectionAction(
   subjectIds: string[],
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ELECTIVE_SELECTION_CREATE);
+  if (denied) return denied;
 
   if (subjectIds.length === 0) {
     return { error: "Please select at least one elective subject." };
@@ -85,13 +86,13 @@ export async function submitElectiveSelectionAction(
   const selections = await Promise.all(
     subjectIds.map((subjectId) =>
       db.studentSubjectSelection.create({
-        data: { studentId, subjectId, academicYearId },
+        data: { schoolId: ctx.schoolId, studentId, subjectId, academicYearId },
       }),
     ),
   );
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "StudentSubjectSelection",
     entityId: studentId,
@@ -110,10 +111,10 @@ export async function getElectiveSelectionsAction(filters?: {
   academicYearId?: string;
   status?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ELECTIVE_SELECTION_READ);
+  if (denied) return denied;
 
   const where: Record<string, unknown> = {};
   if (filters?.academicYearId) where.academicYearId = filters.academicYearId;
@@ -165,8 +166,10 @@ export async function getElectiveSelectionsAction(filters?: {
 // ─── Approve / Reject ────────────────────────────────────────────────
 
 export async function approveElectiveSelectionAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ELECTIVE_SELECTION_APPROVE);
+  if (denied) return denied;
 
   const selection = await db.studentSubjectSelection.findUnique({ where: { id } });
   if (!selection) return { error: "Selection not found." };
@@ -174,11 +177,11 @@ export async function approveElectiveSelectionAction(id: string) {
 
   const updated = await db.studentSubjectSelection.update({
     where: { id },
-    data: { status: "APPROVED", approvedBy: session.user.id, approvedAt: new Date() },
+    data: { status: "APPROVED", approvedBy: ctx.session.user.id, approvedAt: new Date() },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "StudentSubjectSelection",
     entityId: id,
@@ -190,8 +193,10 @@ export async function approveElectiveSelectionAction(id: string) {
 }
 
 export async function rejectElectiveSelectionAction(id: string, reason: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ELECTIVE_SELECTION_APPROVE);
+  if (denied) return denied;
 
   const selection = await db.studentSubjectSelection.findUnique({ where: { id } });
   if (!selection) return { error: "Selection not found." };
@@ -203,7 +208,7 @@ export async function rejectElectiveSelectionAction(id: string, reason: string) 
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "StudentSubjectSelection",
     entityId: id,

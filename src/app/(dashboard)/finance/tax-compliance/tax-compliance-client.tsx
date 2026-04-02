@@ -76,7 +76,7 @@ export function TaxComplianceClient({ records, summary }: { records: TaxRecord[]
         amount: formData.amount, dueDate: new Date(formData.dueDate),
         referenceNumber: formData.referenceNumber || undefined,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Tax record created");
       setShowCreateModal(false);
       router.refresh();
@@ -86,7 +86,7 @@ export function TaxComplianceClient({ records, summary }: { records: TaxRecord[]
   function handleFile(record: TaxRecord) {
     startTransition(async () => {
       const result = await fileTaxReturnAction(record.id);
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Tax return filed");
       router.refresh();
     });
@@ -104,7 +104,7 @@ export function TaxComplianceClient({ records, summary }: { records: TaxRecord[]
     if (!selectedRecord) return;
     startTransition(async () => {
       const result = await recordTaxPaymentAction(selectedRecord.id, paymentAmount, paymentRef || undefined);
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Tax payment recorded");
       setShowPaymentModal(false);
       router.refresh();

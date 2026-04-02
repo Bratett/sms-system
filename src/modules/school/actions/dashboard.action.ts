@@ -1,15 +1,18 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
 
 export async function getDashboardStatsAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   // ── Shared lookups (needed by multiple queries) ────────────
-  const school = await db.school.findFirst();
+  const school = await db.school.findUnique({ where: { id: ctx.schoolId } });
 
   const currentYear = await db.academicYear.findFirst({
     where: { isCurrent: true },
@@ -200,13 +203,13 @@ export async function getDashboardStatsAction() {
 // ─── Role-Specific Dashboard Data ──────────────────────────────────
 
 export async function getRoleDashboardAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
-  const roles = (session.user as { roles?: string[] }).roles || [];
+  const roles = (ctx.session.user as { roles?: string[] }).roles || [];
   const primaryRole = roles[0] || "teacher";
 
-  const school = await db.school.findFirst();
+  const school = await db.school.findUnique({ where: { id: ctx.schoolId } });
   const currentTerm = await db.term.findFirst({ where: { isCurrent: true } });
   const currentYear = await db.academicYear.findFirst({ where: { isCurrent: true } });
 
@@ -216,9 +219,9 @@ export async function getRoleDashboardAction() {
     case "teacher":
     case "class_teacher":
     case "subject_teacher":
-      return getTeacherDashboard(session.user.id!, currentTerm?.id);
+      return getTeacherDashboard(ctx.session.user.id!, currentTerm?.id);
     case "housemaster":
-      return getHousemasterDashboard(session.user.id!);
+      return getHousemasterDashboard(ctx.session.user.id!);
     case "hr_officer":
       return getHrDashboard();
     case "store_keeper":

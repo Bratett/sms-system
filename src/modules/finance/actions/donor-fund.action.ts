@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import {
@@ -14,13 +15,12 @@ import {
 } from "@/modules/finance/schemas/donor-fund.schema";
 
 export async function getDonorFundsAction(filters?: { isActive?: boolean }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DONOR_FUNDS_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.isActive !== undefined) where.isActive = filters.isActive;
 
   const funds = await db.donorFund.findMany({
@@ -42,8 +42,10 @@ export async function getDonorFundsAction(filters?: { isActive?: boolean }) {
 }
 
 export async function getDonorFundAction(fundId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DONOR_FUNDS_READ);
+  if (denied) return denied;
 
   const fund = await db.donorFund.findUnique({
     where: { id: fundId },
@@ -91,20 +93,18 @@ export async function getDonorFundAction(fundId: string) {
 }
 
 export async function createDonorFundAction(data: CreateDonorFundInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DONOR_FUNDS_CREATE);
+  if (denied) return denied;
 
   const parsed = createDonorFundSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const fund = await db.donorFund.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       donorName: parsed.data.donorName,
       donorType: parsed.data.donorType,
       contactEmail: parsed.data.contactEmail || null,
@@ -117,7 +117,7 @@ export async function createDonorFundAction(data: CreateDonorFundInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "DonorFund",
     entityId: fund.id,
@@ -129,8 +129,10 @@ export async function createDonorFundAction(data: CreateDonorFundInput) {
 }
 
 export async function updateDonorFundAction(fundId: string, data: UpdateDonorFundInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DONOR_FUNDS_UPDATE);
+  if (denied) return denied;
 
   const parsed = updateDonorFundSchema.safeParse(data);
   if (!parsed.success) {
@@ -146,7 +148,7 @@ export async function updateDonorFundAction(fundId: string, data: UpdateDonorFun
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "DonorFund",
     entityId: fundId,
@@ -158,8 +160,10 @@ export async function updateDonorFundAction(fundId: string, data: UpdateDonorFun
 }
 
 export async function allocateDonorFundAction(data: AllocateDonorFundInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DONOR_FUNDS_ALLOCATE);
+  if (denied) return denied;
 
   const parsed = allocateDonorFundSchema.safeParse(data);
   if (!parsed.success) {
@@ -185,12 +189,13 @@ export async function allocateDonorFundAction(data: AllocateDonorFundInput) {
   await db.$transaction(async (tx) => {
     await tx.donorFundAllocation.create({
       data: {
+        schoolId: ctx.schoolId,
         donorFundId: fund.id,
         studentId: parsed.data.studentId,
         termId: parsed.data.termId,
         amount: parsed.data.amount,
         description: parsed.data.description,
-        allocatedBy: session.user.id!,
+        allocatedBy: ctx.session.user.id,
       },
     });
 
@@ -203,7 +208,7 @@ export async function allocateDonorFundAction(data: AllocateDonorFundInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "DonorFundAllocation",
     entityId: fund.id,
@@ -215,8 +220,10 @@ export async function allocateDonorFundAction(data: AllocateDonorFundInput) {
 }
 
 export async function deleteDonorFundAction(fundId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DONOR_FUNDS_UPDATE);
+  if (denied) return denied;
 
   const fund = await db.donorFund.findUnique({
     where: { id: fundId },
@@ -231,7 +238,7 @@ export async function deleteDonorFundAction(fundId: string) {
   await db.donorFund.delete({ where: { id: fundId } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "DonorFund",
     entityId: fundId,

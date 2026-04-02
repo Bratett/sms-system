@@ -52,7 +52,7 @@ export function AlumniClient({
   function handleSearch() {
     startTransition(async () => {
       const result = await getAlumniAction(searchTerm || undefined, 1, 20);
-      if (result.data) {
+      if ("data" in result) {
         setAlumni(result.data as AlumniRow[]);
         setPagination(result.pagination ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 });
       }
@@ -62,7 +62,7 @@ export function AlumniClient({
   function handlePageChange(newPage: number) {
     startTransition(async () => {
       const result = await getAlumniAction(searchTerm || undefined, newPage, 20);
-      if (result.data) {
+      if ("data" in result) {
         setAlumni(result.data as AlumniRow[]);
         setPagination(
           result.pagination ?? { page: newPage, pageSize: 20, total: 0, totalPages: 0 },

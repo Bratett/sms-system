@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import {
@@ -27,17 +28,16 @@ export async function getJournalTransactionsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.JOURNAL_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.status) where.status = filters.status;
   if (filters?.dateFrom || filters?.dateTo) {
     where.date = {};
@@ -79,32 +79,31 @@ export async function getJournalTransactionsAction(filters?: {
 }
 
 export async function createJournalTransactionAction(data: CreateJournalTransactionInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.JOURNAL_CREATE);
+  if (denied) return denied;
 
   const parsed = createJournalTransactionSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const transactionNumber = await generateTransactionNumber(school.id);
+  const transactionNumber = await generateTransactionNumber(ctx.schoolId);
 
   const txn = await db.$transaction(async (tx) => {
     const created = await tx.journalTransaction.create({
       data: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         transactionNumber,
         date: parsed.data.date,
         description: parsed.data.description,
         referenceType: parsed.data.referenceType,
         referenceId: parsed.data.referenceId,
-        createdBy: session.user.id!,
+        createdBy: ctx.session.user.id,
       },
     });
 
     await tx.journalEntry.createMany({
       data: parsed.data.entries.map((e) => ({
+        schoolId: ctx.schoolId,
         journalTransactionId: created.id,
         debitAccountId: e.debitAccountId,
         creditAccountId: e.creditAccountId,
@@ -116,14 +115,16 @@ export async function createJournalTransactionAction(data: CreateJournalTransact
     return created;
   });
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "JournalTransaction", entityId: txn.id, module: "accounting", description: `Created journal ${transactionNumber}` });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "JournalTransaction", entityId: txn.id, module: "accounting", description: `Created journal ${transactionNumber}` });
 
   return { data: txn };
 }
 
 export async function postJournalTransactionAction(transactionId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.JOURNAL_POST);
+  if (denied) return denied;
 
   const txn = await db.journalTransaction.findUnique({
     where: { id: transactionId },
@@ -136,7 +137,7 @@ export async function postJournalTransactionAction(transactionId: string) {
     // Post the transaction
     await tx.journalTransaction.update({
       where: { id: transactionId },
-      data: { status: "POSTED", approvedBy: session.user.id!, approvedAt: new Date() },
+      data: { status: "POSTED", approvedBy: ctx.session.user.id, approvedAt: new Date() },
     });
 
     // Update account balances
@@ -155,14 +156,16 @@ export async function postJournalTransactionAction(transactionId: string) {
     }
   });
 
-  await audit({ userId: session.user.id!, action: "UPDATE", entity: "JournalTransaction", entityId: transactionId, module: "accounting", description: `Posted journal ${txn.transactionNumber}` });
+  await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "JournalTransaction", entityId: transactionId, module: "accounting", description: `Posted journal ${txn.transactionNumber}` });
 
   return { data: { success: true } };
 }
 
 export async function reverseJournalTransactionAction(transactionId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.JOURNAL_REVERSE);
+  if (denied) return denied;
 
   const txn = await db.journalTransaction.findUnique({
     where: { id: transactionId },
@@ -170,11 +173,7 @@ export async function reverseJournalTransactionAction(transactionId: string) {
   });
   if (!txn) return { error: "Journal transaction not found" };
   if (txn.status !== "POSTED") return { error: "Only POSTED transactions can be reversed" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const reversalNumber = await generateTransactionNumber(school.id);
+  const reversalNumber = await generateTransactionNumber(ctx.schoolId);
 
   await db.$transaction(async (tx) => {
     // Mark original as reversed
@@ -186,16 +185,16 @@ export async function reverseJournalTransactionAction(transactionId: string) {
     // Create reversal transaction with swapped debit/credit
     const reversal = await tx.journalTransaction.create({
       data: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         transactionNumber: reversalNumber,
         date: new Date(),
         description: `Reversal of ${txn.transactionNumber}: ${txn.description}`,
         referenceType: "Reversal",
         referenceId: transactionId,
         isAutoGenerated: true,
-        createdBy: session.user.id!,
+        createdBy: ctx.session.user.id,
         status: "POSTED",
-        approvedBy: session.user.id!,
+        approvedBy: ctx.session.user.id,
         approvedAt: new Date(),
       },
     });
@@ -204,6 +203,7 @@ export async function reverseJournalTransactionAction(transactionId: string) {
     for (const entry of txn.entries) {
       await tx.journalEntry.create({
         data: {
+          schoolId: ctx.schoolId,
           journalTransactionId: reversal.id,
           debitAccountId: entry.creditAccountId,
           creditAccountId: entry.debitAccountId,
@@ -224,14 +224,14 @@ export async function reverseJournalTransactionAction(transactionId: string) {
     }
   });
 
-  await audit({ userId: session.user.id!, action: "UPDATE", entity: "JournalTransaction", entityId: transactionId, module: "accounting", description: `Reversed journal ${txn.transactionNumber}` });
+  await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "JournalTransaction", entityId: transactionId, module: "accounting", description: `Reversed journal ${txn.transactionNumber}` });
 
   return { data: { success: true } };
 }
 
 export async function getGeneralLedgerAction(accountId: string, filters?: { dateFrom?: string; dateTo?: string }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const account = await db.account.findUnique({
     where: { id: accountId },

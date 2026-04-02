@@ -1,8 +1,9 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
 import {
   createFeeStructureSchema,
@@ -18,17 +19,12 @@ export async function getFeeStructuresAction(filters?: {
   termId?: string;
   status?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_STRUCTURES_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "School not found. Please configure school settings first." };
-  }
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.academicYearId) where.academicYearId = filters.academicYearId;
   if (filters?.termId) where.termId = filters.termId;
   if (filters?.status) where.status = filters.status;
@@ -84,10 +80,10 @@ export async function getFeeStructuresAction(filters?: {
 }
 
 export async function getFeeStructureAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_STRUCTURES_READ);
+  if (denied) return denied;
 
   const feeStructure = await db.feeStructure.findUnique({
     where: { id },
@@ -143,19 +139,14 @@ export async function getFeeStructureAction(id: string) {
 }
 
 export async function createFeeStructureAction(data: CreateFeeStructureInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_STRUCTURES_CREATE);
+  if (denied) return denied;
 
   const parsed = createFeeStructureSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "School not found. Please configure school settings first." };
   }
 
   const { feeItems, ...structureData } = parsed.data;
@@ -163,7 +154,7 @@ export async function createFeeStructureAction(data: CreateFeeStructureInput) {
   const feeStructure = await db.$transaction(async (tx) => {
     const structure = await tx.feeStructure.create({
       data: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: structureData.name,
         academicYearId: structureData.academicYearId,
         termId: structureData.termId,
@@ -172,6 +163,7 @@ export async function createFeeStructureAction(data: CreateFeeStructureInput) {
         status: "DRAFT",
         feeItems: {
           create: feeItems.map((item) => ({
+            schoolId: ctx.schoolId,
             name: item.name,
             code: item.code || null,
             amount: item.amount,
@@ -188,7 +180,7 @@ export async function createFeeStructureAction(data: CreateFeeStructureInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "FeeStructure",
     entityId: feeStructure.id,
@@ -201,10 +193,10 @@ export async function createFeeStructureAction(data: CreateFeeStructureInput) {
 }
 
 export async function updateFeeStructureAction(id: string, data: UpdateFeeStructureInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_STRUCTURES_UPDATE);
+  if (denied) return denied;
 
   const parsed = updateFeeStructureSchema.safeParse(data);
   if (!parsed.success) {
@@ -234,7 +226,7 @@ export async function updateFeeStructureAction(id: string, data: UpdateFeeStruct
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "FeeStructure",
     entityId: id,
@@ -248,10 +240,10 @@ export async function updateFeeStructureAction(id: string, data: UpdateFeeStruct
 }
 
 export async function addFeeItemAction(feeStructureId: string, data: AddFeeItemInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_STRUCTURES_UPDATE);
+  if (denied) return denied;
 
   const parsed = addFeeItemSchema.safeParse(data);
   if (!parsed.success) {
@@ -269,6 +261,7 @@ export async function addFeeItemAction(feeStructureId: string, data: AddFeeItemI
 
   const feeItem = await db.feeItem.create({
     data: {
+      schoolId: ctx.schoolId,
       feeStructureId,
       name: parsed.data.name,
       code: parsed.data.code || null,
@@ -279,7 +272,7 @@ export async function addFeeItemAction(feeStructureId: string, data: AddFeeItemI
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "FeeItem",
     entityId: feeItem.id,
@@ -292,10 +285,10 @@ export async function addFeeItemAction(feeStructureId: string, data: AddFeeItemI
 }
 
 export async function removeFeeItemAction(feeItemId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_STRUCTURES_DELETE);
+  if (denied) return denied;
 
   const feeItem = await db.feeItem.findUnique({
     where: { id: feeItemId },
@@ -313,7 +306,7 @@ export async function removeFeeItemAction(feeItemId: string) {
   await db.feeItem.delete({ where: { id: feeItemId } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "FeeItem",
     entityId: feeItemId,
@@ -326,10 +319,10 @@ export async function removeFeeItemAction(feeItemId: string) {
 }
 
 export async function activateFeeStructureAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_STRUCTURES_APPROVE);
+  if (denied) return denied;
 
   const feeStructure = await db.feeStructure.findUnique({
     where: { id },
@@ -352,13 +345,13 @@ export async function activateFeeStructureAction(id: string) {
     where: { id },
     data: {
       status: "ACTIVE",
-      approvedBy: session.user.id,
+      approvedBy: ctx.session.user.id,
       approvedAt: new Date(),
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "FeeStructure",
     entityId: id,
@@ -372,10 +365,10 @@ export async function activateFeeStructureAction(id: string) {
 }
 
 export async function deleteFeeStructureAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FEE_STRUCTURES_DELETE);
+  if (denied) return denied;
 
   const feeStructure = await db.feeStructure.findUnique({
     where: { id },
@@ -397,7 +390,7 @@ export async function deleteFeeStructureAction(id: string) {
   await db.feeStructure.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "FeeStructure",
     entityId: id,

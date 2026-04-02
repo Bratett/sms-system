@@ -8,8 +8,9 @@ export default async function AnnualReportsPage() {
   if (!session?.user) return null;
 
   const dropdownsResult = await getAcademicDropdownsAction();
-  const classArms = dropdownsResult.data?.classArms ?? [];
-  const academicYears = dropdownsResult.data?.academicYears ?? [];
+  const dropdownsData = "data" in dropdownsResult ? dropdownsResult.data : null;
+  const classArms = dropdownsData?.classArms ?? [];
+  const academicYears = dropdownsData?.academicYears ?? [];
 
   return (
     <div className="space-y-6">

@@ -15,12 +15,12 @@ export default async function CurriculumPage() {
     getSubjectsAction(),
   ]);
 
-  const programmes = (programmesResult.data ?? []).map((p) => ({
+  const programmes = ("data" in programmesResult ? programmesResult.data : []).map((p) => ({
     id: p.id,
     name: p.name,
   }));
 
-  const subjects = (subjectsResult.data ?? []).map((s) => ({
+  const subjects = ("data" in subjectsResult ? subjectsResult.data : []).map((s) => ({
     id: s.id,
     name: s.name,
     code: s.code,

@@ -122,7 +122,7 @@ export function AssignmentDetailClient({
         correctAnswer: questionFormData.correctAnswer.trim() || undefined,
         points: questionFormData.points ? Number(questionFormData.points) : undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         setQuestionFormError(result.error);
       } else {
         toast.success("Question added.");
@@ -157,7 +157,7 @@ export function AssignmentDetailClient({
         score: Number(gradeFormData.score),
         feedback: gradeFormData.feedback.trim() || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         setGradeFormError(result.error);
       } else {
         toast.success("Submission graded.");

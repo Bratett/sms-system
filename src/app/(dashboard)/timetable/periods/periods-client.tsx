@@ -85,7 +85,7 @@ export function PeriodsClient({
           order: periodForm.order,
           type: periodForm.type,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -98,7 +98,7 @@ export function PeriodsClient({
           order: periodForm.order,
           type: periodForm.type,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -114,7 +114,7 @@ export function PeriodsClient({
 
     startTransition(async () => {
       const result = await deletePeriodAction(period.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

@@ -1,6 +1,7 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { generateExport } from "@/lib/export";
 import {
   generateTrialBalanceAction,
@@ -12,8 +13,8 @@ import {
 type ExportFormat = "xlsx" | "csv";
 
 export async function exportTrialBalanceAction(periodEnd: Date, format: ExportFormat = "xlsx") {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const result = await generateTrialBalanceAction(periodEnd);
   if ("error" in result) return { error: result.error };
@@ -46,8 +47,8 @@ export async function exportTrialBalanceAction(periodEnd: Date, format: ExportFo
 }
 
 export async function exportBalanceSheetAction(periodEnd: Date, format: ExportFormat = "xlsx") {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const result = await generateBalanceSheetAction(periodEnd);
   if ("error" in result) return { error: result.error };
@@ -92,8 +93,8 @@ export async function exportBalanceSheetAction(periodEnd: Date, format: ExportFo
 }
 
 export async function exportIncomeStatementAction(periodStart: Date, periodEnd: Date, format: ExportFormat = "xlsx") {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const result = await generateIncomeStatementAction(periodStart, periodEnd);
   if ("error" in result) return { error: result.error };
@@ -131,8 +132,8 @@ export async function exportIncomeStatementAction(periodStart: Date, periodEnd: 
 }
 
 export async function exportCashFlowAction(periodStart: Date, periodEnd: Date, format: ExportFormat = "xlsx") {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const result = await generateCashFlowAction(periodStart, periodEnd);
   if ("error" in result) return { error: result.error };

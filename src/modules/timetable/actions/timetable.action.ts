@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Rooms ──────────────────────────────────────────────────────────
@@ -13,21 +14,14 @@ export async function createRoomAction(data: {
   type: "CLASSROOM" | "LABORATORY" | "HALL" | "FIELD" | "OTHER";
   features?: string[];
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   // Check for duplicate name
   const existing = await db.room.findUnique({
     where: {
       schoolId_name: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: data.name,
       },
     },
@@ -39,7 +33,7 @@ export async function createRoomAction(data: {
 
   const room = await db.room.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       building: data.building || null,
       capacity: data.capacity ?? null,
@@ -49,7 +43,7 @@ export async function createRoomAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Room",
     entityId: room.id,
@@ -66,17 +60,10 @@ export async function getRoomsAction(filters?: {
   isActive?: boolean;
   search?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
 
   if (filters?.type) {
     where.type = filters.type;
@@ -126,15 +113,8 @@ export async function updateRoomAction(
     isActive?: boolean;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const existing = await db.room.findUnique({ where: { id } });
   if (!existing) {
@@ -146,7 +126,7 @@ export async function updateRoomAction(
     const duplicate = await db.room.findUnique({
       where: {
         schoolId_name: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           name: data.name,
         },
       },
@@ -170,7 +150,7 @@ export async function updateRoomAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Room",
     entityId: id,
@@ -184,10 +164,8 @@ export async function updateRoomAction(
 }
 
 export async function deleteRoomAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const existing = await db.room.findUnique({
     where: { id },
@@ -211,7 +189,7 @@ export async function deleteRoomAction(id: string) {
   await db.room.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Room",
     entityId: id,
@@ -232,21 +210,14 @@ export async function createPeriodAction(data: {
   order: number;
   type: "LESSON" | "BREAK" | "ASSEMBLY" | "FREE";
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   // Check for duplicate order
   const existing = await db.period.findUnique({
     where: {
       schoolId_order: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         order: data.order,
       },
     },
@@ -258,7 +229,7 @@ export async function createPeriodAction(data: {
 
   const period = await db.period.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       startTime: data.startTime,
       endTime: data.endTime,
@@ -268,7 +239,7 @@ export async function createPeriodAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Period",
     entityId: period.id,
@@ -281,18 +252,11 @@ export async function createPeriodAction(data: {
 }
 
 export async function getPeriodsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const periods = await db.period.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: { order: "asc" },
   });
 
@@ -310,15 +274,8 @@ export async function updatePeriodAction(
     isActive?: boolean;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const existing = await db.period.findUnique({ where: { id } });
   if (!existing) {
@@ -330,7 +287,7 @@ export async function updatePeriodAction(
     const duplicate = await db.period.findUnique({
       where: {
         schoolId_order: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           order: data.order,
         },
       },
@@ -355,7 +312,7 @@ export async function updatePeriodAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Period",
     entityId: id,
@@ -369,10 +326,8 @@ export async function updatePeriodAction(
 }
 
 export async function deletePeriodAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const existing = await db.period.findUnique({
     where: { id },
@@ -392,7 +347,7 @@ export async function deletePeriodAction(id: string) {
   await db.period.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Period",
     entityId: id,
@@ -416,15 +371,10 @@ export async function createTimetableSlotAction(data: {
   roomId?: string;
   dayOfWeek: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TIMETABLE_CREATE);
+  if (denied) return denied;
 
   // ── Conflict Detection ──────────────────────────────────────────
 
@@ -499,7 +449,7 @@ export async function createTimetableSlotAction(data: {
 
   const slot = await db.timetableSlot.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       academicYearId: data.academicYearId,
       termId: data.termId,
       classArmId: data.classArmId,
@@ -521,7 +471,7 @@ export async function createTimetableSlotAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "TimetableSlot",
     entityId: slot.id,
@@ -539,17 +489,12 @@ export async function getTimetableAction(filters: {
   roomId?: string;
   termId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TIMETABLE_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
 
   if (filters.classArmId) {
     where.classArmId = filters.classArmId;
@@ -628,10 +573,10 @@ export async function updateTimetableSlotAction(
     dayOfWeek?: number;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TIMETABLE_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.timetableSlot.findUnique({ where: { id } });
   if (!existing) {
@@ -744,7 +689,7 @@ export async function updateTimetableSlotAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "TimetableSlot",
     entityId: id,
@@ -758,10 +703,10 @@ export async function updateTimetableSlotAction(
 }
 
 export async function deleteTimetableSlotAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TIMETABLE_DELETE);
+  if (denied) return denied;
 
   const existing = await db.timetableSlot.findUnique({
     where: { id },
@@ -781,7 +726,7 @@ export async function deleteTimetableSlotAction(id: string) {
   await db.timetableSlot.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "TimetableSlot",
     entityId: id,

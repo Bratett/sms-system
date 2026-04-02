@@ -38,7 +38,7 @@ export function OverdueClient({ issues }: { issues: BookIssue[] }) {
 
     startTransition(async () => {
       const result = await returnBookAction(issueId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

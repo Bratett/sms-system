@@ -37,7 +37,7 @@ export function DailyScheduleClient({
     setSelectedDate(date);
     startTransition(async () => {
       const result = await getTeacherDailyViewAction(date);
-      if (result.data) {
+      if ("data" in result && result.data) {
         setSchedule(result.data.schedule);
       }
     });
