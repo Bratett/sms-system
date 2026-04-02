@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { getHostelsAction } from "@/modules/boarding/actions/hostel.action";
 import { getOccupancyReportAction } from "@/modules/boarding/actions/allocation.action";
 import { getOverdueExeatsAction, getExeatStatsAction } from "@/modules/boarding/actions/exeat.action";
+import { getBoardingOverviewAction } from "@/modules/boarding/actions/analytics.action";
 import Link from "next/link";
 
 export default async function BoardingPage() {
@@ -11,11 +12,12 @@ export default async function BoardingPage() {
     return null;
   }
 
-  const [hostelsResult, occupancyResult, overdueResult, exeatStatsResult] = await Promise.all([
+  const [hostelsResult, occupancyResult, overdueResult, exeatStatsResult, overviewResult] = await Promise.all([
     getHostelsAction(),
     getOccupancyReportAction(),
     getOverdueExeatsAction(),
     getExeatStatsAction(),
+    getBoardingOverviewAction(),
   ]);
 
   const hostels = hostelsResult.data ?? [];
@@ -31,6 +33,11 @@ export default async function BoardingPage() {
     returned: 0,
     overdue: 0,
     cancelled: 0,
+  };
+  const overview = overviewResult.data ?? {
+    totalHostels: 0, totalBeds: 0, occupiedBeds: 0, availableBeds: 0, occupancyRate: 0,
+    activeExeats: 0, overdueExeats: 0, currentSickBay: 0, activeVisitors: 0,
+    pendingTransfers: 0, openMaintenance: 0, activeIncidents: 0,
   };
 
   const totalBeds = occupancy.reduce((sum, o) => sum + o.totalBeds, 0);
@@ -182,6 +189,40 @@ export default async function BoardingPage() {
         </div>
       </div>
 
+      {/* Operational Alerts */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        {overview.currentSickBay > 0 && (
+          <Link href="/boarding/sick-bay" className="rounded-lg border border-blue-200 bg-blue-50 p-3 hover:bg-blue-100 transition-colors">
+            <p className="text-xs text-blue-600">In Sick Bay</p>
+            <p className="text-xl font-bold text-blue-700">{overview.currentSickBay}</p>
+          </Link>
+        )}
+        {overview.activeVisitors > 0 && (
+          <Link href="/boarding/visitors" className="rounded-lg border border-green-200 bg-green-50 p-3 hover:bg-green-100 transition-colors">
+            <p className="text-xs text-green-600">Active Visitors</p>
+            <p className="text-xl font-bold text-green-700">{overview.activeVisitors}</p>
+          </Link>
+        )}
+        {overview.activeIncidents > 0 && (
+          <Link href="/boarding/incidents" className="rounded-lg border border-orange-200 bg-orange-50 p-3 hover:bg-orange-100 transition-colors">
+            <p className="text-xs text-orange-600">Active Incidents</p>
+            <p className="text-xl font-bold text-orange-700">{overview.activeIncidents}</p>
+          </Link>
+        )}
+        {overview.pendingTransfers > 0 && (
+          <Link href="/boarding/transfers" className="rounded-lg border border-purple-200 bg-purple-50 p-3 hover:bg-purple-100 transition-colors">
+            <p className="text-xs text-purple-600">Pending Transfers</p>
+            <p className="text-xl font-bold text-purple-700">{overview.pendingTransfers}</p>
+          </Link>
+        )}
+        {overview.openMaintenance > 0 && (
+          <Link href="/boarding/maintenance" className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 hover:bg-yellow-100 transition-colors">
+            <p className="text-xs text-yellow-600">Open Maintenance</p>
+            <p className="text-xl font-bold text-yellow-700">{overview.openMaintenance}</p>
+          </Link>
+        )}
+      </div>
+
       {/* Quick Actions */}
       <div>
         <h3 className="text-lg font-semibold mb-3">Quick Actions</h3>
@@ -220,6 +261,69 @@ export default async function BoardingPage() {
             <h4 className="font-semibold">Roll Call</h4>
             <p className="mt-1 text-sm text-muted-foreground">
               Conduct morning and evening roll calls.
+            </p>
+          </Link>
+          <Link
+            href="/boarding/incidents"
+            className="rounded-lg border border-border bg-card p-6 hover:bg-muted/30 transition-colors"
+          >
+            <h4 className="font-semibold">Incidents</h4>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Report and track boarding incidents.
+            </p>
+          </Link>
+          <Link
+            href="/boarding/sick-bay"
+            className="rounded-lg border border-border bg-card p-6 hover:bg-muted/30 transition-colors"
+          >
+            <h4 className="font-semibold">Sick Bay</h4>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Manage sick bay admissions and medications.
+            </p>
+          </Link>
+          <Link
+            href="/boarding/visitors"
+            className="rounded-lg border border-border bg-card p-6 hover:bg-muted/30 transition-colors"
+          >
+            <h4 className="font-semibold">Visitors</h4>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Check in and track boarding visitors.
+            </p>
+          </Link>
+          <Link
+            href="/boarding/transfers"
+            className="rounded-lg border border-border bg-card p-6 hover:bg-muted/30 transition-colors"
+          >
+            <h4 className="font-semibold">Bed Transfers</h4>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Request and manage room transfers.
+            </p>
+          </Link>
+          <Link
+            href="/boarding/inspections"
+            className="rounded-lg border border-border bg-card p-6 hover:bg-muted/30 transition-colors"
+          >
+            <h4 className="font-semibold">Inspections</h4>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Record hostel inspection results.
+            </p>
+          </Link>
+          <Link
+            href="/boarding/maintenance"
+            className="rounded-lg border border-border bg-card p-6 hover:bg-muted/30 transition-colors"
+          >
+            <h4 className="font-semibold">Maintenance</h4>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Submit and track maintenance requests.
+            </p>
+          </Link>
+          <Link
+            href="/boarding/analytics"
+            className="rounded-lg border border-border bg-card p-6 hover:bg-muted/30 transition-colors"
+          >
+            <h4 className="font-semibold">Analytics</h4>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Comprehensive boarding insights and trends.
             </p>
           </Link>
         </div>

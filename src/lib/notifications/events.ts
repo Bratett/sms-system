@@ -35,6 +35,18 @@ export const NOTIFICATION_EVENTS = {
   EXEAT_OVERDUE: "exeat_overdue",
   EXEAT_RETURNED: "exeat_returned",
 
+  // Boarding / Incidents
+  BOARDING_INCIDENT_REPORTED: "boarding_incident_reported",
+  BOARDING_INCIDENT_CRITICAL: "boarding_incident_critical",
+
+  // Boarding / Sick Bay
+  SICK_BAY_ADMITTED: "sick_bay_admitted",
+  SICK_BAY_REFERRED: "sick_bay_referred",
+  SICK_BAY_DISCHARGED: "sick_bay_discharged",
+
+  // Boarding / Maintenance
+  MAINTENANCE_URGENT: "maintenance_urgent",
+
   // HR
   LEAVE_REQUESTED: "leave_requested",
   LEAVE_APPROVED: "leave_approved",
@@ -81,6 +93,12 @@ export const EVENT_CHANNELS: Record<NotificationEvent, ("in_app" | "sms" | "emai
   [NOTIFICATION_EVENTS.EXEAT_REJECTED]: ["in_app", "sms"],
   [NOTIFICATION_EVENTS.EXEAT_OVERDUE]: ["in_app", "sms", "email"],
   [NOTIFICATION_EVENTS.EXEAT_RETURNED]: ["in_app"],
+  [NOTIFICATION_EVENTS.BOARDING_INCIDENT_REPORTED]: ["in_app"],
+  [NOTIFICATION_EVENTS.BOARDING_INCIDENT_CRITICAL]: ["in_app", "sms"],
+  [NOTIFICATION_EVENTS.SICK_BAY_ADMITTED]: ["in_app", "sms"],
+  [NOTIFICATION_EVENTS.SICK_BAY_REFERRED]: ["in_app", "sms", "email"],
+  [NOTIFICATION_EVENTS.SICK_BAY_DISCHARGED]: ["in_app"],
+  [NOTIFICATION_EVENTS.MAINTENANCE_URGENT]: ["in_app"],
   [NOTIFICATION_EVENTS.LEAVE_REQUESTED]: ["in_app", "email"],
   [NOTIFICATION_EVENTS.LEAVE_APPROVED]: ["in_app", "email"],
   [NOTIFICATION_EVENTS.LEAVE_REJECTED]: ["in_app", "email"],

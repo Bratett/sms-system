@@ -66,6 +66,7 @@ export async function getAllocationsAction(filters?: {
     hostelName: a.bed.dormitory.hostel.name,
     hostelId: a.bed.dormitory.hostel.id,
     dormitoryName: a.bed.dormitory.name,
+    bedId: a.bed.id,
     bedNumber: a.bed.bedNumber,
     allocatedAt: a.allocatedAt,
     status: a.status,
