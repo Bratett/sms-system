@@ -28,7 +28,7 @@ export default async function AttendancePage() {
       getDepartmentsAction(),
     ]);
 
-  const staff = (staffResult.staff ?? []).map((s) => ({
+  const staff = ("staff" in staffResult && staffResult.staff ? staffResult.staff : []).map((s: { id: string; staffId: string; firstName: string; lastName: string; departmentName: string | null; position: string | null }) => ({
     id: s.id,
     staffId: s.staffId,
     firstName: s.firstName,
@@ -37,14 +37,14 @@ export default async function AttendancePage() {
     position: s.position,
   }));
 
-  const attendanceRecords = (attendanceResult.data ?? []).map((r) => ({
+  const attendanceRecords = ("data" in attendanceResult && attendanceResult.data ? attendanceResult.data : []).map((r: { id: string; staffId: string; status: string; remarks: string | null }) => ({
     id: r.id,
     staffId: r.staffId,
     status: r.status,
     remarks: r.remarks,
   }));
 
-  const overview = overviewResult.data ?? {
+  const overview = ("data" in overviewResult && overviewResult.data) ? overviewResult.data : {
     date: today,
     totalActive: 0,
     recorded: 0,
@@ -58,7 +58,8 @@ export default async function AttendancePage() {
     holiday: 0,
   };
 
-  const departments = (departmentsResult.data ?? []).map((d) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const departments = (("data" in departmentsResult && departmentsResult.data ? departmentsResult.data : []) as any[]).map((d: { id: string; name: string }) => ({
     id: d.id,
     name: d.name,
   }));

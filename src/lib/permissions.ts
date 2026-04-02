@@ -560,6 +560,20 @@ export function requirePermission(
   return { error: "Insufficient permissions" };
 }
 
+/**
+ * Check permission and return true if denied (for use with early-return pattern).
+ * Usage: if (denyPermission(session, PERMISSIONS.X)) return { error: "Insufficient permissions" };
+ */
+export function denyPermission(
+  session: { user?: { id?: string | null } } | null,
+  permission: Permission,
+): boolean {
+  if (!session?.user?.id) return true;
+  const perms = (session.user as unknown as { permissions?: string[] }).permissions;
+  if (!perms) return true;
+  return !perms.includes("*") && !perms.includes(permission);
+}
+
 // Default role-permission mappings
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
   super_admin: ALL_PERMISSIONS,

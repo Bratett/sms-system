@@ -14,14 +14,14 @@ import {
   type CreateDeductionInput,
   type CreatePayrollPeriodInput,
 } from "@/modules/hr/schemas/payroll.schema";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 
 // ─── Allowances ──────────────────────────────────────────────
 
 export async function getAllowancesAction() {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) { return { error: "Unauthorized" }; }
+  if (denyPermission(session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) {
@@ -46,9 +46,8 @@ export async function getAllowancesAction() {
 
 export async function createAllowanceAction(data: CreateAllowanceInput) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) { return { error: "Unauthorized" }; }
+  if (denyPermission(session, PERMISSIONS.PAYROLL_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = createAllowanceSchema.safeParse(data);
   if (!parsed.success) {

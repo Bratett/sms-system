@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { calculateStatutoryDeductions, getAvailableCountries } from "@/lib/payroll/tax-tables";
 import { generateCSVBankFile, type PayrollEntry } from "@/lib/payroll/bank-file";
 
@@ -15,6 +16,7 @@ export async function calculatePayslipAction(staffId: string, data: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
 
   const staff = await db.staff.findUnique({
     where: { id: staffId },
@@ -51,6 +53,7 @@ export async function generateBankFileAction(data: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -108,5 +111,6 @@ export async function generateBankFileAction(data: {
 export async function getAvailableTaxCountriesAction() {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
   return { data: getAvailableCountries() };
 }

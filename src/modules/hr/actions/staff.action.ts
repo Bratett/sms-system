@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { encryptOptional, decryptOptional } from "@/lib/crypto/field-encrypt";
 import {
   createStaffSchema,
@@ -26,9 +27,8 @@ export async function getStaffAction(filters?: {
   pageSize?: number;
 }) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) {
@@ -130,9 +130,8 @@ export async function getStaffAction(filters?: {
 
 export async function getStaffMemberAction(id: string) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
 
   const staff = await db.staff.findUnique({
     where: { id },
@@ -236,9 +235,8 @@ export async function getStaffMemberAction(id: string) {
 
 export async function createStaffAction(data: CreateStaffInput) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = createStaffSchema.safeParse(data);
   if (!parsed.success) {
@@ -358,9 +356,8 @@ export async function createStaffAction(data: CreateStaffInput) {
 
 export async function updateStaffAction(id: string, data: UpdateStaffInput) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_UPDATE)) return { error: "Insufficient permissions" };
 
   const parsed = updateStaffSchema.safeParse(data);
   if (!parsed.success) {
@@ -428,9 +425,8 @@ export async function updateStaffAction(id: string, data: UpdateStaffInput) {
 
 export async function terminateStaffAction(id: string, data: TerminateStaffInput) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_DELETE)) return { error: "Insufficient permissions" };
 
   const parsed = terminateStaffSchema.safeParse(data);
   if (!parsed.success) {
@@ -493,9 +489,8 @@ export async function terminateStaffAction(id: string, data: TerminateStaffInput
 
 export async function getStaffStatsAction() {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) {
@@ -573,9 +568,8 @@ export async function importStaffAction(
   }[],
 ) {
   const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_CREATE)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) {

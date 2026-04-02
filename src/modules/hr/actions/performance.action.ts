@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 
 // ─── Create Performance Note ───────────────────────────────────────
 
@@ -18,6 +19,7 @@ export async function createPerformanceNoteAction(data: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_PERFORMANCE_CREATE)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -63,6 +65,7 @@ export async function getPerformanceNotesAction(filters?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_PERFORMANCE_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { z } from "zod";
 
 // ─── Schemas ────────────────────────────────────────────────
@@ -48,6 +49,7 @@ type BulkRecordInput = z.infer<typeof bulkRecordSchema>;
 export async function recordStaffAttendanceAction(data: RecordAttendanceInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_ATTENDANCE_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = recordAttendanceSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -102,6 +104,7 @@ export async function recordStaffAttendanceAction(data: RecordAttendanceInput) {
 export async function bulkRecordStaffAttendanceAction(data: BulkRecordInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_ATTENDANCE_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = bulkRecordSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -169,6 +172,7 @@ export async function getStaffAttendanceAction(filters?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_ATTENDANCE_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -208,6 +212,7 @@ export async function getStaffAttendanceAction(filters?: {
 export async function getStaffAttendanceSummaryAction(staffId: string, month: number, year: number) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_ATTENDANCE_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -254,6 +259,7 @@ export async function getStaffAttendanceSummaryAction(staffId: string, month: nu
 export async function getDailyAttendanceOverviewAction(date: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.STAFF_ATTENDANCE_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };

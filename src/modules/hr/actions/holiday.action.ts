@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { z } from "zod";
 
 // ─── Schemas ────────────────────────────────────────────────
@@ -24,6 +25,7 @@ export async function getHolidaysAction(filters?: {
 }) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.HOLIDAY_READ)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };
@@ -57,6 +59,7 @@ export async function getHolidaysAction(filters?: {
 export async function createHolidayAction(data: CreateHolidayInput) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.HOLIDAY_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = createHolidaySchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -97,6 +100,7 @@ export async function createHolidayAction(data: CreateHolidayInput) {
 export async function deleteHolidayAction(id: string) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.HOLIDAY_DELETE)) return { error: "Insufficient permissions" };
 
   const existing = await db.publicHoliday.findUnique({ where: { id } });
   if (!existing) return { error: "Holiday not found." };
@@ -134,6 +138,7 @@ const GHANA_HOLIDAYS = [
 export async function importGhanaHolidaysAction(year: number) {
   const session = await auth();
   if (!session?.user) return { error: "Unauthorized" };
+  if (denyPermission(session, PERMISSIONS.HOLIDAY_CREATE)) return { error: "Insufficient permissions" };
 
   const school = await db.school.findFirst();
   if (!school) return { error: "No school configured" };

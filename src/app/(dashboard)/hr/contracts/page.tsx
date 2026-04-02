@@ -14,13 +14,16 @@ export default async function ContractsPage() {
     getStaffAction({ status: "ACTIVE", pageSize: 500 }),
   ]);
 
-  const contracts = contractsResult.data ?? [];
-  const total = contractsResult.total ?? 0;
-  const page = contractsResult.page ?? 1;
-  const pageSize = contractsResult.pageSize ?? 25;
-  const expiring = expiringResult.data ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contracts: any[] = "data" in contractsResult && contractsResult.data ? contractsResult.data : [];
+  const total = "total" in contractsResult ? contractsResult.total ?? 0 : 0;
+  const page = "page" in contractsResult ? contractsResult.page ?? 1 : 1;
+  const pageSize = "pageSize" in contractsResult ? contractsResult.pageSize ?? 25 : 25;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const expiring: any[] = "data" in expiringResult && expiringResult.data ? expiringResult.data : [];
 
-  const staffOptions = (staffResult.staff ?? []).map((s) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const staffOptions = (("staff" in staffResult && staffResult.staff ? staffResult.staff : []) as any[]).map((s: { id: string; staffId: string; firstName: string; lastName: string }) => ({
     id: s.id,
     staffId: s.staffId,
     name: `${s.firstName} ${s.lastName}`,
