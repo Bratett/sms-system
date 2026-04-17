@@ -19,6 +19,9 @@ import { generateEnrollmentCensus } from "@/lib/compliance/ghana/ges/enrollment-
 import { generateStaffingReturn } from "@/lib/compliance/ghana/ges/staffing-return";
 import { generateBeceCandidature } from "@/lib/compliance/ghana/ges/bece-candidature";
 import type { EmployerContext, StatutoryReturnPeriod } from "@/lib/compliance/ghana/types";
+// Plain-module imports — Next.js disallows non-async exports from a
+// "use server" file, so the kind list + type live in a sibling module.
+import { GHANA_RETURN_KINDS, type GhanaReturnKind } from "./ghana-returns.constants";
 
 /**
  * Server-facing wrappers over the Ghana return generators. Each call:
@@ -28,20 +31,6 @@ import type { EmployerContext, StatutoryReturnPeriod } from "@/lib/compliance/gh
  *   4. Dispatches to the generator.
  *   5. Writes an audit row so compliance filings are always traceable.
  */
-
-export const GHANA_RETURN_KINDS = [
-  "PAYE",
-  "SSNIT_TIER1",
-  "SSNIT_TIER2",
-  "GETFUND",
-  "VAT",
-  "GRA_CONSOLIDATED",
-  "GES_ENROLLMENT",
-  "GES_STAFFING",
-  "GES_BECE_CANDIDATURE",
-] as const;
-
-export type GhanaReturnKind = (typeof GHANA_RETURN_KINDS)[number];
 
 const requestSchema = z.object({
   kind: z.enum(GHANA_RETURN_KINDS),
