@@ -118,7 +118,6 @@ async function checkPrismaModels() {
     ["Commendation", prisma.commendation],
     ["MedicalRecord", prisma.medicalRecord],
     ["AlumniProfile", prisma.alumniProfile],
-    ["TimetableSlot", prisma.timetableSlot],
     ["Room", prisma.room],
     ["Period", prisma.period],
     ["ExamSchedule", prisma.examSchedule],

@@ -18,7 +18,6 @@ import {
   getMyResultsAction,
   getMyAttendanceAction,
   getMyFeesAction,
-  getMyTimetableAction,
   getMyAnnouncementsAction,
   getMyExeatsAction,
   requestStudentExeatAction,
@@ -491,69 +490,6 @@ describe("getMyFeesAction", () => {
     expect(result).toHaveProperty("data");
     const data = (result as { data: { totalBalance: number } }).data;
     expect(data.totalBalance).toBe(500);
-  });
-});
-
-describe("getMyTimetableAction", () => {
-  beforeEach(() => {
-    mockAuthenticatedUser();
-  });
-
-  it("should reject unauthenticated users", async () => {
-    mockUnauthenticated();
-    const result = await getMyTimetableAction();
-    expect(result).toEqual({ error: "Unauthorized" });
-  });
-
-  it("should return error if no student profile linked", async () => {
-    prismaMock.student.findUnique.mockResolvedValue(null);
-    const result = await getMyTimetableAction();
-    expect(result).toEqual({ error: "No student profile linked to your account." });
-  });
-
-  it("should return empty if no enrollment", async () => {
-    prismaMock.student.findUnique.mockResolvedValue({
-      id: "stu-1",
-      userId: "test-user-id",
-      schoolId: "default-school",
-    } as never);
-    prismaMock.enrollment.findFirst.mockResolvedValue(null);
-
-    const result = await getMyTimetableAction();
-    expect(result).toHaveProperty("data");
-    const data = (result as { data: { timetable: unknown[] } }).data;
-    expect(data.timetable).toEqual([]);
-  });
-
-  it("should return timetable slots when enrollment exists", async () => {
-    prismaMock.student.findUnique.mockResolvedValue({
-      id: "stu-1",
-      userId: "test-user-id",
-      schoolId: "default-school",
-    } as never);
-    prismaMock.enrollment.findFirst.mockResolvedValue({
-      classArmId: "ca-1",
-      academicYearId: "ay-1",
-    } as never);
-    prismaMock.term.findFirst.mockResolvedValue({ id: "term-1" } as never);
-    prismaMock.timetableSlot.findMany.mockResolvedValue([
-      {
-        id: "slot-1",
-        dayOfWeek: 1,
-        subject: { name: "Mathematics", code: "MATH" },
-        teacher: { firstName: "Jane", lastName: "Smith" },
-        period: { name: "Period 1", startTime: "08:00", endTime: "09:00", order: 1, type: "LESSON" },
-        room: { name: "Room 101" },
-      },
-    ] as never);
-    prismaMock.period.findMany.mockResolvedValue([
-      { id: "p-1", name: "Period 1", startTime: "08:00", endTime: "09:00", order: 1, type: "LESSON" },
-    ] as never);
-
-    const result = await getMyTimetableAction();
-    expect(result).toHaveProperty("data");
-    const data = (result as { data: { timetable: unknown[] } }).data;
-    expect(data.timetable).toHaveLength(1);
   });
 });
 
