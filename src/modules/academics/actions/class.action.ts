@@ -410,3 +410,162 @@ export async function deleteClassArmAction(id: string) {
 
   return { success: true };
 }
+
+// ─── Class Arm Detail ───────────────────────────────────────────────
+
+export async function getClassArmDetailAction(classArmId: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CLASSES_READ);
+  if (denied) return denied;
+
+  const arm = await db.classArm.findUnique({
+    where: { id: classArmId },
+    include: {
+      class: true,
+      enrollments: {
+        where: { status: "ACTIVE" },
+        include: {
+          student: {
+            select: {
+              id: true,
+              studentId: true,
+              firstName: true,
+              lastName: true,
+              gender: true,
+              status: true,
+            },
+          },
+        },
+        orderBy: [{ student: { lastName: "asc" } }, { student: { firstName: "asc" } }],
+      },
+    },
+  });
+
+  if (!arm || arm.schoolId !== ctx.schoolId) {
+    return { error: "Class arm not found." };
+  }
+
+  const [programme, academicYear] = await Promise.all([
+    db.programme.findUnique({
+      where: { id: arm.class.programmeId },
+      select: { id: true, name: true },
+    }),
+    db.academicYear.findUnique({
+      where: { id: arm.class.academicYearId },
+      select: { id: true, name: true, isCurrent: true },
+    }),
+  ]);
+
+  // Subjects assigned to this class arm
+  const subjectAssignments = await db.teacherSubjectAssignment.findMany({
+    where: { classArmId: arm.id, schoolId: ctx.schoolId },
+    include: {
+      subject: { select: { id: true, name: true, code: true } },
+    },
+  });
+
+  const staffIds = [...new Set(subjectAssignments.map((a) => a.staffId))];
+  const staff =
+    staffIds.length > 0
+      ? await db.staff.findMany({
+          where: { id: { in: staffIds } },
+          select: { id: true, firstName: true, lastName: true },
+        })
+      : [];
+  const staffMap = new Map(staff.map((s) => [s.id, `${s.firstName} ${s.lastName}`]));
+
+  return {
+    data: {
+      id: arm.id,
+      name: arm.name,
+      capacity: arm.capacity,
+      status: arm.status,
+      class: {
+        id: arm.class.id,
+        name: arm.class.name,
+        yearGroup: arm.class.yearGroup,
+        programmeName: programme?.name ?? "Unknown",
+        academicYearId: arm.class.academicYearId,
+        academicYearName: academicYear?.name ?? "Unknown",
+      },
+      enrollments: arm.enrollments.map((e) => ({
+        id: e.id,
+        enrollmentDate: e.enrollmentDate,
+        status: e.status,
+        student: e.student,
+      })),
+      subjectAssignments: subjectAssignments.map((a) => ({
+        id: a.id,
+        subjectId: a.subjectId,
+        subjectName: a.subject.name,
+        subjectCode: a.subject.code,
+        staffId: a.staffId,
+        staffName: staffMap.get(a.staffId) ?? null,
+      })),
+    },
+  };
+}
+
+// ─── Classes Taught by Staff ────────────────────────────────────────
+
+export async function getClassesTaughtByStaffAction(staffId: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CLASSES_READ);
+  if (denied) return denied;
+
+  const assignments = await db.teacherSubjectAssignment.findMany({
+    where: { staffId, schoolId: ctx.schoolId },
+    include: {
+      subject: { select: { id: true, name: true, code: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (assignments.length === 0) {
+    return { data: [] };
+  }
+
+  const classArmIds = [...new Set(assignments.map((a) => a.classArmId))];
+  const classArms = await db.classArm.findMany({
+    where: { id: { in: classArmIds } },
+    include: {
+      class: true,
+      _count: { select: { enrollments: true } },
+    },
+  });
+  const armMap = new Map(classArms.map((a) => [a.id, a]));
+
+  const academicYearIds = [
+    ...new Set(classArms.map((a) => a.class.academicYearId)),
+  ];
+  const academicYears =
+    academicYearIds.length > 0
+      ? await db.academicYear.findMany({
+          where: { id: { in: academicYearIds } },
+          select: { id: true, name: true, isCurrent: true },
+        })
+      : [];
+  const ayMap = new Map(academicYears.map((ay) => [ay.id, ay]));
+
+  const data = assignments.map((a) => {
+    const arm = armMap.get(a.classArmId);
+    const ay = arm ? ayMap.get(arm.class.academicYearId) : undefined;
+    return {
+      id: a.id,
+      classArmId: a.classArmId,
+      classArmName: arm?.name ?? "Unknown",
+      className: arm?.class.name ?? "Unknown",
+      yearGroup: arm?.class.yearGroup ?? null,
+      academicYearName: ay?.name ?? "Unknown",
+      isCurrentYear: ay?.isCurrent ?? false,
+      subjectId: a.subjectId,
+      subjectName: a.subject.name,
+      subjectCode: a.subject.code,
+      enrollmentCount: arm?._count.enrollments ?? 0,
+    };
+  });
+
+  return { data };
+}

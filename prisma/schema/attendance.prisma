@@ -5,14 +5,14 @@ model AttendanceRegister {
   date            DateTime
   type            AttendanceType           @default(DAILY)
   periodId        String?
-  takenBy         String                   // userId who took attendance
-  substituteForId String?                  // original teacher if taken by substitute
+  takenBy         String // userId who took attendance
+  substituteForId String? // original teacher if taken by substitute
   status          AttendanceRegisterStatus @default(OPEN)
   createdAt       DateTime                 @default(now())
   updatedAt       DateTime                 @updatedAt
 
-  school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  period  Period? @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  school  School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  period  Period?            @relation(fields: [periodId], references: [id], onDelete: SetNull)
   records AttendanceRecord[]
 
   @@unique([classArmId, date, type, periodId])
@@ -31,8 +31,8 @@ model AttendanceRecord {
   schoolId      String
   status        AttendanceStatus @default(PRESENT)
   remarks       String?
-  arrivalTime   DateTime?        // for LATE status: actual arrival time
-  departureTime DateTime?        // for early departure tracking
+  arrivalTime   DateTime? // for LATE status: actual arrival time
+  departureTime DateTime? // for early departure tracking
   createdAt     DateTime         @default(now())
 
   register AttendanceRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
@@ -47,19 +47,19 @@ model AttendanceRecord {
 // ─── Attendance Policy Engine ─────────────────────────────────────────
 
 model AttendancePolicy {
-  id        String                @id @default(cuid())
+  id        String                 @id @default(cuid())
   schoolId  String
   name      String
-  scope     AttendancePolicyScope @default(SCHOOL)
-  scopeId   String?               // classId or classArmId when scope is not SCHOOL
+  scope     AttendancePolicyScope  @default(SCHOOL)
+  scopeId   String? // classId or classArmId when scope is not SCHOOL
   metric    AttendancePolicyMetric
-  threshold Float                 // the value that triggers the alert
+  threshold Float // the value that triggers the alert
   period    AttendancePolicyPeriod @default(TERM)
-  severity  AlertSeverity         @default(WARNING)
-  actions   Json?                 // e.g. ["notify_parent", "notify_admin", "flag_student"]
-  isActive  Boolean               @default(true)
-  createdAt DateTime              @default(now())
-  updatedAt DateTime              @updatedAt
+  severity  AlertSeverity          @default(WARNING)
+  actions   Json? // e.g. ["notify_parent", "notify_admin", "flag_student"]
+  isActive  Boolean                @default(true)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
 
   school School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   alerts AttendanceAlert[]
@@ -147,14 +147,14 @@ enum AlertStatus {
 // ─── Event-Based Attendance ───────────────────────────────────────────
 
 model EventAttendance {
-  id        String               @id @default(cuid())
-  schoolId  String
-  eventId   String
-  studentId String
-  status    AttendanceStatus     @default(PRESENT)
-  remarks   String?
+  id         String           @id @default(cuid())
+  schoolId   String
+  eventId    String
+  studentId  String
+  status     AttendanceStatus @default(PRESENT)
+  remarks    String?
   recordedBy String
-  createdAt DateTime             @default(now())
+  createdAt  DateTime         @default(now())
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 

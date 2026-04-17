@@ -8,7 +8,6 @@ import {
   openAttendanceRegisterAction,
   recordAttendanceAction,
   closeAttendanceRegisterAction,
-  generateDailyRegistersFromTimetableAction,
 } from "@/modules/attendance/actions/attendance.action";
 import { queueOfflineOperation } from "@/lib/pwa/offline-store";
 
@@ -126,28 +125,6 @@ export function AttendanceForm({
         if (result.data.isExisting) {
           toast.info("Existing register found. You can update the attendance.");
         }
-      }
-    });
-  }
-
-  function handleGenerateFromTimetable() {
-    if (!selectedClassArmId || !selectedDate) {
-      toast.error("Select a class arm and date first.");
-      return;
-    }
-
-    startTransition(async () => {
-      const result = await generateDailyRegistersFromTimetableAction({
-        classArmId: selectedClassArmId,
-        date: selectedDate,
-      });
-
-      if ("error" in result) {
-        toast.error(result.error);
-      } else if ("data" in result) {
-        toast.success(
-          `Generated ${result.data.created} period registers (${result.data.existing} already existed).`,
-        );
       }
     });
   }
@@ -388,16 +365,6 @@ export function AttendanceForm({
               {isPending ? "Loading..." : "Open Register"}
             </button>
 
-            {selectedClassArmId && selectedDate && lessonPeriods.length > 0 && (
-              <button
-                onClick={handleGenerateFromTimetable}
-                disabled={isPending}
-                className="rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
-                title="Create period registers from timetable"
-              >
-                {isPending ? "..." : "Auto-Generate from Timetable"}
-              </button>
-            )}
           </div>
         </div>
       </div>

@@ -1,22 +1,21 @@
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  username      String    @unique
-  passwordHash  String
-  firstName     String
-  lastName      String
-  phone         String?
-  avatarUrl     String?
-  status        UserStatus @default(ACTIVE)
-  lastLoginAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String     @id @default(cuid())
+  email        String     @unique
+  username     String     @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  avatarUrl    String?
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
-  userRoles              UserRole[]
-  auditLogs              AuditLog[]
-  notifications          Notification[]
-  userSchools            UserSchool[]
-  teacherTimetableSlots  TimetableSlot[]  @relation("TeacherTimetableSlots")
+  userRoles                UserRole[]
+  auditLogs                AuditLog[]
+  notifications            Notification[]
+  userSchools              UserSchool[]
   invigilatorExamSchedules ExamSchedule[] @relation("InvigilatorExamSchedules")
 
   @@index([email])

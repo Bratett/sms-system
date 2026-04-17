@@ -199,13 +199,6 @@ export function StudentDashboard({ data, error }: StudentDashboardProps) {
               <span className="mr-3 text-teal-500">&#8250;</span>
               View My Results
             </Link>
-            <Link
-              href="/student/timetable"
-              className="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-teal-50 hover:text-teal-700"
-            >
-              <span className="mr-3 text-teal-500">&#8250;</span>
-              My Timetable
-            </Link>
             {data.boardingStatus === "BOARDING" && (
               <Link
                 href="/student/exeat"

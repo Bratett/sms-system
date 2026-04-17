@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
@@ -9,6 +10,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { getPaymentAction } from "@/modules/finance/actions/payment.action";
 
 import type { Monetary } from "@/lib/monetary";
+import { formatCurrency } from "@/lib/format-currency";
 interface PaymentRecord {
   id: string;
   studentId: string;
@@ -67,10 +69,6 @@ interface ReceiptDetail {
       name: string;
     } | null;
   };
-}
-
-function formatCurrency(amount: Monetary): string {
-  return `GHS ${Number(amount).toFixed(2)}`;
 }
 
 const methodLabels: Record<string, string> = {
@@ -191,12 +189,15 @@ export function ReceiptsClient({
                           {payment.receiptNumber}
                         </td>
                         <td className="px-4 py-3">
-                          <div>
-                            <span className="font-medium">{payment.studentName}</span>
-                            <span className="text-xs text-muted-foreground ml-2">
-                              {payment.studentIdNumber}
-                            </span>
-                          </div>
+                          <Link
+                            href={`/students/${payment.studentId}`}
+                            className="font-medium hover:text-primary hover:underline"
+                          >
+                            {payment.studentName}
+                          </Link>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {payment.studentIdNumber}
+                          </span>
                         </td>
                         <td className="px-4 py-3 text-right font-medium">
                           {formatCurrency(payment.amount)}
@@ -332,7 +333,7 @@ export function ReceiptsClient({
                           Total Bill
                         </td>
                         <td className="py-2 text-right font-semibold">
-                          {(selectedReceipt.studentBill?.totalAmount ?? 0).toFixed(2)}
+                          {Number(selectedReceipt.studentBill?.totalAmount ?? 0).toFixed(2)}
                         </td>
                       </tr>
                     </tfoot>

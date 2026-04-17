@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/shared/status-badge";
 import {
@@ -422,7 +423,14 @@ export function PayrollClient({
                                 <td className="px-4 py-2 font-mono text-xs">
                                   {entry.staffStaffId}
                                 </td>
-                                <td className="px-4 py-2 font-medium">{entry.staffName}</td>
+                                <td className="px-4 py-2 font-medium">
+                                  <Link
+                                    href={`/hr/staff/${entry.staffId}`}
+                                    className="hover:text-primary hover:underline"
+                                  >
+                                    {entry.staffName}
+                                  </Link>
+                                </td>
                                 <td className="px-4 py-2 text-right text-muted-foreground">
                                   {formatCurrency(entry.basicSalary)}
                                 </td>

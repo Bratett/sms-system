@@ -1,24 +1,24 @@
 // ─── Document & Records Management ─────────────────────────────────
 
 model Document {
-  id           String   @id @default(cuid())
-  schoolId     String
-  title        String
-  description  String?
-  fileKey      String   // R2 storage key
-  fileName     String
-  fileSize     Int      // bytes
-  contentType  String   // MIME type
-  category     String   // STUDENT, STAFF, ADMISSION, POLICY, REPORT, FORM, OTHER
-  tags         Json?    // string array for flexible tagging
-  entityType   String?  // e.g., "Student", "Staff", "AdmissionApplication"
-  entityId     String?  // ID of linked entity
-  uploadedBy   String   // User ID
-  accessLevel  String   @default("STAFF") // PUBLIC, STAFF, ADMIN, RESTRICTED
+  id            String    @id @default(cuid())
+  schoolId      String
+  title         String
+  description   String?
+  fileKey       String // R2 storage key
+  fileName      String
+  fileSize      Int // bytes
+  contentType   String // MIME type
+  category      String // STUDENT, STAFF, ADMISSION, POLICY, REPORT, FORM, OTHER
+  tags          Json? // string array for flexible tagging
+  entityType    String? // e.g., "Student", "Staff", "AdmissionApplication"
+  entityId      String? // ID of linked entity
+  uploadedBy    String // User ID
+  accessLevel   String    @default("STAFF") // PUBLIC, STAFF, ADMIN, RESTRICTED
   retentionDate DateTime? // optional retention/expiry date
-  isArchived   Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isArchived    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([schoolId])
   @@index([entityType, entityId])
@@ -38,26 +38,26 @@ model Document {
 // hash-chain over the PDF + signer identity so tampering is detectable.
 
 model DocumentTemplate {
-  id          String                  @id @default(cuid())
-  schoolId    String?                 // null = global default, school rows override
-  key         String                  // stable identifier, e.g. "offer_letter"
-  name        String
-  description String?
-  engine      DocumentTemplateEngine  @default(HANDLEBARS_PDF)
+  id              String                 @id @default(cuid())
+  schoolId        String? // null = global default, school rows override
+  key             String // stable identifier, e.g. "offer_letter"
+  name            String
+  description     String?
+  engine          DocumentTemplateEngine @default(HANDLEBARS_PDF)
   // For HANDLEBARS_PDF: raw HTML body with {{var}} placeholders.
-  bodyHtml    String?
+  bodyHtml        String?
   // For REACT_PDF: the key of a component registered in the code registry.
-  componentKey String?
-  variables   Json?                   // documented variable list for the editor
-  activeVersionId String?             @unique
-  status      DocumentTemplateStatus  @default(DRAFT)
-  createdBy   String                  // userId
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @updatedAt
+  componentKey    String?
+  variables       Json? // documented variable list for the editor
+  activeVersionId String?                @unique
+  status          DocumentTemplateStatus @default(DRAFT)
+  createdBy       String // userId
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 
-  versions  DocumentTemplateVersion[]
-  instances DocumentInstance[]
-  activeVersion DocumentTemplateVersion? @relation("ActiveVersion", fields: [activeVersionId], references: [id])
+  versions      DocumentTemplateVersion[]
+  instances     DocumentInstance[]
+  activeVersion DocumentTemplateVersion?  @relation("ActiveVersion", fields: [activeVersionId], references: [id])
 
   @@unique([schoolId, key])
   @@index([schoolId])
@@ -66,17 +66,17 @@ model DocumentTemplate {
 }
 
 model DocumentTemplateVersion {
-  id          String   @id @default(cuid())
-  templateId  String
-  version     Int      // monotonic per template
-  bodyHtml    String?
+  id           String   @id @default(cuid())
+  templateId   String
+  version      Int // monotonic per template
+  bodyHtml     String?
   componentKey String?
-  variables   Json?
-  createdBy   String
-  createdAt   DateTime @default(now())
+  variables    Json?
+  createdBy    String
+  createdAt    DateTime @default(now())
 
-  template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  activeOn DocumentTemplate? @relation("ActiveVersion")
+  template  DocumentTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  activeOn  DocumentTemplate?  @relation("ActiveVersion")
   instances DocumentInstance[]
 
   @@unique([templateId, version])
@@ -84,24 +84,24 @@ model DocumentTemplateVersion {
 }
 
 model DocumentInstance {
-  id                String                 @id @default(cuid())
-  schoolId          String
-  templateId        String
-  versionId         String
+  id              String                 @id @default(cuid())
+  schoolId        String
+  templateId      String
+  versionId       String
   // Payload that was rendered — kept verbatim so the PDF can be rebuilt.
-  rendererPayload   Json
+  rendererPayload Json
   // Final PDF location in R2. Null while status == PENDING_RENDER.
-  pdfKey            String?
-  pdfSha256         String?                // hash of the rendered PDF, used for signature chaining
-  status            DocumentInstanceStatus @default(PENDING_RENDER)
+  pdfKey          String?
+  pdfSha256       String? // hash of the rendered PDF, used for signature chaining
+  status          DocumentInstanceStatus @default(PENDING_RENDER)
   // Linked Document row once the PDF is ingested into the regular document
   // store so retention + tagging policies apply uniformly.
-  documentId        String?
-  generatedBy       String                 // userId
-  entityType        String?                // optional link back to the originating entity
-  entityId          String?
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
+  documentId      String?
+  generatedBy     String // userId
+  entityType      String? // optional link back to the originating entity
+  entityId        String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 
   template   DocumentTemplate        @relation(fields: [templateId], references: [id])
   version    DocumentTemplateVersion @relation(fields: [versionId], references: [id])
@@ -114,20 +114,20 @@ model DocumentInstance {
 }
 
 model DocumentSignature {
-  id          String                   @id @default(cuid())
-  instanceId  String
-  signerId    String                   // userId
-  signerName  String?
-  signerRole  String?                  // free-text ("Headmaster", "Guardian", …)
-  method      DocumentSignatureMethod
+  id         String                  @id @default(cuid())
+  instanceId String
+  signerId   String // userId
+  signerName String?
+  signerRole String? // free-text ("Headmaster", "Guardian", …)
+  method     DocumentSignatureMethod
   // SHA-256(pdfSha256 || previous hash || signerId || signedAt).
   // Tampering with any signature or the PDF itself breaks the chain.
-  hash        String
-  signedAt    DateTime                 @default(now())
-  ipAddress   String?
-  userAgent   String?
+  hash       String
+  signedAt   DateTime                @default(now())
+  ipAddress  String?
+  userAgent  String?
   // For TYPED: the literal name the signer typed. For DRAWN: the SVG/PNG key.
-  payload     Json?
+  payload    Json?
 
   instance DocumentInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
 
@@ -139,18 +139,18 @@ model DocumentSignature {
 // have a user account. Verifying the token grants a scoped ability to sign
 // a specific DocumentInstance.
 model DocumentSignLink {
-  id           String    @id @default(cuid())
-  instanceId   String
-  schoolId     String
-  tokenHash    String    @unique   // SHA-256 of the opaque URL token
-  signerEmail  String?
-  signerPhone  String?
-  signerName   String?
-  signerRole   String?
-  expiresAt    DateTime
-  consumedAt   DateTime?
-  createdBy    String
-  createdAt    DateTime  @default(now())
+  id          String    @id @default(cuid())
+  instanceId  String
+  schoolId    String
+  tokenHash   String    @unique // SHA-256 of the opaque URL token
+  signerEmail String?
+  signerPhone String?
+  signerName  String?
+  signerRole  String?
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdBy   String
+  createdAt   DateTime  @default(now())
 
   @@index([instanceId])
   @@index([schoolId])
@@ -158,8 +158,8 @@ model DocumentSignLink {
 }
 
 enum DocumentTemplateEngine {
-  HANDLEBARS_PDF    // bodyHtml rendered with {{var}} subs → wkhtmltopdf/Playwright
-  REACT_PDF         // componentKey resolved to a @react-pdf/renderer component
+  HANDLEBARS_PDF // bodyHtml rendered with {{var}} subs → wkhtmltopdf/Playwright
+  REACT_PDF // componentKey resolved to a @react-pdf/renderer component
 }
 
 enum DocumentTemplateStatus {
@@ -180,5 +180,5 @@ enum DocumentSignatureMethod {
   TYPED
   DRAWN
   UPLOADED_CERT
-  SYSTEM  // e.g. workflow-auto signature from school side
+  SYSTEM // e.g. workflow-auto signature from school side
 }

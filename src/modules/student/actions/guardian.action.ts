@@ -57,6 +57,8 @@ export async function getGuardiansAction(search?: string) {
 export async function getGuardianAction(id: string) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_READ);
+  if (denied) return denied;
 
   const guardian = await db.guardian.findUnique({
     where: { id },

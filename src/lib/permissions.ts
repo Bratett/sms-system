@@ -362,19 +362,15 @@ export const PERMISSIONS = {
   REPORTS_ENROLLMENT_READ: "reports:enrollment:read",
   REPORTS_EXPORT: "reports:all:export",
 
-  // Timetable
-  TIMETABLE_CREATE: "timetable:slots:create",
-  TIMETABLE_READ: "timetable:slots:read",
-  TIMETABLE_UPDATE: "timetable:slots:update",
-  TIMETABLE_DELETE: "timetable:slots:delete",
-  ROOMS_CREATE: "timetable:rooms:create",
-  ROOMS_READ: "timetable:rooms:read",
-  ROOMS_UPDATE: "timetable:rooms:update",
-  ROOMS_DELETE: "timetable:rooms:delete",
-  EXAM_SCHEDULE_CREATE: "timetable:exams:create",
-  EXAM_SCHEDULE_READ: "timetable:exams:read",
-  EXAM_SCHEDULE_UPDATE: "timetable:exams:update",
-  EXAM_SCHEDULE_DELETE: "timetable:exams:delete",
+  // Exams
+  ROOMS_CREATE: "exams:rooms:create",
+  ROOMS_READ: "exams:rooms:read",
+  ROOMS_UPDATE: "exams:rooms:update",
+  ROOMS_DELETE: "exams:rooms:delete",
+  EXAM_SCHEDULE_CREATE: "exams:schedule:create",
+  EXAM_SCHEDULE_READ: "exams:schedule:read",
+  EXAM_SCHEDULE_UPDATE: "exams:schedule:update",
+  EXAM_SCHEDULE_DELETE: "exams:schedule:delete",
 
   // Counseling & Welfare
   COUNSELING_CREATE: "welfare:counseling:create",
@@ -541,27 +537,6 @@ export const PERMISSIONS = {
   PTC_CREATE: "communication:ptc:create",
   PTC_READ: "communication:ptc:read",
   PTC_BOOK: "communication:ptc:book",
-
-  // Timetable Generate
-  TIMETABLE_GENERATE: "timetable:slots:generate",
-
-  // Timetable - Substitutions
-  SUBSTITUTION_CREATE: "timetable:substitutions:create",
-  SUBSTITUTION_READ: "timetable:substitutions:read",
-  SUBSTITUTION_APPROVE: "timetable:substitutions:approve",
-  SUBSTITUTION_DELETE: "timetable:substitutions:delete",
-
-  // Timetable - Teacher Availability
-  TEACHER_AVAILABILITY_CREATE: "timetable:availability:create",
-  TEACHER_AVAILABILITY_READ: "timetable:availability:read",
-  TEACHER_AVAILABILITY_UPDATE: "timetable:availability:update",
-  TEACHER_AVAILABILITY_DELETE: "timetable:availability:delete",
-
-  // Timetable - Versions
-  TIMETABLE_VERSION_CREATE: "timetable:versions:create",
-  TIMETABLE_VERSION_READ: "timetable:versions:read",
-  TIMETABLE_VERSION_PUBLISH: "timetable:versions:publish",
-  TIMETABLE_VERSION_RESTORE: "timetable:versions:restore",
 
   // Bulk Operations
   BULK_OPERATIONS: "academics:bulk:execute",
@@ -743,10 +718,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.DOCUMENTS_READ,
     PERMISSIONS.GRADUATION_READ,
     PERMISSIONS.GRADUATION_APPROVE,
-    PERMISSIONS.TIMETABLE_CREATE,
-    PERMISSIONS.TIMETABLE_READ,
-    PERMISSIONS.TIMETABLE_UPDATE,
-    PERMISSIONS.TIMETABLE_DELETE,
     PERMISSIONS.ROOMS_CREATE,
     PERMISSIONS.ROOMS_READ,
     PERMISSIONS.ROOMS_UPDATE,
@@ -783,7 +754,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.HOMEWORK_READ,
     PERMISSIONS.PTC_CREATE,
     PERMISSIONS.PTC_READ,
-    PERMISSIONS.TIMETABLE_GENERATE,
     PERMISSIONS.BULK_OPERATIONS,
     PERMISSIONS.COCURRICULAR_READ,
     PERMISSIONS.AWARDS_READ,
@@ -939,10 +909,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.RESULTS_COMPUTE,
     PERMISSIONS.RESULTS_PUBLISH,
     PERMISSIONS.RESULTS_EXPORT,
-    PERMISSIONS.TIMETABLE_CREATE,
-    PERMISSIONS.TIMETABLE_READ,
-    PERMISSIONS.TIMETABLE_UPDATE,
-    PERMISSIONS.TIMETABLE_DELETE,
     PERMISSIONS.ROOMS_CREATE,
     PERMISSIONS.ROOMS_READ,
     PERMISSIONS.ROOMS_UPDATE,
@@ -994,7 +960,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.HOMEWORK_GRADE,
     PERMISSIONS.PTC_CREATE,
     PERMISSIONS.PTC_READ,
-    PERMISSIONS.TIMETABLE_GENERATE,
     PERMISSIONS.BULK_OPERATIONS,
     PERMISSIONS.COCURRICULAR_CREATE,
     PERMISSIONS.COCURRICULAR_READ,
@@ -1172,7 +1137,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.MARKS_APPROVE,
     PERMISSIONS.RESULTS_READ,
     PERMISSIONS.RESULTS_COMPUTE,
-    PERMISSIONS.TIMETABLE_READ,
     PERMISSIONS.ANNOUNCEMENTS_READ,
     PERMISSIONS.DISCIPLINE_CREATE,
     PERMISSIONS.DISCIPLINE_READ,
@@ -1385,7 +1349,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
   student: [
     PERMISSIONS.RESULTS_READ,
     PERMISSIONS.ATTENDANCE_READ,
-    PERMISSIONS.TIMETABLE_READ,
     PERMISSIONS.ANNOUNCEMENTS_READ,
     PERMISSIONS.EXEAT_CREATE,
     PERMISSIONS.EXEAT_READ,

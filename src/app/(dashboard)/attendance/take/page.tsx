@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/layout/page-header";
 import { getClassesAction } from "@/modules/academics/actions/class.action";
-import { getPeriodsAction } from "@/modules/timetable/actions/timetable.action";
+import { getPeriodsAction } from "@/modules/scheduling/actions/period.action";
 import { AttendanceForm } from "./attendance-form";
 import Link from "next/link";
 

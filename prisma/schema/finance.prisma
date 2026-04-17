@@ -3,8 +3,8 @@ model FeeStructure {
   schoolId       String
   academicYearId String
   termId         String
-  programmeId    String?            // null = all programmes
-  boardingStatus BoardingStatus?    // null = both day and boarding
+  programmeId    String? // null = all programmes
+  boardingStatus BoardingStatus? // null = both day and boarding
   name           String
   status         FeeStructureStatus @default(DRAFT)
   approvedBy     String?
@@ -25,15 +25,15 @@ model FeeItem {
   id             String  @id @default(cuid())
   feeStructureId String
   schoolId       String
-  name           String  // e.g., Tuition, Boarding, Feeding, PTA, Exam Fee
+  name           String // e.g., Tuition, Boarding, Feeding, PTA, Exam Fee
   code           String?
-  amount         Decimal  @db.Decimal(18, 2)
+  amount         Decimal @db.Decimal(18, 2)
   isOptional     Boolean @default(false)
   description    String?
 
-  feeStructure  FeeStructure    @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
-  school        School          @relation("SchoolFeeItem", fields: [schoolId], references: [id])
-  billItems     StudentBillItem[]
+  feeStructure FeeStructure      @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  school       School            @relation("SchoolFeeItem", fields: [schoolId], references: [id])
+  billItems    StudentBillItem[]
 
   @@index([feeStructureId])
   @@index([schoolId])
@@ -54,8 +54,8 @@ model StudentBill {
   dueDate        DateTime?
   updatedAt      DateTime   @updatedAt
 
-  feeStructure FeeStructure    @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
-  school       School          @relation("SchoolStudentBill", fields: [schoolId], references: [id])
+  feeStructure FeeStructure         @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  school       School               @relation("SchoolStudentBill", fields: [schoolId], references: [id])
   billItems    StudentBillItem[]
   payments     Payment[]
   installments StudentInstallment[]
@@ -74,7 +74,7 @@ model StudentBill {
 }
 
 model StudentBillItem {
-  id            String @id @default(cuid())
+  id            String  @id @default(cuid())
   studentBillId String
   feeItemId     String
   schoolId      String
@@ -92,21 +92,21 @@ model StudentBillItem {
 }
 
 model Payment {
-  id             String        @id @default(cuid())
-  studentBillId  String
-  studentId      String
-  schoolId       String
-  amount         Decimal       @db.Decimal(18, 2)
-  paymentMethod  PaymentMethod
+  id              String        @id @default(cuid())
+  studentBillId   String
+  studentId       String
+  schoolId        String
+  amount          Decimal       @db.Decimal(18, 2)
+  paymentMethod   PaymentMethod
   referenceNumber String?
-  receivedBy     String        // userId
-  receivedAt     DateTime      @default(now())
-  status         PaymentStatus @default(CONFIRMED)
-  notes          String?
-  createdAt      DateTime      @default(now())
+  receivedBy      String // userId
+  receivedAt      DateTime      @default(now())
+  status          PaymentStatus @default(CONFIRMED)
+  notes           String?
+  createdAt       DateTime      @default(now())
 
-  studentBill StudentBill @relation(fields: [studentBillId], references: [id], onDelete: Cascade)
-  school      School      @relation("SchoolPayment", fields: [schoolId], references: [id])
+  studentBill StudentBill      @relation(fields: [studentBillId], references: [id], onDelete: Cascade)
+  school      School           @relation("SchoolPayment", fields: [schoolId], references: [id])
   receipt     Receipt?
   reversal    PaymentReversal?
 
@@ -151,11 +151,11 @@ model Scholarship {
 }
 
 model StudentScholarship {
-  id            String @id @default(cuid())
+  id            String   @id @default(cuid())
   studentId     String
   scholarshipId String
   schoolId      String
-  appliedAmount Decimal @db.Decimal(18, 2)
+  appliedAmount Decimal  @db.Decimal(18, 2)
   termId        String
   createdAt     DateTime @default(now())
 
@@ -170,13 +170,13 @@ model StudentScholarship {
 }
 
 model PaymentReversal {
-  id         String   @id @default(cuid())
-  paymentId  String   @unique
+  id         String         @id @default(cuid())
+  paymentId  String         @unique
   schoolId   String
   reason     String
-  reversedBy String   // userId who initiated
-  reversedAt DateTime @default(now())
-  approvedBy String?  // userId who approved
+  reversedBy String // userId who initiated
+  reversedAt DateTime       @default(now())
+  approvedBy String? // userId who approved
   approvedAt DateTime?
   status     ReversalStatus @default(PENDING)
 
@@ -267,7 +267,7 @@ model FeeTemplateItem {
 model InstallmentPlan {
   id                   String   @id @default(cuid())
   schoolId             String
-  feeStructureId       String?  // null = school-wide default plan
+  feeStructureId       String? // null = school-wide default plan
   name                 String
   numberOfInstallments Int
   isActive             Boolean  @default(true)
@@ -282,12 +282,12 @@ model InstallmentPlan {
 }
 
 model InstallmentSchedule {
-  id                String @id @default(cuid())
+  id                String  @id @default(cuid())
   installmentPlanId String
   schoolId          String
   installmentNumber Int
   percentageOfTotal Decimal @db.Decimal(5, 2) // e.g., 40.0 for 40%
-  dueDaysFromStart  Int    // days from term start date
+  dueDaysFromStart  Int // days from term start date
   label             String? // "1st Installment", "2nd Installment"
 
   installmentPlan InstallmentPlan @relation(fields: [installmentPlanId], references: [id], onDelete: Cascade)
@@ -333,7 +333,7 @@ enum InstallmentStatus {
 model LatePenaltyRule {
   id              String      @id @default(cuid())
   schoolId        String
-  feeStructureId  String?     // null = applies to all active fee structures
+  feeStructureId  String? // null = applies to all active fee structures
   name            String
   type            PenaltyType
   value           Decimal     @db.Decimal(18, 4) // percentage or fixed amount
@@ -350,14 +350,14 @@ model LatePenaltyRule {
 }
 
 model AppliedPenalty {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   studentBillId     String
   latePenaltyRuleId String
   schoolId          String
-  amount            Decimal  @db.Decimal(18, 2)
-  appliedAt         DateTime @default(now())
-  waived            Boolean  @default(false)
-  waivedBy          String?  // userId
+  amount            Decimal   @db.Decimal(18, 2)
+  appliedAt         DateTime  @default(now())
+  waived            Boolean   @default(false)
+  waivedBy          String? // userId
   waivedAt          DateTime?
 
   studentBill     StudentBill     @relation(fields: [studentBillId], references: [id], onDelete: Cascade)
@@ -370,10 +370,10 @@ model AppliedPenalty {
 }
 
 enum PenaltyType {
-  PERCENTAGE       // one-time percentage of outstanding balance
-  FIXED_AMOUNT     // one-time fixed surcharge
+  PERCENTAGE // one-time percentage of outstanding balance
+  FIXED_AMOUNT // one-time fixed surcharge
   DAILY_PERCENTAGE // daily accruing percentage
-  DAILY_FIXED      // daily accruing fixed amount
+  DAILY_FIXED // daily accruing fixed amount
 }
 
 // ─── Phase 1A: Fee Waivers ────────────────────────────────────────
@@ -382,8 +382,8 @@ model FeeWaiver {
   id                String       @id @default(cuid())
   schoolId          String
   studentBillId     String
-  studentBillItemId String?      // null = entire bill, specific = per line item
-  requestedBy       String       // userId
+  studentBillItemId String? // null = entire bill, specific = per line item
+  requestedBy       String // userId
   approvedBy        String?
   reason            String
   waiverType        WaiverType
@@ -420,14 +420,14 @@ enum WaiverStatus {
 model GovernmentSubsidy {
   id              String        @id @default(cuid())
   schoolId        String
-  name            String        // "Free SHS Subsidy Term 1", "Capitation Grant 2026"
+  name            String // "Free SHS Subsidy Term 1", "Capitation Grant 2026"
   subsidyType     SubsidyType
   academicYearId  String
   termId          String?
   expectedAmount  Decimal       @db.Decimal(18, 2)
   receivedAmount  Decimal       @default(0) @db.Decimal(18, 2)
   status          SubsidyStatus @default(EXPECTED)
-  referenceNumber String?       // Government reference / voucher number
+  referenceNumber String? // Government reference / voucher number
   receivedAt      DateTime?
   notes           String?
   createdAt       DateTime      @default(now())
@@ -447,7 +447,7 @@ model SubsidyDisbursement {
   amount              Decimal  @db.Decimal(18, 2)
   receivedAt          DateTime
   bankReference       String?
-  recordedBy          String   // userId
+  recordedBy          String // userId
   notes               String?
   createdAt           DateTime @default(now())
 
@@ -475,21 +475,21 @@ enum SubsidyStatus {
 // ─── Phase 1B: Donor Funds ───────────────────────────────────────
 
 model DonorFund {
-  id              String   @id @default(cuid())
-  schoolId        String
-  donorName       String
-  donorType       DonorType
-  contactEmail    String?
-  contactPhone    String?
-  totalPledged    Decimal  @db.Decimal(18, 2)
-  totalReceived   Decimal  @default(0) @db.Decimal(18, 2)
-  totalDisbursed  Decimal  @default(0) @db.Decimal(18, 2)
-  purpose         String?  // Restriction on fund usage
-  startDate       DateTime?
-  endDate         DateTime?
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String    @id @default(cuid())
+  schoolId       String
+  donorName      String
+  donorType      DonorType
+  contactEmail   String?
+  contactPhone   String?
+  totalPledged   Decimal   @db.Decimal(18, 2)
+  totalReceived  Decimal   @default(0) @db.Decimal(18, 2)
+  totalDisbursed Decimal   @default(0) @db.Decimal(18, 2)
+  purpose        String? // Restriction on fund usage
+  startDate      DateTime?
+  endDate        DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   allocations DonorFundAllocation[]
 
@@ -498,15 +498,15 @@ model DonorFund {
 }
 
 model DonorFundAllocation {
-  id           String   @id @default(cuid())
-  donorFundId  String
-  schoolId     String
-  studentId    String
-  termId       String
-  amount       Decimal @db.Decimal(18, 2)
-  description  String?
-  allocatedBy  String   // userId
-  allocatedAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  donorFundId String
+  schoolId    String
+  studentId   String
+  termId      String
+  amount      Decimal  @db.Decimal(18, 2)
+  description String?
+  allocatedBy String // userId
+  allocatedAt DateTime @default(now())
 
   donorFund DonorFund @relation(fields: [donorFundId], references: [id], onDelete: Cascade)
   school    School    @relation("SchoolDonorFundAllocation", fields: [schoolId], references: [id])
@@ -528,25 +528,25 @@ enum DonorType {
 // ─── Phase 1B: Financial Aid Applications ────────────────────────
 
 model FinancialAidApplication {
-  id                String         @id @default(cuid())
-  schoolId          String
-  studentId         String
-  academicYearId    String
-  termId            String
-  aidType           AidType
-  requestedAmount   Decimal        @db.Decimal(18, 2)
-  approvedAmount    Decimal?       @db.Decimal(18, 2)
-  reason            String
-  supportingDocs    String[]       // URLs to uploaded documents
-  householdIncome   Decimal?       @db.Decimal(18, 2)
+  id                 String    @id @default(cuid())
+  schoolId           String
+  studentId          String
+  academicYearId     String
+  termId             String
+  aidType            AidType
+  requestedAmount    Decimal   @db.Decimal(18, 2)
+  approvedAmount     Decimal?  @db.Decimal(18, 2)
+  reason             String
+  supportingDocs     String[] // URLs to uploaded documents
+  householdIncome    Decimal?  @db.Decimal(18, 2)
   numberOfDependents Int?
-  status            AidStatus      @default(SUBMITTED)
-  submittedBy       String         // userId (parent or admin)
-  reviewedBy        String?
-  reviewedAt        DateTime?
-  reviewNotes       String?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  status             AidStatus @default(SUBMITTED)
+  submittedBy        String // userId (parent or admin)
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  reviewNotes        String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@index([schoolId])
   @@index([studentId])
@@ -573,22 +573,22 @@ enum AidStatus {
 // ─── Phase 2: Online Payment Transactions ─────────────────────────
 
 model OnlinePaymentTransaction {
-  id              String                @id @default(cuid())
-  schoolId        String
-  studentBillId   String
-  studentId       String
-  provider        String                // paystack, flutterwave, mtn_momo, telecel_cash, etc.
-  reference       String                @unique
-  amount          Decimal               @db.Decimal(18, 2)
-  currency        String                @default("GHS")
-  status          OnlinePaymentStatus   @default(INITIATED)
+  id                String              @id @default(cuid())
+  schoolId          String
+  studentBillId     String
+  studentId         String
+  provider          String // paystack, flutterwave, mtn_momo, telecel_cash, etc.
+  reference         String              @unique
+  amount            Decimal             @db.Decimal(18, 2)
+  currency          String              @default("GHS")
+  status            OnlinePaymentStatus @default(INITIATED)
   providerReference String?
-  channel         String?               // mobile_money, card, bank_transfer
-  callbackUrl     String?
-  metadata        Json?
-  initiatedAt     DateTime              @default(now())
-  completedAt     DateTime?
-  failureReason   String?
+  channel           String? // mobile_money, card, bank_transfer
+  callbackUrl       String?
+  metadata          Json?
+  initiatedAt       DateTime            @default(now())
+  completedAt       DateTime?
+  failureReason     String?
 
   @@index([schoolId])
   @@index([studentBillId])
@@ -609,19 +609,19 @@ enum OnlinePaymentStatus {
 // ─── Phase 2: Payment Links ──────────────────────────────────────
 
 model PaymentLink {
-  id              String          @id @default(cuid())
-  schoolId        String
-  studentBillId   String
-  code            String          @unique // short URL-safe code
-  amount          Decimal?        @db.Decimal(18, 2) // null = pay any amount up to balance
-  description     String?
-  expiresAt       DateTime?
-  isOneTime       Boolean         @default(true)
-  isActive        Boolean         @default(true)
-  usedCount       Int             @default(0)
-  createdBy       String          // userId
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id            String    @id @default(cuid())
+  schoolId      String
+  studentBillId String
+  code          String    @unique // short URL-safe code
+  amount        Decimal?  @db.Decimal(18, 2) // null = pay any amount up to balance
+  description   String?
+  expiresAt     DateTime?
+  isOneTime     Boolean   @default(true)
+  isActive      Boolean   @default(true)
+  usedCount     Int       @default(0)
+  createdBy     String // userId
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([schoolId])
   @@index([code])
@@ -632,18 +632,18 @@ model PaymentLink {
 // ─── Phase 2: Bank Reconciliation ─────────────────────────────────
 
 model BankReconciliation {
-  id              String                  @id @default(cuid())
-  schoolId        String
-  bankName        String
-  accountNumber   String?
-  statementDate   DateTime
-  fileName        String?
-  uploadedBy      String                  // userId
-  uploadedAt      DateTime                @default(now())
-  status          ReconciliationStatus    @default(PENDING)
-  totalEntries    Int                     @default(0)
-  matchedEntries  Int                     @default(0)
-  unmatchedEntries Int                    @default(0)
+  id               String               @id @default(cuid())
+  schoolId         String
+  bankName         String
+  accountNumber    String?
+  statementDate    DateTime
+  fileName         String?
+  uploadedBy       String // userId
+  uploadedAt       DateTime             @default(now())
+  status           ReconciliationStatus @default(PENDING)
+  totalEntries     Int                  @default(0)
+  matchedEntries   Int                  @default(0)
+  unmatchedEntries Int                  @default(0)
 
   entries BankStatementEntry[]
 
@@ -652,19 +652,19 @@ model BankReconciliation {
 }
 
 model BankStatementEntry {
-  id                  String              @id @default(cuid())
+  id                   String      @id @default(cuid())
   bankReconciliationId String
-  schoolId            String
-  transactionDate     DateTime
-  description         String
-  reference           String?
-  debitAmount         Decimal?        @db.Decimal(18, 2)
-  creditAmount        Decimal?        @db.Decimal(18, 2)
-  balance             Decimal?        @db.Decimal(18, 2)
-  matchedPaymentId    String?             // matched Payment record
-  matchStatus         MatchStatus         @default(UNMATCHED)
-  matchedAt           DateTime?
-  matchedBy           String?             // userId
+  schoolId             String
+  transactionDate      DateTime
+  description          String
+  reference            String?
+  debitAmount          Decimal?    @db.Decimal(18, 2)
+  creditAmount         Decimal?    @db.Decimal(18, 2)
+  balance              Decimal?    @db.Decimal(18, 2)
+  matchedPaymentId     String? // matched Payment record
+  matchStatus          MatchStatus @default(UNMATCHED)
+  matchedAt            DateTime?
+  matchedBy            String? // userId
 
   bankReconciliation BankReconciliation @relation(fields: [bankReconciliationId], references: [id], onDelete: Cascade)
   school             School             @relation("SchoolBankStatementEntry", fields: [schoolId], references: [id])
@@ -699,21 +699,21 @@ enum MatchStatus {
 // delivery status. Cases auto-resolve when the underlying bill clears.
 
 model DunningPolicy {
-  id                    String              @id @default(cuid())
+  id                    String             @id @default(cuid())
   schoolId              String
   name                  String
   description           String?
-  scope                 DunningPolicyScope  @default(ALL_OUTSTANDING)
-  programmeId           String?             // when scope=PROGRAMME
-  feeStructureId        String?             // when scope=FEE_STRUCTURE
-  boardingStatus        BoardingStatus?     // null = any
-  minBalance            Decimal             @default(0) @db.Decimal(18, 2)
-  suppressOnInstallment Boolean             @default(true)  // skip bills with active installment plan
-  suppressOnAid         Boolean             @default(true)  // skip bills with approved aid
-  isActive              Boolean             @default(true)
-  createdBy             String              // userId
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
+  scope                 DunningPolicyScope @default(ALL_OUTSTANDING)
+  programmeId           String? // when scope=PROGRAMME
+  feeStructureId        String? // when scope=FEE_STRUCTURE
+  boardingStatus        BoardingStatus? // null = any
+  minBalance            Decimal            @default(0) @db.Decimal(18, 2)
+  suppressOnInstallment Boolean            @default(true) // skip bills with active installment plan
+  suppressOnAid         Boolean            @default(true) // skip bills with approved aid
+  isActive              Boolean            @default(true)
+  createdBy             String // userId
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
 
   stages DunningStage[]
   runs   DunningRun[]
@@ -724,17 +724,17 @@ model DunningPolicy {
 }
 
 model DunningStage {
-  id                String         @id @default(cuid())
-  policyId          String
-  schoolId          String
-  order             Int            // 1,2,3,... executed sequentially
-  name              String         // "First reminder", "Final notice"
-  daysOverdue       Int            // minimum days past due before stage fires
-  channels          String[]       // ["sms", "email", "in_app"]
-  templateKey       String?        // NotificationTemplate key; falls back to default copy
-  applyPenaltyId    String?        // optional LatePenaltyRule to auto-apply at this stage
-  escalateToRole    String?        // if set, notifies this role in dashboard
-  blockPortal       Boolean        @default(false)  // portal self-service blocked while at/past this stage
+  id             String   @id @default(cuid())
+  policyId       String
+  schoolId       String
+  order          Int // 1,2,3,... executed sequentially
+  name           String // "First reminder", "Final notice"
+  daysOverdue    Int // minimum days past due before stage fires
+  channels       String[] // ["sms", "email", "in_app"]
+  templateKey    String? // NotificationTemplate key; falls back to default copy
+  applyPenaltyId String? // optional LatePenaltyRule to auto-apply at this stage
+  escalateToRole String? // if set, notifies this role in dashboard
+  blockPortal    Boolean  @default(false) // portal self-service blocked while at/past this stage
 
   policy DunningPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
@@ -744,20 +744,20 @@ model DunningStage {
 }
 
 model DunningRun {
-  id             String          @id @default(cuid())
+  id             String           @id @default(cuid())
   schoolId       String
   policyId       String
-  triggeredBy    String          // userId, or "system:scheduler"
-  triggerType    DunningTrigger  @default(MANUAL)
+  triggeredBy    String // userId, or "system:scheduler"
+  triggerType    DunningTrigger   @default(MANUAL)
   status         DunningRunStatus @default(QUEUED)
-  startedAt      DateTime        @default(now())
+  startedAt      DateTime         @default(now())
   completedAt    DateTime?
-  totalBills     Int             @default(0)
-  casesCreated   Int             @default(0)
-  casesEscalated Int             @default(0)
-  casesResolved  Int             @default(0)
-  eventsSent     Int             @default(0)
-  errors         Int             @default(0)
+  totalBills     Int              @default(0)
+  casesCreated   Int              @default(0)
+  casesEscalated Int              @default(0)
+  casesResolved  Int              @default(0)
+  eventsSent     Int              @default(0)
+  errors         Int              @default(0)
   summary        Json?
 
   policy DunningPolicy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
@@ -770,21 +770,21 @@ model DunningRun {
 }
 
 model DunningCase {
-  id             String             @id @default(cuid())
+  id             String            @id @default(cuid())
   schoolId       String
   policyId       String
   studentBillId  String
   studentId      String
   currentStageId String?
-  stagesCleared  Int                @default(0)
-  status         DunningCaseStatus  @default(OPEN)
-  openedAt       DateTime           @default(now())
+  stagesCleared  Int               @default(0)
+  status         DunningCaseStatus @default(OPEN)
+  openedAt       DateTime          @default(now())
   lastActionAt   DateTime?
   resolvedAt     DateTime?
-  resolution     String?            // "PAID", "WAIVED", "WRITTEN_OFF", "MANUAL_CLOSE"
+  resolution     String? // "PAID", "WAIVED", "WRITTEN_OFF", "MANUAL_CLOSE"
 
-  policy       DunningPolicy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
-  events       DunningEvent[]
+  policy DunningPolicy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  events DunningEvent[]
 
   @@unique([studentBillId, policyId])
   @@index([schoolId])
@@ -794,24 +794,24 @@ model DunningCase {
 }
 
 model DunningEvent {
-  id             String              @id @default(cuid())
-  schoolId       String
-  runId          String?
-  caseId         String
-  stageId        String?
-  stageOrder     Int
-  studentBillId  String
-  studentId      String
-  channel        String              // "sms" | "email" | "in_app" | "escalation" | "penalty"
-  status         DunningEventStatus  @default(PENDING)
-  templateKey    String?
-  payload        Json?
-  externalRef    String?             // notification id / sms log id / penalty id
-  errorMessage   String?
-  occurredAt     DateTime            @default(now())
+  id            String             @id @default(cuid())
+  schoolId      String
+  runId         String?
+  caseId        String
+  stageId       String?
+  stageOrder    Int
+  studentBillId String
+  studentId     String
+  channel       String // "sms" | "email" | "in_app" | "escalation" | "penalty"
+  status        DunningEventStatus @default(PENDING)
+  templateKey   String?
+  payload       Json?
+  externalRef   String? // notification id / sms log id / penalty id
+  errorMessage  String?
+  occurredAt    DateTime           @default(now())
 
-  run  DunningRun?  @relation(fields: [runId], references: [id], onDelete: SetNull)
-  case DunningCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  run  DunningRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+  case DunningCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
   @@index([schoolId])
   @@index([runId])

@@ -1,40 +1,40 @@
 model Staff {
-  id                      String    @id @default(cuid())
-  schoolId                String
-  userId                  String?   @unique
-  staffId                 String    @unique // Auto: STF/YYYY/NNNN
-  firstName               String
-  lastName                String
-  otherNames              String?
-  dateOfBirth             DateTime?
-  gender                  Gender
-  phone                   String
-  email                   String?
-  ghanaCardNumber         String?   // Encrypted via AES-256-GCM
-  ssnitNumber             String?   // Encrypted via AES-256-GCM
-  tinNumber               String?   // Encrypted via AES-256-GCM
-  qualifications          Json?     // Array of {degree, institution, year}
-  specialization          String?
-  dateOfFirstAppointment  DateTime?
-  dateOfPostingToSchool   DateTime?
-  staffType               StaffType @default(TEACHING)
-  photoUrl                String?
-  address                 String?
-  region                  String?
-  status                  StaffStatus @default(ACTIVE)
-  deletedAt               DateTime?   // Soft delete
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  id                     String      @id @default(cuid())
+  schoolId               String
+  userId                 String?     @unique
+  staffId                String      @unique // Auto: STF/YYYY/NNNN
+  firstName              String
+  lastName               String
+  otherNames             String?
+  dateOfBirth            DateTime?
+  gender                 Gender
+  phone                  String
+  email                  String?
+  ghanaCardNumber        String? // Encrypted via AES-256-GCM
+  ssnitNumber            String? // Encrypted via AES-256-GCM
+  tinNumber              String? // Encrypted via AES-256-GCM
+  qualifications         Json? // Array of {degree, institution, year}
+  specialization         String?
+  dateOfFirstAppointment DateTime?
+  dateOfPostingToSchool  DateTime?
+  staffType              StaffType   @default(TEACHING)
+  photoUrl               String?
+  address                String?
+  region                 String?
+  status                 StaffStatus @default(ACTIVE)
+  deletedAt              DateTime? // Soft delete
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
 
-  employments Employment[]
-  leaveRequests LeaveRequest[]
+  employments         Employment[]
+  leaveRequests       LeaveRequest[]
   disciplinaryRecords StaffDisciplinary[]
-  performanceNotes PerformanceNote[]
-  attendanceRecords StaffAttendance[]
-  contracts StaffContract[]
-  loans StaffLoan[]
-  promotions StaffPromotion[]
-  teacherLicences TeacherLicence[]
+  performanceNotes    PerformanceNote[]
+  attendanceRecords   StaffAttendance[]
+  contracts           StaffContract[]
+  loans               StaffLoan[]
+  promotions          StaffPromotion[]
+  teacherLicences     TeacherLicence[]
 
   @@index([schoolId])
   @@index([staffId])
@@ -44,7 +44,7 @@ model Staff {
 }
 
 model Employment {
-  id              String          @id @default(cuid())
+  id              String           @id @default(cuid())
   staffId         String
   schoolId        String
   position        String
@@ -52,11 +52,11 @@ model Employment {
   departmentId    String?
   startDate       DateTime
   endDate         DateTime?
-  appointmentType AppointmentType @default(PERMANENT)
+  appointmentType AppointmentType  @default(PERMANENT)
   salaryGrade     String?
   status          EmploymentStatus @default(ACTIVE)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   staff  Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
   school School @relation("SchoolEmployment", fields: [schoolId], references: [id])
@@ -68,17 +68,17 @@ model Employment {
 }
 
 model LeaveType {
-  id              String  @id @default(cuid())
-  schoolId        String
-  name            String
-  defaultDays     Int     @default(0)
-  requiresApproval Boolean @default(true)
+  id               String   @id @default(cuid())
+  schoolId         String
+  name             String
+  defaultDays      Int      @default(0)
+  requiresApproval Boolean  @default(true)
   applicableGender String? // null = all, MALE, FEMALE
-  status          Status  @default(ACTIVE)
-  createdAt       DateTime @default(now())
+  status           Status   @default(ACTIVE)
+  createdAt        DateTime @default(now())
 
-  leaveBalances  LeaveBalance[]
-  leaveRequests  LeaveRequest[]
+  leaveBalances LeaveBalance[]
+  leaveRequests LeaveRequest[]
 
   @@unique([schoolId, name])
   @@index([schoolId])
@@ -104,7 +104,7 @@ model LeaveBalance {
 }
 
 model LeaveRequest {
-  id            String      @id @default(cuid())
+  id            String             @id @default(cuid())
   staffId       String
   leaveTypeId   String
   schoolId      String
@@ -113,7 +113,7 @@ model LeaveRequest {
   daysRequested Int
   reason        String?
   status        LeaveRequestStatus @default(PENDING)
-  appliedAt     DateTime    @default(now())
+  appliedAt     DateTime           @default(now())
   reviewedBy    String?
   reviewedAt    DateTime?
   reviewNotes   String?
@@ -130,13 +130,13 @@ model LeaveRequest {
 }
 
 model PayrollPeriod {
-  id       String        @id @default(cuid())
-  schoolId String
-  month    Int
-  year     Int
-  status   PayrollStatus @default(DRAFT)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id        String        @id @default(cuid())
+  schoolId  String
+  month     Int
+  year      Int
+  status    PayrollStatus @default(DRAFT)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
   entries PayrollEntry[]
 
@@ -145,15 +145,15 @@ model PayrollPeriod {
 }
 
 model PayrollEntry {
-  id              String @id @default(cuid())
+  id              String   @id @default(cuid())
   payrollPeriodId String
   staffId         String
   schoolId        String
-  basicSalary     Decimal @db.Decimal(18, 2)
-  totalAllowances Decimal @default(0) @db.Decimal(18, 2)
-  totalDeductions Decimal @default(0) @db.Decimal(18, 2)
-  netPay          Decimal @db.Decimal(18, 2)
-  details         Json?  // Breakdown: {allowances: [{name, amount}], deductions: [{name, amount}]}
+  basicSalary     Decimal  @db.Decimal(18, 2)
+  totalAllowances Decimal  @default(0) @db.Decimal(18, 2)
+  totalDeductions Decimal  @default(0) @db.Decimal(18, 2)
+  netPay          Decimal  @db.Decimal(18, 2)
+  details         Json? // Breakdown: {allowances: [{name, amount}], deductions: [{name, amount}]}
   createdAt       DateTime @default(now())
 
   payrollPeriod PayrollPeriod @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
@@ -166,27 +166,27 @@ model PayrollEntry {
 }
 
 model Allowance {
-  id       String @id @default(cuid())
-  schoolId String
-  name     String
-  type     AllowanceType @default(FIXED)
-  amount   Decimal @db.Decimal(18, 2)
-  status   Status @default(ACTIVE)
-  createdAt DateTime @default(now())
+  id        String        @id @default(cuid())
+  schoolId  String
+  name      String
+  type      AllowanceType @default(FIXED)
+  amount    Decimal       @db.Decimal(18, 2)
+  status    Status        @default(ACTIVE)
+  createdAt DateTime      @default(now())
 
   @@unique([schoolId, name])
   @@index([schoolId])
 }
 
 model Deduction {
-  id          String @id @default(cuid())
+  id          String        @id @default(cuid())
   schoolId    String
   name        String
   type        AllowanceType @default(FIXED)
-  amount      Decimal @db.Decimal(18, 2)
-  isStatutory Boolean @default(false)
-  status      Status  @default(ACTIVE)
-  createdAt   DateTime @default(now())
+  amount      Decimal       @db.Decimal(18, 2)
+  isStatutory Boolean       @default(false)
+  status      Status        @default(ACTIVE)
+  createdAt   DateTime      @default(now())
 
   @@unique([schoolId, name])
   @@index([schoolId])
@@ -238,21 +238,21 @@ enum AllowanceType {
 // ─── Staff Disciplinary & Performance ──────────────────────────────
 
 model StaffDisciplinary {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   schoolId    String
   staffId     String
-  reportedBy  String   // User ID
+  reportedBy  String // User ID
   date        DateTime
-  type        String   // MISCONDUCT, NEGLIGENCE, INSUBORDINATION, ABSENTEEISM, OTHER
+  type        String // MISCONDUCT, NEGLIGENCE, INSUBORDINATION, ABSENTEEISM, OTHER
   description String
-  severity    String   @default("MINOR") // MINOR, MODERATE, MAJOR, CRITICAL
+  severity    String    @default("MINOR") // MINOR, MODERATE, MAJOR, CRITICAL
   sanction    String?
-  status      String   @default("REPORTED") // REPORTED, INVESTIGATING, RESOLVED, DISMISSED
+  status      String    @default("REPORTED") // REPORTED, INVESTIGATING, RESOLVED, DISMISSED
   resolvedBy  String?
   resolvedAt  DateTime?
   notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
@@ -262,19 +262,19 @@ model StaffDisciplinary {
 }
 
 model PerformanceNote {
-  id             String   @id @default(cuid())
-  schoolId       String
-  staffId        String
-  reviewerId     String   // User ID of reviewer
-  period         String   // e.g., "Term 1 2024/2025"
-  academicYearId String?
-  rating         Int?     // 1-5 scale
-  strengths      String?
+  id                  String   @id @default(cuid())
+  schoolId            String
+  staffId             String
+  reviewerId          String // User ID of reviewer
+  period              String // e.g., "Term 1 2024/2025"
+  academicYearId      String?
+  rating              Int? // 1-5 scale
+  strengths           String?
   areasForImprovement String?
-  goals          String?
-  comments       String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  goals               String?
+  comments            String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
@@ -310,7 +310,7 @@ model StaffAttendance {
   status     StaffAttendanceStatus @default(PRESENT)
   source     String                @default("MANUAL") // MANUAL, BIOMETRIC, SYSTEM
   remarks    String?
-  recordedBy String?               // User ID
+  recordedBy String? // User ID
   createdAt  DateTime              @default(now())
   updatedAt  DateTime              @updatedAt
 
@@ -339,14 +339,14 @@ model StaffContract {
   schoolId       String
   staffId        String
   contractNumber String?
-  type           String         // PERMANENT, FIXED_TERM, PROBATION, NATIONAL_SERVICE
+  type           String // PERMANENT, FIXED_TERM, PROBATION, NATIONAL_SERVICE
   startDate      DateTime
   endDate        DateTime?
   renewalDate    DateTime?
-  terms          String?        // Free-text terms summary
-  documentId     String?        // Link to Document for the contract PDF
+  terms          String? // Free-text terms summary
+  documentId     String? // Link to Document for the contract PDF
   status         ContractStatus @default(ACTIVE)
-  createdBy      String         // User ID
+  createdBy      String // User ID
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -372,15 +372,15 @@ model StaffLoan {
   schoolId         String
   staffId          String
   loanNumber       String     @unique // Auto: LN/YYYY/NNNN
-  type             String     // SALARY_ADVANCE, PERSONAL_LOAN, EMERGENCY_LOAN
+  type             String // SALARY_ADVANCE, PERSONAL_LOAN, EMERGENCY_LOAN
   amount           Decimal    @db.Decimal(18, 2)
   interestRate     Decimal    @default(0) @db.Decimal(5, 2)
   totalRepayment   Decimal    @db.Decimal(18, 2)
   monthlyDeduction Decimal    @db.Decimal(18, 2)
-  tenure           Int        // months
+  tenure           Int // months
   remainingBalance Decimal    @db.Decimal(18, 2)
   status           LoanStatus @default(PENDING)
-  approvedBy       String?    // User ID
+  approvedBy       String? // User ID
   approvedAt       DateTime?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
@@ -397,7 +397,7 @@ model LoanRepayment {
   id              String   @id @default(cuid())
   loanId          String
   schoolId        String
-  payrollPeriodId String?  // Null if manual payment
+  payrollPeriodId String? // Null if manual payment
   amount          Decimal  @db.Decimal(18, 2)
   date            DateTime @default(now())
   method          String   @default("PAYROLL_DEDUCTION") // PAYROLL_DEDUCTION, MANUAL
@@ -433,8 +433,8 @@ model StaffPromotion {
   previousSalary   Decimal? @db.Decimal(18, 2)
   newSalary        Decimal? @db.Decimal(18, 2)
   reason           String?
-  approvedBy       String   // User ID
-  letterDocumentId String?  // Link to Document for the promotion letter
+  approvedBy       String // User ID
+  letterDocumentId String? // Link to Document for the promotion letter
   createdAt        DateTime @default(now())
 
   staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
@@ -449,27 +449,27 @@ model StaffPromotion {
 // See src/lib/payroll/tax-tables.ts for the cached reader.
 
 model TaxTable {
-  id             String            @id @default(cuid())
-  country        String            // ISO alpha-2: "GH", "NG", "KE"
-  name           String            // "PAYE (Income Tax)", "SSNIT (Tier 1)", …
-  type           TaxDeductionType
-  orderIndex     Int               @default(0)  // rendering/application order
-  effectiveFrom  DateTime
-  effectiveTo    DateTime?
+  id            String           @id @default(cuid())
+  country       String // ISO alpha-2: "GH", "NG", "KE"
+  name          String // "PAYE (Income Tax)", "SSNIT (Tier 1)", …
+  type          TaxDeductionType
+  orderIndex    Int              @default(0) // rendering/application order
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
   // Flat-rate deductions (e.g. SSNIT, Pension, NSSF) — percent values.
-  employeeRate   Decimal?          @db.Decimal(8, 4)
-  employerRate   Decimal?          @db.Decimal(8, 4)
+  employeeRate  Decimal?         @db.Decimal(8, 4)
+  employerRate  Decimal?         @db.Decimal(8, 4)
   // NSSF-style cap on the base amount deductions apply to.
-  ceilingAmount  Decimal?          @db.Decimal(18, 2)
+  ceilingAmount Decimal?         @db.Decimal(18, 2)
   // Bracket-based deductions (PAYE). Stored as JSON:
   // [{ min: number, max: number | null, rate: number }]
-  brackets       Json?
+  brackets      Json?
   // Nigeria PAYE annualises the gross before bracketing; Kenya subtracts a
   // flat personal relief after computing bracketed tax.
-  annualized     Boolean           @default(false)
-  relief         Decimal?          @db.Decimal(18, 2)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  annualized    Boolean          @default(false)
+  relief        Decimal?         @db.Decimal(18, 2)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   @@unique([country, name, effectiveFrom])
   @@index([country, effectiveFrom])
@@ -489,19 +489,19 @@ enum TaxDeductionType {
 // the contract-expiry pattern.
 
 model TeacherLicence {
-  id           String              @id @default(cuid())
-  schoolId     String
-  staffId      String
-  ntcNumber    String              @unique
-  category     String              // e.g. "BEGINNER", "PROFICIENT", "EXPERT"
-  issuedAt     DateTime
-  expiresAt    DateTime
-  status       TeacherLicenceStatus @default(ACTIVE)
+  id         String               @id @default(cuid())
+  schoolId   String
+  staffId    String
+  ntcNumber  String               @unique
+  category   String // e.g. "BEGINNER", "PROFICIENT", "EXPERT"
+  issuedAt   DateTime
+  expiresAt  DateTime
+  status     TeacherLicenceStatus @default(ACTIVE)
   // Optional link to a Document row holding the scanned licence certificate.
-  documentId   String?
-  notes        String?
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  documentId String?
+  notes      String?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
 
   staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
 

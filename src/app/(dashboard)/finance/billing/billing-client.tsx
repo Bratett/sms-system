@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useMemo, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -10,6 +11,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { generateBillsAction, getBillsAction } from "@/modules/finance/actions/billing.action";
 
 import type { Monetary } from "@/lib/monetary";
+import { formatCurrency } from "@/lib/format-currency";
 interface FeeStructure {
   id: string;
   name: string;
@@ -44,10 +46,6 @@ interface Pagination {
   totalPages: number;
 }
 
-function formatCurrency(amount: Monetary): string {
-  return `GHS ${Number(amount).toFixed(2)}`;
-}
-
 const billStatusColors: Record<string, string> = {
   UNPAID: "bg-red-100 text-red-700",
   PARTIAL: "bg-yellow-100 text-yellow-700",
@@ -68,10 +66,27 @@ export function BillingClient({
   terms: Term[];
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlStudentId = searchParams.get("studentId");
   const [isPending, startTransition] = useTransition();
 
   const [bills, setBills] = useState<Bill[]>(initialBills);
   const [pagination, setPagination] = useState<Pagination>(initialPagination);
+
+  // If launched with ?studentId=, re-fetch filtered by that student.
+  useEffect(() => {
+    if (!urlStudentId) return;
+    let cancelled = false;
+    (async () => {
+      const result = await getBillsAction({ studentId: urlStudentId, page: 1, pageSize: 25 });
+      if (cancelled || "error" in result) return;
+      setBills(result.data ?? []);
+      setPagination(result.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [urlStudentId]);
 
   // Generate bills form
   const [selectedFeeStructureId, setSelectedFeeStructureId] = useState("");
@@ -141,6 +156,7 @@ export function BillingClient({
       const filters: Record<string, unknown> = { page: 1, pageSize: 25 };
       if (termId !== "all") filters.termId = termId;
       if (status !== "all") filters.status = status;
+      if (urlStudentId) filters.studentId = urlStudentId;
 
       const result = await getBillsAction(filters as Parameters<typeof getBillsAction>[0]);
       if ("error" in result) {
@@ -158,6 +174,7 @@ export function BillingClient({
       const filters: Record<string, unknown> = { page, pageSize: 25 };
       if (filterTermId !== "all") filters.termId = filterTermId;
       if (filterStatus !== "all") filters.status = filterStatus;
+      if (urlStudentId) filters.studentId = urlStudentId;
 
       const result = await getBillsAction(filters as Parameters<typeof getBillsAction>[0]);
       if ("error" in result) {
@@ -315,7 +332,14 @@ export function BillingClient({
                     className="border-b border-border last:border-0 hover:bg-muted/30"
                   >
                     <td className="px-4 py-3 text-muted-foreground">{bill.studentIdNumber}</td>
-                    <td className="px-4 py-3 font-medium">{bill.studentName}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <Link
+                        href={`/students/${bill.studentId}`}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {bill.studentName}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{bill.className}</td>
                     <td className="px-4 py-3 text-right font-medium">
                       {formatCurrency(bill.totalAmount)}

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { updateStudentAction, enrollStudentAction } from "@/modules/student/actions/student.action";
@@ -11,6 +12,11 @@ import {
   linkGuardianToStudentAction,
   unlinkGuardianFromStudentAction,
 } from "@/modules/student/actions/guardian.action";
+import { StudentFinanceSection } from "./finance-section";
+import { StudentAttendanceSection } from "./attendance-section";
+import { StudentDisciplineSection } from "./discipline-section";
+import { StudentHealthSection } from "./health-section";
+import { StudentBoardingSection } from "./boarding-section";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -85,6 +91,12 @@ interface AcademicYear {
   isCurrent: boolean;
 }
 
+interface TermOption {
+  id: string;
+  name: string;
+  isCurrent: boolean;
+}
+
 // ─── Component ──────────────────────────────────────────────────────
 
 export function StudentProfile({
@@ -92,11 +104,13 @@ export function StudentProfile({
   allGuardians,
   classArmOptions,
   academicYears,
+  terms,
 }: {
   student: StudentData;
   allGuardians: GuardianOption[];
   classArmOptions: ClassArmOption[];
   academicYears: AcademicYear[];
+  terms: TermOption[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -130,13 +144,18 @@ export function StudentProfile({
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState(student.status);
 
+  const hasBoarding = !!student.houseAssignment;
   const tabs = [
     { title: "Personal", index: 0 },
     { title: "Guardians", index: 1 },
     { title: "Academic", index: 2 },
     { title: "Finance", index: 3 },
     { title: "Attendance", index: 4 },
+    { title: "Discipline", index: 5 },
+    { title: "Health", index: 6 },
+    ...(hasBoarding ? [{ title: "Boarding", index: 7 }] : []),
   ];
+  const defaultTermId = terms.find((t) => t.isCurrent)?.id;
 
   function formatDate(date: Date) {
     return new Date(date).toLocaleDateString("en-GB", {
@@ -427,9 +446,12 @@ export function StudentProfile({
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">
+                        <Link
+                          href={`/students/guardians/${g.id}`}
+                          className="font-medium hover:text-primary hover:underline"
+                        >
                           {g.firstName} {g.lastName}
-                        </span>
+                        </Link>
                         {g.isPrimary && (
                           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                             Primary
@@ -523,53 +545,26 @@ export function StudentProfile({
         )}
 
         {/* ─── Finance Tab ───────────────────────────────── */}
-        {activeTab === 3 && (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="rounded-full bg-muted p-4 mb-4">
-              <svg
-                className="h-8 w-8 text-muted-foreground"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium">Finance Module</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Coming in Phase 5. Fee management, billing, and payment tracking.
-            </p>
-          </div>
-        )}
+        {activeTab === 3 && <StudentFinanceSection studentId={student.id} />}
 
         {/* ─── Attendance Tab ────────────────────────────── */}
         {activeTab === 4 && (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="rounded-full bg-muted p-4 mb-4">
-              <svg
-                className="h-8 w-8 text-muted-foreground"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium">Attendance Module</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Coming in Phase 4. Daily attendance tracking and reporting.
-            </p>
-          </div>
+          <StudentAttendanceSection
+            studentId={student.id}
+            terms={terms}
+            defaultTermId={defaultTermId}
+          />
+        )}
+
+        {/* ─── Discipline Tab ────────────────────────────── */}
+        {activeTab === 5 && <StudentDisciplineSection studentId={student.id} />}
+
+        {/* ─── Health Tab ────────────────────────────────── */}
+        {activeTab === 6 && <StudentHealthSection studentId={student.id} />}
+
+        {/* ─── Boarding Tab ──────────────────────────────── */}
+        {activeTab === 7 && hasBoarding && (
+          <StudentBoardingSection studentId={student.id} />
         )}
       </div>
 

@@ -1,55 +1,55 @@
 model Announcement {
-  id         String   @id @default(cuid())
-  schoolId   String
-  title      String
-  content    String
-  targetType String   @default("all") // all, class, programme, house, specific
-  targetIds  Json?    // array of IDs if targeted
-  priority   String   @default("normal") // low, normal, high, urgent
+  id          String    @id @default(cuid())
+  schoolId    String
+  title       String
+  content     String
+  targetType  String    @default("all") // all, class, programme, house, specific
+  targetIds   Json? // array of IDs if targeted
+  priority    String    @default("normal") // low, normal, high, urgent
   publishedAt DateTime?
-  expiresAt  DateTime?
-  createdBy  String
-  status     String   @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  expiresAt   DateTime?
+  createdBy   String
+  status      String    @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([schoolId])
   @@index([status])
 }
 
 model SmsLog {
-  id               String   @id @default(cuid())
-  schoolId         String
-  recipientPhone   String
-  recipientName    String?
-  message          String
-  status           String   @default("QUEUED") // QUEUED, SENT, DELIVERED, FAILED
-  provider         String?
+  id                String    @id @default(cuid())
+  schoolId          String
+  recipientPhone    String
+  recipientName     String?
+  message           String
+  status            String    @default("QUEUED") // QUEUED, SENT, DELIVERED, FAILED
+  provider          String?
   providerMessageId String?
-  sentAt           DateTime?
-  cost             Decimal? @db.Decimal(18, 4)
-  createdAt        DateTime @default(now())
+  sentAt            DateTime?
+  cost              Decimal?  @db.Decimal(18, 4)
+  createdAt         DateTime  @default(now())
 
   @@index([schoolId])
   @@index([status])
 }
 
 model DisciplinaryIncident {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   schoolId    String
   studentId   String
   reportedBy  String
   date        DateTime
-  type        String   // e.g., "Fighting", "Truancy", "Vandalism", "Disobedience"
+  type        String // e.g., "Fighting", "Truancy", "Vandalism", "Disobedience"
   description String
-  severity    String   @default("MINOR") // MINOR, MODERATE, MAJOR, CRITICAL
+  severity    String    @default("MINOR") // MINOR, MODERATE, MAJOR, CRITICAL
   sanction    String?
-  status      String   @default("REPORTED") // REPORTED, INVESTIGATING, RESOLVED, DISMISSED
+  status      String    @default("REPORTED") // REPORTED, INVESTIGATING, RESOLVED, DISMISSED
   resolvedBy  String?
   resolvedAt  DateTime?
   notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([schoolId])
   @@index([studentId])
@@ -59,19 +59,19 @@ model DisciplinaryIncident {
 // ─── Counseling & Welfare ────────────────────────────────────────────
 
 model CounselingRecord {
-  id          String   @id @default(cuid())
-  schoolId    String
-  studentId   String
-  counselorId String   // User ID of guidance counsellor
-  sessionDate DateTime
-  type        String   // ACADEMIC, PERSONAL, CAREER, BEHAVIORAL, FAMILY, OTHER
-  summary     String
-  actionPlan  String?
-  followUpDate DateTime?
-  status      String   @default("OPEN") // OPEN, FOLLOW_UP, CLOSED
-  isConfidential Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String    @id @default(cuid())
+  schoolId       String
+  studentId      String
+  counselorId    String // User ID of guidance counsellor
+  sessionDate    DateTime
+  type           String // ACADEMIC, PERSONAL, CAREER, BEHAVIORAL, FAMILY, OTHER
+  summary        String
+  actionPlan     String?
+  followUpDate   DateTime?
+  status         String    @default("OPEN") // OPEN, FOLLOW_UP, CLOSED
+  isConfidential Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([schoolId])
   @@index([studentId])
@@ -79,35 +79,35 @@ model CounselingRecord {
 }
 
 model WelfareNote {
-  id         String   @id @default(cuid())
-  schoolId   String
-  studentId  String
-  createdBy  String   // User ID
-  date       DateTime
-  category   String   // HEALTH, NUTRITION, HOUSING, FINANCIAL, EMOTIONAL, SAFETY, OTHER
-  description String
-  actionTaken String?
-  followUpRequired Boolean @default(false)
-  status     String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id               String   @id @default(cuid())
+  schoolId         String
+  studentId        String
+  createdBy        String // User ID
+  date             DateTime
+  category         String // HEALTH, NUTRITION, HOUSING, FINANCIAL, EMOTIONAL, SAFETY, OTHER
+  description      String
+  actionTaken      String?
+  followUpRequired Boolean  @default(false)
+  status           String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([schoolId])
   @@index([studentId])
 }
 
 model Commendation {
-  id          String   @id @default(cuid())
-  schoolId    String
-  studentId   String
-  awardedBy   String   // User ID
-  date        DateTime
-  type        String   // ACADEMIC_EXCELLENCE, SPORTS, LEADERSHIP, COMMUNITY_SERVICE, BEST_STUDENT, IMPROVEMENT, OTHER
-  title       String
-  description String?
-  termId      String?
+  id             String   @id @default(cuid())
+  schoolId       String
+  studentId      String
+  awardedBy      String // User ID
+  date           DateTime
+  type           String // ACADEMIC_EXCELLENCE, SPORTS, LEADERSHIP, COMMUNITY_SERVICE, BEST_STUDENT, IMPROVEMENT, OTHER
+  title          String
+  description    String?
+  termId         String?
   academicYearId String?
-  createdAt   DateTime @default(now())
+  createdAt      DateTime @default(now())
 
   @@index([schoolId])
   @@index([studentId])
@@ -116,14 +116,14 @@ model Commendation {
 // ─── Graduation ──────────────────────────────────────────────────────
 
 model GraduationBatch {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   schoolId       String
   academicYearId String
   name           String
   ceremonyDate   DateTime?
-  status         String   @default("PENDING") // PENDING, COMPLETED
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  status         String    @default("PENDING") // PENDING, COMPLETED
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   records GraduationRecord[]
 
@@ -136,7 +136,7 @@ model GraduationRecord {
   studentId         String
   schoolId          String
   certificateNumber String?
-  honours           String?  // First Class, Second Class, Pass
+  honours           String? // First Class, Second Class, Pass
   status            String   @default("PENDING") // PENDING, CONFIRMED
   createdAt         DateTime @default(now())
 
@@ -162,7 +162,7 @@ model AlumniProfile {
   currentEmployer  String?
   currentPosition  String?
   industry         String?
-  highestEducation String?  // e.g., "BSc Computer Science, University of Ghana"
+  highestEducation String? // e.g., "BSc Computer Science, University of Ghana"
   linkedinUrl      String?
   bio              String?
   isPublic         Boolean  @default(false)
@@ -176,17 +176,17 @@ model AlumniProfile {
 // ─── Phase 2: DB-backed notification templates + user preferences ────
 
 model NotificationTemplate {
-  id          String              @id @default(cuid())
-  schoolId    String?             // null = global default; school-scoped override when set
-  key         String              // matches NOTIFICATION_EVENTS keys (e.g. "fee_reminder")
-  channel     NotificationChannel
-  locale      String              @default("en")   // "en", "tw", "ga"
-  subject     String?                              // nullable for SMS/WhatsApp
-  body        String                               // {{var}} placeholders
-  variables   Json?                                // documented variable list for the editor
-  active      Boolean             @default(true)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id        String              @id @default(cuid())
+  schoolId  String? // null = global default; school-scoped override when set
+  key       String // matches NOTIFICATION_EVENTS keys (e.g. "fee_reminder")
+  channel   NotificationChannel
+  locale    String              @default("en") // "en", "tw", "ga"
+  subject   String? // nullable for SMS/WhatsApp
+  body      String // {{var}} placeholders
+  variables Json? // documented variable list for the editor
+  active    Boolean             @default(true)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
 
   @@unique([schoolId, key, channel, locale])
   @@index([schoolId])
@@ -196,7 +196,7 @@ model NotificationTemplate {
 model NotificationPreference {
   id        String                @id @default(cuid())
   userId    String
-  eventKey  String                // NOTIFICATION_EVENTS key; "*" means all
+  eventKey  String // NOTIFICATION_EVENTS key; "*" means all
   channels  NotificationChannel[]
   createdAt DateTime              @default(now())
   updatedAt DateTime              @updatedAt
@@ -216,10 +216,10 @@ enum NotificationChannel {
 // ─── Phase 2: Scheduled communication campaigns ─────────────────────
 
 model CommunicationCampaign {
-  id            String                   @id @default(cuid())
+  id            String                      @id @default(cuid())
   schoolId      String
   name          String
-  templateId    String?                  // NotificationTemplate.id (optional for ad-hoc)
+  templateId    String? // NotificationTemplate.id (optional for ad-hoc)
   channel       NotificationChannel
   subject       String?
   body          String
@@ -230,11 +230,11 @@ model CommunicationCampaign {
   scheduledAt   DateTime
   status        CommunicationCampaignStatus @default(SCHEDULED)
   dispatchedAt  DateTime?
-  sentCount     Int                      @default(0)
-  failedCount   Int                      @default(0)
-  createdBy     String                   // userId
-  createdAt     DateTime                 @default(now())
-  updatedAt     DateTime                 @updatedAt
+  sentCount     Int                         @default(0)
+  failedCount   Int                         @default(0)
+  createdBy     String // userId
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
 
   @@index([schoolId])
   @@index([status, scheduledAt])
