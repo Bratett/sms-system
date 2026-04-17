@@ -13,9 +13,10 @@ export default async function AcademicCalendarPage() {
     getAcademicEventsAction(),
   ]);
 
-  const academicYears = dropdownsResult.data?.academicYears ?? [];
-  const terms = dropdownsResult.data?.terms ?? [];
-  const events = eventsResult.data ?? [];
+  const dropdownsData = "data" in dropdownsResult ? dropdownsResult.data : null;
+  const academicYears = dropdownsData?.academicYears ?? [];
+  const terms = dropdownsData?.terms ?? [];
+  const events = "data" in eventsResult ? eventsResult.data : [];
 
   return (
     <div className="space-y-6">

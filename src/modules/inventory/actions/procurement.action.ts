@@ -1,17 +1,18 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 
 // ─── Purchase Requests ──────────────────────────────────────────────
 
 export async function getPurchaseRequestsAction(status?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PROCUREMENT_CREATE);
+  if (denied) return denied;
 
   const requests = await db.purchaseRequest.findMany({
     where: {
@@ -83,10 +84,10 @@ export async function createPurchaseRequestAction(data: {
     estimatedUnitPrice?: number;
   }>;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PROCUREMENT_CREATE);
+  if (denied) return denied;
 
   if (!data.items || data.items.length === 0) {
     return { error: "At least one item is required." };
@@ -95,7 +96,7 @@ export async function createPurchaseRequestAction(data: {
   const request = await db.purchaseRequest.create({
     data: {
       storeId: data.storeId,
-      requestedBy: session.user.id!,
+      requestedBy: ctx.session.user.id,
       reason: data.reason || null,
       items: {
         create: data.items.map((item) => ({
@@ -109,7 +110,7 @@ export async function createPurchaseRequestAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "PurchaseRequest",
     entityId: request.id,
@@ -122,10 +123,10 @@ export async function createPurchaseRequestAction(data: {
 }
 
 export async function approvePurchaseRequestAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PROCUREMENT_APPROVE);
+  if (denied) return denied;
 
   const request = await db.purchaseRequest.findUnique({ where: { id } });
   if (!request) {
@@ -140,13 +141,13 @@ export async function approvePurchaseRequestAction(id: string) {
     where: { id },
     data: {
       status: "APPROVED",
-      approvedBy: session.user.id!,
+      approvedBy: ctx.session.user.id,
       approvedAt: new Date(),
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "PurchaseRequest",
     entityId: id,
@@ -160,10 +161,10 @@ export async function approvePurchaseRequestAction(id: string) {
 }
 
 export async function rejectPurchaseRequestAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PROCUREMENT_APPROVE);
+  if (denied) return denied;
 
   const request = await db.purchaseRequest.findUnique({ where: { id } });
   if (!request) {
@@ -178,13 +179,13 @@ export async function rejectPurchaseRequestAction(id: string) {
     where: { id },
     data: {
       status: "REJECTED",
-      approvedBy: session.user.id!,
+      approvedBy: ctx.session.user.id,
       approvedAt: new Date(),
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "PurchaseRequest",
     entityId: id,
@@ -200,10 +201,10 @@ export async function rejectPurchaseRequestAction(id: string) {
 // ─── Purchase Orders ────────────────────────────────────────────────
 
 export async function getPurchaseOrdersAction(status?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PROCUREMENT_CREATE);
+  if (denied) return denied;
 
   const orders = await db.purchaseOrder.findMany({
     where: {
@@ -253,10 +254,10 @@ export async function createPurchaseOrderAction(data: {
     unitPrice: number;
   }>;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PROCUREMENT_CREATE);
+  if (denied) return denied;
 
   if (!data.items || data.items.length === 0) {
     return { error: "At least one item is required." };
@@ -289,7 +290,7 @@ export async function createPurchaseOrderAction(data: {
       supplierId: data.supplierId,
       orderNumber,
       totalAmount,
-      orderedBy: session.user.id!,
+      orderedBy: ctx.session.user.id,
       items: {
         create: data.items.map((item) => ({
           storeItemId: item.storeItemId,
@@ -311,7 +312,7 @@ export async function createPurchaseOrderAction(data: {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "PurchaseOrder",
     entityId: order.id,
@@ -327,10 +328,10 @@ export async function updatePurchaseOrderStatusAction(
   id: string,
   status: "DRAFT" | "SENT" | "PARTIALLY_RECEIVED" | "RECEIVED" | "CANCELLED",
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PROCUREMENT_APPROVE);
+  if (denied) return denied;
 
   const order = await db.purchaseOrder.findUnique({ where: { id } });
   if (!order) {
@@ -345,7 +346,7 @@ export async function updatePurchaseOrderStatusAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "PurchaseOrder",
     entityId: id,
@@ -369,10 +370,10 @@ export async function receiveGoodsAction(data: {
   }>;
   notes?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PROCUREMENT_CREATE);
+  if (denied) return denied;
 
   const order = await db.purchaseOrder.findUnique({
     where: { id: data.purchaseOrderId },
@@ -391,7 +392,7 @@ export async function receiveGoodsAction(data: {
   const goodsReceived = await db.goodsReceived.create({
     data: {
       purchaseOrderId: data.purchaseOrderId,
-      receivedBy: session.user.id!,
+      receivedBy: ctx.session.user.id,
       notes: data.notes || null,
       items: {
         create: data.items.map((item) => ({
@@ -433,7 +434,7 @@ export async function receiveGoodsAction(data: {
           reason: `Goods received from PO ${order.orderNumber}`,
           referenceType: "purchaseOrder",
           referenceId: data.purchaseOrderId,
-          conductedBy: session.user.id!,
+          conductedBy: ctx.session.user.id,
         },
       }),
       db.storeItem.update({
@@ -479,7 +480,7 @@ export async function receiveGoodsAction(data: {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "GoodsReceived",
     entityId: goodsReceived.id,

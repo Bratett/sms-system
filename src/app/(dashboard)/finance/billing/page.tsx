@@ -16,10 +16,10 @@ export default async function BillingPage() {
     getTermsAction(),
   ]);
 
-  const feeStructures = feeStructuresResult.data ?? [];
-  const bills = billsResult.data ?? [];
-  const pagination = billsResult.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 };
-  const terms = termsResult.data ?? [];
+  const feeStructures = "data" in feeStructuresResult ? feeStructuresResult.data : [];
+  const bills = "data" in billsResult ? billsResult.data : [];
+  const pagination = "pagination" in billsResult ? billsResult.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 } : { page: 1, pageSize: 25, total: 0, totalPages: 0 };
+  const terms = "data" in termsResult ? termsResult.data : [];
 
   return (
     <BillingClient

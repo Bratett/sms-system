@@ -85,7 +85,7 @@ export function PTCClient({
         slotDuration: formData.slotDuration,
         location: formData.location || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -99,7 +99,7 @@ export function PTCClient({
     if (!deleteId) return;
     startTransition(async () => {
       const result = await deletePTCSessionAction(deleteId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

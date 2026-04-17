@@ -28,11 +28,11 @@ export default async function ProcurementPage() {
         description="Manage purchase requests, orders, and goods received."
       />
       <ProcurementClient
-        requests={requestsResult.data ?? []}
-        orders={ordersResult.data ?? []}
-        allItems={itemsResult.data ?? []}
-        stores={storesResult.data ?? []}
-        suppliers={suppliersResult.data ?? []}
+        requests={"data" in requestsResult ? requestsResult.data : []}
+        orders={"data" in ordersResult ? ordersResult.data : []}
+        allItems={"data" in itemsResult ? itemsResult.data : []}
+        stores={"data" in storesResult ? storesResult.data : []}
+        suppliers={"data" in suppliersResult ? suppliersResult.data : []}
       />
     </div>
   );

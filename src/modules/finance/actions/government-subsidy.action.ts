@@ -1,10 +1,10 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
-import { PERMISSIONS, requirePermission } from "@/lib/permissions";
+import { PERMISSIONS, requirePermission, assertPermission } from "@/lib/permissions";
 import {
   createGovernmentSubsidySchema,
   updateGovernmentSubsidySchema,
@@ -19,15 +19,12 @@ export async function getGovernmentSubsidiesAction(filters?: {
   subsidyType?: string;
   status?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.SUBSIDIES_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.SUBSIDIES_READ);
   if (permErr) return permErr;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.academicYearId) where.academicYearId = filters.academicYearId;
   if (filters?.subsidyType) where.subsidyType = filters.subsidyType;
   if (filters?.status) where.status = filters.status;
@@ -72,8 +69,8 @@ export async function getGovernmentSubsidiesAction(filters?: {
 }
 
 export async function getGovernmentSubsidyAction(subsidyId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const subsidy = await db.governmentSubsidy.findUnique({
     where: { id: subsidyId },
@@ -104,22 +101,18 @@ export async function getGovernmentSubsidyAction(subsidyId: string) {
 }
 
 export async function createGovernmentSubsidyAction(data: CreateGovernmentSubsidyInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.SUBSIDIES_CREATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.SUBSIDIES_CREATE);
   if (permErr) return permErr;
 
   const parsed = createGovernmentSubsidySchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const subsidy = await db.governmentSubsidy.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: parsed.data.name,
       subsidyType: parsed.data.subsidyType,
       academicYearId: parsed.data.academicYearId,
@@ -131,7 +124,7 @@ export async function createGovernmentSubsidyAction(data: CreateGovernmentSubsid
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "GovernmentSubsidy",
     entityId: subsidy.id,
@@ -143,9 +136,9 @@ export async function createGovernmentSubsidyAction(data: CreateGovernmentSubsid
 }
 
 export async function updateGovernmentSubsidyAction(subsidyId: string, data: UpdateGovernmentSubsidyInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.SUBSIDIES_UPDATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.SUBSIDIES_UPDATE);
   if (permErr) return permErr;
 
   const parsed = updateGovernmentSubsidySchema.safeParse(data);
@@ -162,7 +155,7 @@ export async function updateGovernmentSubsidyAction(subsidyId: string, data: Upd
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "GovernmentSubsidy",
     entityId: subsidyId,
@@ -174,9 +167,9 @@ export async function updateGovernmentSubsidyAction(subsidyId: string, data: Upd
 }
 
 export async function recordDisbursementAction(data: RecordDisbursementInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.SUBSIDIES_RECORD_DISBURSEMENT);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.SUBSIDIES_RECORD_DISBURSEMENT);
   if (permErr) return permErr;
 
   const parsed = recordDisbursementSchema.safeParse(data);
@@ -192,11 +185,12 @@ export async function recordDisbursementAction(data: RecordDisbursementInput) {
   const updated = await db.$transaction(async (tx) => {
     await tx.subsidyDisbursement.create({
       data: {
+        schoolId: ctx.schoolId,
         governmentSubsidyId: subsidy.id,
         amount: parsed.data.amount,
         receivedAt: parsed.data.receivedAt,
         bankReference: parsed.data.bankReference,
-        recordedBy: session.user.id!,
+        recordedBy: ctx.session.user.id,
         notes: parsed.data.notes,
       },
     });
@@ -227,7 +221,7 @@ export async function recordDisbursementAction(data: RecordDisbursementInput) {
   const newReceivedTotal = toNum(updated.receivedAmount);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "SubsidyDisbursement",
     entityId: subsidy.id,
@@ -239,8 +233,8 @@ export async function recordDisbursementAction(data: RecordDisbursementInput) {
 }
 
 export async function deleteGovernmentSubsidyAction(subsidyId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const subsidy = await db.governmentSubsidy.findUnique({
     where: { id: subsidyId },
@@ -255,7 +249,7 @@ export async function deleteGovernmentSubsidyAction(subsidyId: string) {
   await db.governmentSubsidy.delete({ where: { id: subsidyId } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "GovernmentSubsidy",
     entityId: subsidyId,
@@ -267,13 +261,10 @@ export async function deleteGovernmentSubsidyAction(subsidyId: string) {
 }
 
 export async function getSubsidySummaryAction(academicYearId?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (academicYearId) where.academicYearId = academicYearId;
 
   const subsidies = await db.governmentSubsidy.findMany({ where });

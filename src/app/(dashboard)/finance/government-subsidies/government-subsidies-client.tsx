@@ -126,7 +126,7 @@ export function GovernmentSubsidiesClient({
           name: formData.name, expectedAmount: formData.expectedAmount,
           referenceNumber: formData.referenceNumber || null, notes: formData.notes || null,
         });
-        if (result.error) { toast.error(result.error); return; }
+        if ("error" in result) { toast.error(result.error); return; }
         toast.success("Subsidy updated");
       } else {
         const result = await createGovernmentSubsidyAction({
@@ -135,7 +135,7 @@ export function GovernmentSubsidiesClient({
           expectedAmount: formData.expectedAmount, referenceNumber: formData.referenceNumber || undefined,
           notes: formData.notes || undefined,
         });
-        if (result.error) { toast.error(result.error); return; }
+        if ("error" in result) { toast.error(result.error); return; }
         toast.success("Subsidy created");
       }
       setShowCreateModal(false);
@@ -163,7 +163,7 @@ export function GovernmentSubsidiesClient({
   function handleDelete(subsidy: Subsidy) {
     startTransition(async () => {
       const result = await deleteGovernmentSubsidyAction(subsidy.id);
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Subsidy deleted");
       router.refresh();
     });

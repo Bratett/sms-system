@@ -26,7 +26,7 @@ describe("createMedicalRecordAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await createMedicalRecordAction({
       studentId: "s1",
       date: "2026-03-01",
@@ -34,7 +34,7 @@ describe("createMedicalRecordAction", () => {
       title: "Routine Checkup",
       description: "Annual health checkup",
     });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should create medical record successfully", async () => {
@@ -106,9 +106,9 @@ describe("getMedicalRecordsAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getMedicalRecordsAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return paginated medical records with defaults", async () => {

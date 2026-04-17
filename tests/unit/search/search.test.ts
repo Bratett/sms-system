@@ -28,10 +28,10 @@ describe("globalSearchAction", () => {
     expect(result).toEqual({ students: [], staff: [], subjects: [], items: [] });
   });
 
-  it("should return empty results when no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null);
+  it("should return error when no school configured", async () => {
+    mockAuthenticatedUser({ schoolId: null });
     const result = await globalSearchAction("John");
-    expect(result).toEqual({ students: [], staff: [], subjects: [], items: [] });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return search results across all categories", async () => {

@@ -1,28 +1,24 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
 
 export async function getFinanceReportAction(filters?: {
   termId?: string;
   academicYearId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.REPORTS_FINANCE_READ);
+  if (denied) return denied;
 
   // Determine academic year
   let academicYearId = filters?.academicYearId;
   if (!academicYearId) {
     const current = await db.academicYear.findFirst({
-      where: { schoolId: school.id, isCurrent: true },
+      where: { schoolId: ctx.schoolId, isCurrent: true },
     });
     academicYearId = current?.id;
   }

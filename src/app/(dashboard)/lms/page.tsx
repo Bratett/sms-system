@@ -10,8 +10,8 @@ export default async function LmsPage() {
   }
 
   const result = await getCoursesAction({});
-  const courses = result.data ?? [];
-  const total = result.total ?? 0;
+  const courses = "data" in result ? result.data : [];
+  const total = "total" in result ? result.total : 0;
 
   return (
     <div className="space-y-6">

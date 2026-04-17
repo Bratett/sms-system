@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { PAGINATION_DEFAULT } from "@/lib/constants";
 import type { AuditAction, Prisma } from "@prisma/client";
 
@@ -16,10 +17,10 @@ interface AuditLogFilters {
 }
 
 export async function getAuditLogsAction(filters: AuditLogFilters = {}) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.AUDIT_LOG_READ);
+  if (denied) return denied;
 
   const page = filters.page ?? PAGINATION_DEFAULT.page;
   const pageSize = Math.min(
@@ -96,10 +97,8 @@ export async function getAuditLogsAction(filters: AuditLogFilters = {}) {
 }
 
 export async function getAuditModulesAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const modules = await db.auditLog.findMany({
     select: { module: true },
@@ -111,10 +110,8 @@ export async function getAuditModulesAction() {
 }
 
 export async function getAuditUsersAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const users = await db.user.findMany({
     select: { id: true, firstName: true, lastName: true, username: true },

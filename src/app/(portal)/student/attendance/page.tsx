@@ -9,7 +9,7 @@ export default async function StudentAttendancePage() {
   }
 
   const result = await getMyAttendanceAction();
-  const data = result.data ?? { summary: null, terms: [] };
+  const data = "data" in result ? result.data : { summary: null, terms: [] };
 
   return <StudentAttendanceClient initialData={data} />;
 }

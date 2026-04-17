@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import {
@@ -14,14 +15,13 @@ import {
 } from "@/modules/accounting/schemas/petty-cash.schema";
 
 export async function getPettyCashFundsAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PETTY_CASH_READ);
+  if (denied) return denied;
 
   const funds = await db.pettyCashFund.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     include: {
       _count: { select: { transactions: true, replenishments: true } },
     },
@@ -43,27 +43,27 @@ export async function getPettyCashFundsAction() {
 }
 
 export async function createPettyCashFundAction(data: CreatePettyCashFundInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PETTY_CASH_CREATE);
+  if (denied) return denied;
 
   const parsed = createPettyCashFundSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const fund = await db.pettyCashFund.create({
-    data: { schoolId: school.id, ...parsed.data, currentBalance: parsed.data.authorizedLimit },
+    data: { schoolId: ctx.schoolId, ...parsed.data, currentBalance: parsed.data.authorizedLimit },
   });
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "PettyCashFund", entityId: fund.id, module: "accounting", description: `Created petty cash fund "${parsed.data.name}" (GHS ${parsed.data.authorizedLimit})` });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "PettyCashFund", entityId: fund.id, module: "accounting", description: `Created petty cash fund "${parsed.data.name}" (GHS ${parsed.data.authorizedLimit})` });
 
   return { data: fund };
 }
 
 export async function recordPettyCashTransactionAction(data: RecordPettyCashTransactionInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PETTY_CASH_TRANSACT);
+  if (denied) return denied;
 
   const parsed = recordPettyCashTransactionSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -80,7 +80,7 @@ export async function recordPettyCashTransactionAction(data: RecordPettyCashTran
 
   await db.$transaction(async (tx) => {
     await tx.pettyCashTransaction.create({
-      data: { ...parsed.data, recordedBy: session.user.id! },
+      data: { ...parsed.data, schoolId: ctx.schoolId, recordedBy: ctx.session.user.id },
     });
 
     await tx.pettyCashFund.update({
@@ -89,14 +89,16 @@ export async function recordPettyCashTransactionAction(data: RecordPettyCashTran
     });
   });
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "PettyCashTransaction", entityId: fund.id, module: "accounting", description: `${parsed.data.type} of GHS ${parsed.data.amount} from "${fund.name}"` });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "PettyCashTransaction", entityId: fund.id, module: "accounting", description: `${parsed.data.type} of GHS ${parsed.data.amount} from "${fund.name}"` });
 
   return { data: { success: true, newBalance: toNum(fund.currentBalance) + balanceChange } };
 }
 
 export async function getPettyCashTransactionsAction(fundId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PETTY_CASH_READ);
+  if (denied) return denied;
 
   const transactions = await db.pettyCashTransaction.findMany({
     where: { pettyCashFundId: fundId },
@@ -113,8 +115,8 @@ export async function getPettyCashTransactionsAction(fundId: string) {
 }
 
 export async function requestReplenishmentAction(data: RequestReplenishmentInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const parsed = requestReplenishmentSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
@@ -123,17 +125,17 @@ export async function requestReplenishmentAction(data: RequestReplenishmentInput
   if (!fund) return { error: "Fund not found" };
 
   const replenishment = await db.pettyCashReplenishment.create({
-    data: { pettyCashFundId: fund.id, amount: parsed.data.amount, requestedBy: session.user.id! },
+    data: { schoolId: ctx.schoolId, pettyCashFundId: fund.id, amount: parsed.data.amount, requestedBy: ctx.session.user.id },
   });
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "PettyCashReplenishment", entityId: replenishment.id, module: "accounting", description: `Requested replenishment of GHS ${parsed.data.amount} for "${fund.name}"` });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "PettyCashReplenishment", entityId: replenishment.id, module: "accounting", description: `Requested replenishment of GHS ${parsed.data.amount} for "${fund.name}"` });
 
   return { data: replenishment };
 }
 
 export async function approveReplenishmentAction(replenishmentId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const replenishment = await db.pettyCashReplenishment.findUnique({
     where: { id: replenishmentId },
@@ -145,7 +147,7 @@ export async function approveReplenishmentAction(replenishmentId: string) {
   await db.$transaction(async (tx) => {
     await tx.pettyCashReplenishment.update({
       where: { id: replenishmentId },
-      data: { status: "DISBURSED", approvedBy: session.user.id!, approvedAt: new Date() },
+      data: { status: "DISBURSED", approvedBy: ctx.session.user.id, approvedAt: new Date() },
     });
 
     await tx.pettyCashFund.update({
@@ -155,11 +157,12 @@ export async function approveReplenishmentAction(replenishmentId: string) {
 
     await tx.pettyCashTransaction.create({
       data: {
+        schoolId: ctx.schoolId,
         pettyCashFundId: replenishment.pettyCashFundId,
         type: "REPLENISHMENT",
         amount: replenishment.amount,
         description: `Approved replenishment #${replenishmentId.slice(-6)}`,
-        recordedBy: session.user.id!,
+        recordedBy: ctx.session.user.id,
         date: new Date(),
       },
     });

@@ -1,40 +1,37 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
 
 // ─── Staff Turnover Report ──────────────────────────────────
 
 export async function getStaffTurnoverReportAction(dateFrom: string, dateTo: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
 
   const from = new Date(dateFrom);
   const to = new Date(dateTo);
 
   const [newHires, terminations, retirements, transfers] = await Promise.all([
     db.staff.count({
-      where: { schoolId: school.id, createdAt: { gte: from, lte: to }, deletedAt: null },
+      where: { schoolId: ctx.schoolId, createdAt: { gte: from, lte: to }, deletedAt: null },
     }),
     db.staff.count({
-      where: { schoolId: school.id, status: "TERMINATED", updatedAt: { gte: from, lte: to }, deletedAt: null },
+      where: { schoolId: ctx.schoolId, status: "TERMINATED", updatedAt: { gte: from, lte: to }, deletedAt: null },
     }),
     db.staff.count({
-      where: { schoolId: school.id, status: "RETIRED", updatedAt: { gte: from, lte: to }, deletedAt: null },
+      where: { schoolId: ctx.schoolId, status: "RETIRED", updatedAt: { gte: from, lte: to }, deletedAt: null },
     }),
     db.staff.count({
-      where: { schoolId: school.id, status: "TRANSFERRED", updatedAt: { gte: from, lte: to }, deletedAt: null },
+      where: { schoolId: ctx.schoolId, status: "TRANSFERRED", updatedAt: { gte: from, lte: to }, deletedAt: null },
     }),
   ]);
 
   const totalActive = await db.staff.count({
-    where: { schoolId: school.id, status: "ACTIVE", deletedAt: null },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE", deletedAt: null },
   });
 
   const totalExits = terminations + retirements + transfers;
@@ -57,12 +54,9 @@ export async function getStaffTurnoverReportAction(dateFrom: string, dateTo: str
 // ─── Leave Utilization Report ───────────────────────────────
 
 export async function getLeaveUtilizationReportAction(academicYearId?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.LEAVE_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.LEAVE_READ)) return { error: "Insufficient permissions" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {};
@@ -103,15 +97,12 @@ export async function getLeaveUtilizationReportAction(academicYearId?: string) {
 // ─── Payroll Summary Report ─────────────────────────────────
 
 export async function getPayrollSummaryReportAction(year: number) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
 
   const periods = await db.payrollPeriod.findMany({
-    where: { schoolId: school.id, year },
+    where: { schoolId: ctx.schoolId, year },
     include: {
       entries: {
         select: { basicSalary: true, totalAllowances: true, totalDeductions: true, netPay: true },
@@ -143,15 +134,12 @@ export async function getPayrollSummaryReportAction(year: number) {
 // ─── Staff Demographics Report ──────────────────────────────
 
 export async function getStaffDemographicsReportAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
 
   const activeStaff = await db.staff.findMany({
-    where: { schoolId: school.id, status: "ACTIVE", deletedAt: null },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE", deletedAt: null },
     select: { gender: true, staffType: true, dateOfBirth: true, qualifications: true },
   });
 
@@ -204,19 +192,16 @@ export async function getStaffDemographicsReportAction() {
 // ─── Attendance Trend Report ────────────────────────────────
 
 export async function getAttendanceTrendReportAction(month: number, year: number) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_ATTENDANCE_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_ATTENDANCE_READ)) return { error: "Insufficient permissions" };
 
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0);
 
   const records = await db.staffAttendance.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       date: { gte: startDate, lte: endDate },
     },
     select: { date: true, status: true },

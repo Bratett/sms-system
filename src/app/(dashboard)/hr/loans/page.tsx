@@ -13,12 +13,12 @@ export default async function LoansPage() {
     getStaffAction({ status: "ACTIVE", pageSize: 500 }),
   ]);
 
-  const loans = loansResult.data ?? [];
-  const total = loansResult.total ?? 0;
-  const page = loansResult.page ?? 1;
-  const pageSize = loansResult.pageSize ?? 25;
+  const loans = "data" in loansResult ? loansResult.data : [];
+  const total = "total" in loansResult ? loansResult.total ?? 0 : 0;
+  const page = "page" in loansResult ? loansResult.page ?? 1 : 1;
+  const pageSize = "pageSize" in loansResult ? loansResult.pageSize ?? 25 : 25;
 
-  const staffOptions = (staffResult.staff ?? []).map((s) => ({
+  const staffOptions = ("staff" in staffResult ? staffResult.staff ?? [] : []).map((s: { id: string; staffId: string; firstName: string; lastName: string }) => ({
     id: s.id,
     staffId: s.staffId,
     name: `${s.firstName} ${s.lastName}`,

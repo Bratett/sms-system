@@ -123,7 +123,7 @@ export function ExpensesClient({
         referenceNumber: formData.referenceNumber || undefined,
         paymentMethod: (formData.paymentMethod as "CASH" | "BANK_TRANSFER" | "MOBILE_MONEY" | "CHEQUE" | "OTHER") || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -137,7 +137,7 @@ export function ExpensesClient({
   function handleApprove(expenseId: string) {
     startTransition(async () => {
       const result = await approveExpenseAction(expenseId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -149,7 +149,7 @@ export function ExpensesClient({
   function handleReject(expenseId: string) {
     startTransition(async () => {
       const result = await rejectExpenseAction(expenseId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

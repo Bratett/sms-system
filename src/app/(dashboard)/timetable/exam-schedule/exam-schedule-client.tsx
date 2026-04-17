@@ -117,7 +117,7 @@ export function ExamScheduleClient({
           invigilatorId: examForm.invigilatorId || null,
           notes: examForm.notes || null,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -135,7 +135,7 @@ export function ExamScheduleClient({
           invigilatorId: examForm.invigilatorId || undefined,
           notes: examForm.notes || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -151,7 +151,7 @@ export function ExamScheduleClient({
 
     startTransition(async () => {
       const result = await deleteExamScheduleAction(exam.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -218,10 +218,10 @@ export function ExamScheduleClient({
                       onClick={() => {
                         startTransition(async () => {
                           const result = await generateSeatingArrangementAction(exam.id, "ALPHABETICAL");
-                          if (result.error) {
+                          if ("error" in result) {
                             toast.error(result.error);
                           } else {
-                            toast.success(`Generated ${result.data?.created ?? 0} seat assignments across ${result.data?.roomsUsed ?? 0} room(s).`);
+                            toast.success(`Generated ${"data" in result ? result.data?.created ?? 0 : 0} seat assignments across ${"data" in result ? result.data?.roomsUsed ?? 0 : 0} room(s).`);
                           }
                         });
                       }}

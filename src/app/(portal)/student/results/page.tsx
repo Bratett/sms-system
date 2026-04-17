@@ -9,8 +9,8 @@ export default async function StudentResultsPage() {
   }
 
   const result = await getMyResultsAction();
-  const data = result.data ?? null;
-  const error = result.error ?? null;
+  const data = "data" in result ? result.data : null;
+  const error = "error" in result ? result.error : null;
 
   return <MyResultsClient initialData={data} error={error} />;
 }

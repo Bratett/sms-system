@@ -30,10 +30,10 @@ export default async function VehiclesPage({
         description="Manage fleet vehicles and driver assignments."
       />
       <VehiclesClient
-        vehicles={result.data ?? []}
-        total={result.total ?? 0}
-        page={result.page ?? 1}
-        pageSize={result.pageSize ?? 25}
+        vehicles={"data" in result ? result.data : []}
+        total={"total" in result ? result.total : 0}
+        page={"page" in result ? result.page : 1}
+        pageSize={"pageSize" in result ? result.pageSize : 25}
         filters={params}
       />
     </div>

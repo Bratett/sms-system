@@ -8,5 +8,5 @@ export default async function FinancialStatementsPage() {
 
   const accountsResult = await getAccountsAction({ isActive: true });
 
-  return <FinancialStatementsClient accounts={accountsResult.data ?? []} />;
+  return <FinancialStatementsClient accounts={"data" in accountsResult ? accountsResult.data : []} />;
 }

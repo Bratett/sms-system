@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Checkout Asset ─────────────────────────────────────────────────
@@ -12,8 +13,10 @@ export async function checkoutAssetAction(data: {
   purpose?: string;
   expectedReturn?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_CHECKOUT);
+  if (denied) return denied;
 
   const asset = await db.fixedAsset.findUnique({ where: { id: data.fixedAssetId } });
   if (!asset) return { error: "Asset not found." };
@@ -34,14 +37,14 @@ export async function checkoutAssetAction(data: {
     data: {
       fixedAssetId: data.fixedAssetId,
       checkedOutTo: data.checkedOutTo,
-      checkedOutBy: session.user.id!,
+      checkedOutBy: ctx.session.user.id,
       purpose: data.purpose || null,
       expectedReturn: data.expectedReturn ? new Date(data.expectedReturn) : null,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "AssetCheckout",
     entityId: checkout.id,
@@ -62,8 +65,10 @@ export async function returnAssetAction(
     returnNotes?: string;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_CHECKOUT);
+  if (denied) return denied;
 
   const checkout = await db.assetCheckout.findUnique({
     where: { id: checkoutId },
@@ -78,7 +83,7 @@ export async function returnAssetAction(
     data: {
       status: "RETURNED",
       returnDate: new Date(),
-      returnedBy: session.user.id!,
+      returnedBy: ctx.session.user.id,
       condition: data.condition || null,
       returnNotes: data.returnNotes || null,
     },
@@ -93,7 +98,7 @@ export async function returnAssetAction(
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "AssetCheckout",
     entityId: checkoutId,
@@ -109,8 +114,10 @@ export async function returnAssetAction(
 // ─── Checkout History ───────────────────────────────────────────────
 
 export async function getCheckoutHistoryAction(assetId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_CHECKOUT);
+  if (denied) return denied;
 
   const checkouts = await db.assetCheckout.findMany({
     where: { fixedAssetId: assetId },
@@ -146,16 +153,15 @@ export async function getCheckoutHistoryAction(assetId: string) {
 // ─── Active Checkouts ───────────────────────────────────────────────
 
 export async function getActiveCheckoutsAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_CHECKOUT);
+  if (denied) return denied;
 
   const checkouts = await db.assetCheckout.findMany({
     where: {
       status: "CHECKED_OUT",
-      fixedAsset: { schoolId: school.id },
+      fixedAsset: { schoolId: ctx.schoolId },
     },
     include: {
       fixedAsset: {
@@ -193,17 +199,16 @@ export async function getActiveCheckoutsAction() {
 // ─── Overdue Checkouts ──────────────────────────────────────────────
 
 export async function getOverdueCheckoutsAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_CHECKOUT);
+  if (denied) return denied;
 
   const overdue = await db.assetCheckout.findMany({
     where: {
       status: "CHECKED_OUT",
       expectedReturn: { lt: new Date() },
-      fixedAsset: { schoolId: school.id },
+      fixedAsset: { schoolId: ctx.schoolId },
     },
     include: {
       fixedAsset: {

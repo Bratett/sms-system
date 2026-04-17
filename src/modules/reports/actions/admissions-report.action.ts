@@ -1,27 +1,23 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 
 export async function getAdmissionsReportAction(filters?: {
   academicYearId?: string;
   status?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.REPORTS_ENROLLMENT_READ);
+  if (denied) return denied;
 
   // Determine academic year
   let academicYearId = filters?.academicYearId;
   if (!academicYearId) {
     const current = await db.academicYear.findFirst({
-      where: { schoolId: school.id, isCurrent: true },
+      where: { schoolId: ctx.schoolId, isCurrent: true },
     });
     academicYearId = current?.id;
   }
@@ -31,7 +27,7 @@ export async function getAdmissionsReportAction(filters?: {
   }
 
   const where: Record<string, unknown> = {
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
     academicYearId,
   };
   if (filters?.status) {
@@ -44,7 +40,7 @@ export async function getAdmissionsReportAction(filters?: {
   // By status
   const byStatusRaw = await db.admissionApplication.groupBy({
     by: ["status"],
-    where: { schoolId: school.id, academicYearId },
+    where: { schoolId: ctx.schoolId, academicYearId },
     _count: { _all: true },
   });
 
@@ -111,7 +107,7 @@ export async function getAdmissionsReportAction(filters?: {
   const enrolledCount =
     byStatusRaw.find((r) => r.status === "ENROLLED")?._count._all ?? 0;
   const totalForConversion = await db.admissionApplication.count({
-    where: { schoolId: school.id, academicYearId },
+    where: { schoolId: ctx.schoolId, academicYearId },
   });
   const conversionRate =
     totalForConversion > 0

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import { renderPdfToBuffer } from "@/lib/pdf/generator";
@@ -13,9 +13,9 @@ import { uploadFile, generateFileKey } from "@/lib/storage/r2";
 // ─── Generate Single Payslip PDF ────────────────────────────
 
 export async function generatePayslipPdfAction(staffId: string, payrollPeriodId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
 
   const entry = await db.payrollEntry.findFirst({
     where: { staffId, payrollPeriodId },
@@ -37,7 +37,7 @@ export async function generatePayslipPdfAction(staffId: string, payrollPeriodId:
       },
     }),
     db.payrollPeriod.findUnique({ where: { id: payrollPeriodId } }),
-    db.school.findFirst(),
+    db.school.findUnique({ where: { id: ctx.schoolId } }),
   ]);
 
   if (!staff || !period || !school) return { error: "Missing data for payslip generation." };
@@ -81,7 +81,7 @@ export async function generatePayslipPdfAction(staffId: string, payrollPeriodId:
   const fileName = `Payslip_${staff.staffId}_${period.month}_${period.year}.pdf`;
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "EXPORT",
     entity: "PayrollEntry",
     entityId: entry.id,
@@ -101,12 +101,9 @@ export async function generatePayslipPdfAction(staffId: string, payrollPeriodId:
 // ─── Bulk Generate & Store Payslips in R2 ───────────────────
 
 export async function bulkGeneratePayslipsAction(payrollPeriodId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.PAYROLL_APPROVE)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.PAYROLL_APPROVE)) return { error: "Insufficient permissions" };
 
   const period = await db.payrollPeriod.findUnique({
     where: { id: payrollPeriodId },
@@ -142,6 +139,7 @@ export async function bulkGeneratePayslipsAction(payrollPeriodId: string) {
     : [];
   const deptMap = new Map(departments.map((d) => [d.id, d.name]));
 
+  const school = await db.school.findUnique({ where: { id: ctx.schoolId }, select: { name: true } });
   const monthName = new Date(period.year, period.month - 1).toLocaleString("default", { month: "long" });
   let generated = 0;
   const errors: { staffId: string; message: string }[] = [];
@@ -160,7 +158,7 @@ export async function bulkGeneratePayslipsAction(payrollPeriodId: string) {
       } | null;
 
       const props: PayslipProps = {
-        schoolName: school.name,
+        schoolName: school?.name ?? "School",
         staffName: `${staff.firstName} ${staff.lastName}`,
         staffId: staff.staffId,
         department: departmentName,
@@ -185,7 +183,7 @@ export async function bulkGeneratePayslipsAction(payrollPeriodId: string) {
       // Store as a Document linked to the staff member
       await db.document.create({
         data: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           title: `Payslip - ${monthName} ${period.year}`,
           category: "STAFF",
           fileKey,
@@ -194,7 +192,7 @@ export async function bulkGeneratePayslipsAction(payrollPeriodId: string) {
           contentType: "application/pdf",
           entityType: "Staff",
           entityId: staff.id,
-          uploadedBy: session.user.id!,
+          uploadedBy: ctx.session.user.id,
           accessLevel: "RESTRICTED",
         },
       });
@@ -209,7 +207,7 @@ export async function bulkGeneratePayslipsAction(payrollPeriodId: string) {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "EXPORT",
     entity: "PayrollPeriod",
     entityId: payrollPeriodId,

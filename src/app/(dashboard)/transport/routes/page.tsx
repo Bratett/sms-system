@@ -30,10 +30,10 @@ export default async function RoutesPage({
         description="Manage transport routes and assignments."
       />
       <RoutesClient
-        routes={result.data ?? []}
-        total={result.total ?? 0}
-        page={result.page ?? 1}
-        pageSize={result.pageSize ?? 25}
+        routes={"data" in result ? result.data : []}
+        total={"total" in result ? result.total : 0}
+        page={"page" in result ? result.page : 1}
+        pageSize={"pageSize" in result ? result.pageSize : 25}
         filters={params}
       />
     </div>

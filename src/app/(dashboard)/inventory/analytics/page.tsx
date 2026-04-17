@@ -46,15 +46,15 @@ export default async function InventoryAnalyticsPage() {
         description="Comprehensive analytics and insights across all inventory operations."
       />
       <AnalyticsClient
-        overview={overviewResult.data ?? null}
-        trends={trendsResult.data ?? []}
-        abcAnalysis={{ data: abcResult.data ?? [], summary: abcResult.summary ?? null }}
-        categoryDistribution={categoryResult.data ?? []}
-        stockAging={{ data: agingResult.data ?? [], summary: agingResult.summary ?? [] }}
-        reorderAnalytics={{ data: reorderResult.data ?? [], summary: reorderResult.summary ?? null }}
-        procurementAnalytics={procurementResult.data ?? null}
-        supplierPerformance={supplierResult.data ?? []}
-        assetAnalytics={assetResult.data ?? null}
+        overview={"data" in overviewResult ? overviewResult.data : null}
+        trends={"data" in trendsResult ? trendsResult.data : []}
+        abcAnalysis={{ data: "data" in abcResult ? abcResult.data : [], summary: "summary" in abcResult ? abcResult.summary ?? null : null }}
+        categoryDistribution={"data" in categoryResult ? categoryResult.data : []}
+        stockAging={{ data: "data" in agingResult ? agingResult.data : [], summary: "summary" in agingResult ? agingResult.summary ?? [] : [] }}
+        reorderAnalytics={{ data: "data" in reorderResult ? reorderResult.data : [], summary: "summary" in reorderResult ? reorderResult.summary ?? null : null }}
+        procurementAnalytics={"data" in procurementResult ? procurementResult.data : null}
+        supplierPerformance={"data" in supplierResult ? supplierResult.data : []}
+        assetAnalytics={"data" in assetResult ? assetResult.data : null}
       />
     </div>
   );

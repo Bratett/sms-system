@@ -30,9 +30,9 @@ describe("getEnrollmentReportAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getEnrollmentReportAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return error if no academic year found", async () => {
@@ -85,9 +85,9 @@ describe("getAcademicPerformanceReportAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getAcademicPerformanceReportAction("term-1");
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return empty report when no results exist", async () => {
@@ -144,9 +144,9 @@ describe("getAttendanceReportAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getAttendanceReportAction("term-1");
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return error if term not found", async () => {
@@ -198,9 +198,9 @@ describe("getComprehensiveReportAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getComprehensiveReportAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return comprehensive data", async () => {
@@ -253,9 +253,9 @@ describe("getReportFiltersAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getReportFiltersAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return filter options", async () => {
@@ -292,9 +292,9 @@ describe("getAdmissionsReportAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getAdmissionsReportAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return error if no academic year found", async () => {
@@ -346,9 +346,9 @@ describe("getAuditReportAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getAuditReportAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return paginated audit entries with summaries", async () => {
@@ -397,9 +397,9 @@ describe("getBoardingReportAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getBoardingReportAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return boarding report data", async () => {
@@ -449,9 +449,9 @@ describe("getDisciplineReportAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getDisciplineReportAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return discipline report data", async () => {
@@ -493,9 +493,9 @@ describe("getFinanceReportAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getFinanceReportAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return error if no academic year found", async () => {
@@ -546,9 +546,9 @@ describe("getHrReportAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getHrReportAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return HR report data", async () => {
@@ -603,9 +603,9 @@ describe("getInventoryReportAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getInventoryReportAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return inventory report data", async () => {
@@ -664,9 +664,9 @@ describe("getStudentRegisterReportAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getStudentRegisterReportAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return error if no academic year found", async () => {

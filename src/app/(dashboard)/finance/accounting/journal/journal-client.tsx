@@ -141,7 +141,7 @@ export function JournalClient({
         description: formData.description,
         entries,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -154,7 +154,7 @@ export function JournalClient({
   function handlePost(transactionId: string) {
     startTransition(async () => {
       const result = await postJournalTransactionAction(transactionId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -166,7 +166,7 @@ export function JournalClient({
   function handleReverse(transactionId: string) {
     startTransition(async () => {
       const result = await reverseJournalTransactionAction(transactionId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

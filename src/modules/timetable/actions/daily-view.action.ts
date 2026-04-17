@@ -1,18 +1,18 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 
 /**
  * Get a teacher's daily schedule with attendance status per period.
  * Combines timetable slots with attendance register state.
  */
 export async function getTeacherDailyViewAction(date: string) {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { data: { periods: [], schedule: [] } };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TIMETABLE_READ);
+  if (denied) return denied;
 
   const dateObj = new Date(date);
   dateObj.setHours(0, 0, 0, 0);
@@ -23,7 +23,7 @@ export async function getTeacherDailyViewAction(date: string) {
 
   // Get all periods
   const periods = await db.period.findMany({
-    where: { schoolId: school.id, isActive: true },
+    where: { schoolId: ctx.schoolId, isActive: true },
     orderBy: { order: "asc" },
     select: { id: true, name: true, startTime: true, endTime: true, order: true, type: true },
   });
@@ -31,7 +31,7 @@ export async function getTeacherDailyViewAction(date: string) {
   // Get teacher's timetable slots for this day
   const slots = await db.timetableSlot.findMany({
     where: {
-      teacherId: session.user.id,
+      teacherId: ctx.session.user.id,
       dayOfWeek,
       termId: currentTerm.id,
     },

@@ -70,7 +70,7 @@ export function RollCallClient({ hostels }: { hostels: HostelOption[] }) {
 
     startTransition(async () => {
       const result = await getBoardingStudentsAction(selectedHostel);
-      if (result.data) {
+      if ("data" in result) {
         setStudents(result.data);
         // Default all to PRESENT
         const defaultStatuses: Record<string, RollCallStatus> = {};
@@ -89,7 +89,7 @@ export function RollCallClient({ hostels }: { hostels: HostelOption[] }) {
         page: 1,
         pageSize: 10,
       });
-      if (historyResult.data) {
+      if ("data" in historyResult) {
         setHistory(historyResult.data);
         setHistoryLoaded(true);
       }
@@ -145,7 +145,7 @@ export function RollCallClient({ hostels }: { hostels: HostelOption[] }) {
           page: 1,
           pageSize: 10,
         });
-        if (historyResult.data) {
+        if ("data" in historyResult) {
           setHistory(historyResult.data);
         }
       }

@@ -98,7 +98,7 @@ export function TeacherAvailabilityClient({
       }
 
       // Override with saved data
-      if (availResult.data) {
+      if ("data" in availResult && availResult.data) {
         for (const entry of availResult.data) {
           const key = cellKey(entry.dayOfWeek, entry.periodId);
           if (newGrid.has(key)) {
@@ -115,7 +115,7 @@ export function TeacherAvailabilityClient({
       setGrid(newGrid);
 
       // Load preferences
-      if (prefResult.data) {
+      if ("data" in prefResult && prefResult.data) {
         setMaxPeriodsPerDay(prefResult.data.maxPeriodsPerDay ?? "");
         setMaxConsecutive(prefResult.data.maxConsecutivePeriods ?? "");
         setPrefNotes(prefResult.data.notes ?? "");
@@ -161,9 +161,9 @@ export function TeacherAvailabilityClient({
         }),
       ]);
 
-      if (availResult.error) toast.error(availResult.error);
-      else if (prefResult.error) toast.error(prefResult.error);
-      else toast.success(`Saved availability (${availResult.data?.updated} slots) and preferences.`);
+      if ("error" in availResult) toast.error(availResult.error);
+      else if ("error" in prefResult) toast.error(prefResult.error);
+      else toast.success(`Saved availability (${"data" in availResult ? availResult.data?.updated : 0} slots) and preferences.`);
     });
   }
 

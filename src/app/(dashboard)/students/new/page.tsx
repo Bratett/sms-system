@@ -10,7 +10,7 @@ export default async function NewStudentPage() {
   }
 
   const classesResult = await getClassesAction();
-  const allClasses = classesResult.data ?? [];
+  const allClasses = "data" in classesResult ? classesResult.data : [];
 
   // Build class arm options grouped by class
   const classArmOptions = allClasses.flatMap((cls) =>

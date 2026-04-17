@@ -17,13 +17,13 @@ export default async function ClassesPage() {
     getProgrammesAction(),
   ]);
 
-  const classes = classesResult.data ?? [];
-  const academicYears = (academicYearsResult.data ?? []).map((ay) => ({
+  const classes = "data" in classesResult ? classesResult.data : [];
+  const academicYears = ("data" in academicYearsResult ? academicYearsResult.data : []).map((ay) => ({
     id: ay.id,
     name: ay.name,
     isCurrent: ay.isCurrent,
   }));
-  const programmes = (programmesResult.data ?? []).map((p) => ({
+  const programmes = ("data" in programmesResult ? programmesResult.data : []).map((p) => ({
     id: p.id,
     name: p.name,
   }));

@@ -9,7 +9,7 @@ export default async function ParentFeesPage() {
   }
 
   const result = await getParentChildrenAction();
-  const children = result.data ?? [];
+  const children = "data" in result ? result.data : [];
 
   return <FeesClient students={children} />;
 }

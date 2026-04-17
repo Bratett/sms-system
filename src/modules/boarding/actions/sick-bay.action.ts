@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { dispatch } from "@/lib/notifications/dispatcher";
 import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
@@ -18,11 +18,9 @@ export async function getSickBayAdmissionsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.SICK_BAY_READ);
   if (permErr) return permErr;
 
   const page = filters?.page ?? 1;
@@ -138,11 +136,9 @@ export async function getSickBayAdmissionsAction(filters?: {
 // ─── Single Admission ──────────────────────────────────────────────
 
 export async function getSickBayAdmissionAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.SICK_BAY_READ);
   if (permErr) return permErr;
 
   const admission = await db.sickBayAdmission.findUnique({
@@ -245,11 +241,9 @@ export async function admitToSickBayAction(data: {
   temperature?: number;
   severity: "MILD" | "MODERATE" | "SEVERE" | "EMERGENCY";
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_CREATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.SICK_BAY_CREATE);
   if (permErr) return permErr;
 
   const parsed = admitToSickBaySchema.safeParse(data);
@@ -257,11 +251,7 @@ export async function admitToSickBayAction(data: {
     return { error: parsed.error.issues[0]?.message ?? "Validation failed" };
   }
 
-  // Get school
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "School not found." };
-  }
+  // Get school
 
   // Generate admission number: SBA/YYYY/NNNN
   const year = new Date().getFullYear();
@@ -274,11 +264,11 @@ export async function admitToSickBayAction(data: {
 
   const admission = await db.sickBayAdmission.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       admissionNumber,
       studentId: parsed.data.studentId,
       hostelId: parsed.data.hostelId,
-      admittedBy: session.user.id!,
+      admittedBy: ctx.session.user.id,
       symptoms: parsed.data.symptoms,
       initialDiagnosis: parsed.data.initialDiagnosis || null,
       temperature: parsed.data.temperature ?? null,
@@ -287,7 +277,7 @@ export async function admitToSickBayAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "SickBayAdmission",
     entityId: admission.id,
@@ -301,7 +291,7 @@ export async function admitToSickBayAction(data: {
     title: "Student Admitted to Sick Bay",
     message: `A student has been admitted to sick bay with ${parsed.data.severity} severity.`,
     recipients: [],
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
   }).catch(() => {});
 
   return { data: admission };
@@ -317,11 +307,9 @@ export async function updateSickBayAdmissionAction(
     parentNotified?: boolean;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_UPDATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.SICK_BAY_UPDATE);
   if (permErr) return permErr;
 
   const admission = await db.sickBayAdmission.findUnique({ where: { id } });
@@ -361,11 +349,9 @@ export async function updateSickBayAdmissionAction(
 // ─── Discharge from Sick Bay ───────────────────────────────────────
 
 export async function dischargeSickBayAction(id: string, notes?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_DISCHARGE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.SICK_BAY_DISCHARGE);
   if (permErr) return permErr;
 
   const admission = await db.sickBayAdmission.findUnique({ where: { id } });
@@ -381,14 +367,14 @@ export async function dischargeSickBayAction(id: string, notes?: string) {
     where: { id },
     data: {
       status: "DISCHARGED",
-      dischargedBy: session.user.id!,
+      dischargedBy: ctx.session.user.id,
       dischargedAt: new Date(),
       dischargeNotes: notes || null,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "SickBayAdmission",
     entityId: id,
@@ -416,11 +402,9 @@ export async function referSickBayAction(
   referredTo: string,
   notes?: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_DISCHARGE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.SICK_BAY_DISCHARGE);
   if (permErr) return permErr;
 
   const admission = await db.sickBayAdmission.findUnique({ where: { id } });
@@ -438,13 +422,13 @@ export async function referSickBayAction(
       status: "REFERRED",
       referredTo,
       dischargeNotes: notes || null,
-      dischargedBy: session.user.id!,
+      dischargedBy: ctx.session.user.id,
       dischargedAt: new Date(),
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "SickBayAdmission",
     entityId: id,
@@ -473,11 +457,9 @@ export async function addMedicationLogAction(data: {
   dosage: string;
   notes?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_UPDATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.SICK_BAY_UPDATE);
   if (permErr) return permErr;
 
   const parsed = addMedicationSchema.safeParse(data);
@@ -499,16 +481,17 @@ export async function addMedicationLogAction(data: {
 
   const medication = await db.medicationLog.create({
     data: {
+      schoolId: ctx.schoolId,
       sickBayAdmissionId: parsed.data.sickBayAdmissionId,
       medicationName: parsed.data.medicationName,
       dosage: parsed.data.dosage,
-      administeredBy: session.user.id!,
+      administeredBy: ctx.session.user.id,
       notes: parsed.data.notes || null,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "MedicationLog",
     entityId: medication.id,
@@ -523,11 +506,9 @@ export async function addMedicationLogAction(data: {
 // ─── Sick Bay Stats ────────────────────────────────────────────────
 
 export async function getSickBayStatsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.SICK_BAY_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.SICK_BAY_READ);
   if (permErr) return permErr;
 
   const [

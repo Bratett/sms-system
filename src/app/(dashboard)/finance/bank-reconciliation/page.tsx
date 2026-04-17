@@ -10,8 +10,8 @@ export default async function BankReconciliationPage() {
 
   return (
     <BankReconciliationClient
-      reconciliations={result.data ?? []}
-      pagination={result.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
+      reconciliations={"data" in result ? result.data : []}
+      pagination={"pagination" in result ? result.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 } : { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
     />
   );
 }

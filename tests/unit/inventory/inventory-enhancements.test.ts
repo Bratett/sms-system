@@ -166,9 +166,9 @@ describe("Inventory Analytics", () => {
     });
 
     it("should return error when no school configured", async () => {
-      prismaMock.school.findFirst.mockResolvedValue(null);
+      mockAuthenticatedUser({ schoolId: null });
       const result = await getInventoryOverviewAction();
-      expect(result).toEqual({ error: "No school configured" });
+      expect(result).toEqual({ error: "No school context. Please select an active school." });
     });
   });
 

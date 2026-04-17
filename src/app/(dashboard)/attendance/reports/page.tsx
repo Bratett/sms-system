@@ -16,7 +16,7 @@ export default async function AttendanceReportsPage() {
     getTermsAction(),
   ]);
 
-  const classes = classesResult.data ?? [];
+  const classes = "data" in classesResult ? classesResult.data : [];
 
   // Build class arms list
   const classArms: { id: string; name: string; className: string }[] = [];
@@ -30,7 +30,7 @@ export default async function AttendanceReportsPage() {
     }
   }
 
-  const terms = (termsResult.data ?? []).map((t) => ({
+  const terms = ("data" in termsResult ? termsResult.data : []).map((t) => ({
     id: t.id,
     name: t.name,
     academicYearName: t.academicYear?.name ?? "",

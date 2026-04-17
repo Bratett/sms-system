@@ -1,11 +1,16 @@
 /**
- * In-memory rate limiter compatible with Next.js edge runtime.
- * Uses a simple Map-based approach with automatic cleanup.
+ * Rate limiter with Redis backend and in-memory fallback.
+ *
+ * - Redis mode: sliding-window counter, shared across instances, survives restarts.
+ * - Fallback mode: in-memory Map (per-instance, same as before).
+ *
+ * The middleware may run in edge runtime where ioredis is unavailable.
+ * We dynamically import ioredis and fall back gracefully.
  */
 
 interface RateLimitOptions {
   interval: number; // Window duration in milliseconds
-  uniqueTokenPerInterval: number; // Max unique tokens tracked per interval
+  uniqueTokenPerInterval: number; // Max unique tokens tracked per interval (in-memory only)
 }
 
 interface RateLimitResult {
@@ -29,11 +34,72 @@ export class RateLimitError extends Error {
   }
 }
 
+// Redis connection singleton (lazy, nullable)
+let redisClient: import("ioredis").default | null = null;
+let redisInitialized = false;
+
+async function getRedis(): Promise<import("ioredis").default | null> {
+  if (redisInitialized) return redisClient;
+  redisInitialized = true;
+
+  const url = process.env.REDIS_URL;
+  if (!url) return null;
+
+  try {
+    const IORedis = (await import("ioredis")).default;
+    redisClient = new IORedis(url, {
+      maxRetriesPerRequest: 1,
+      connectTimeout: 2000,
+      lazyConnect: true,
+    });
+    await redisClient.connect();
+    return redisClient;
+  } catch {
+    console.warn("[rate-limit] Redis unavailable, using in-memory fallback");
+    redisClient = null;
+    return null;
+  }
+}
+
+/**
+ * Redis sliding-window rate limit check.
+ * Uses a sorted set with timestamps as scores.
+ */
+async function redisCheck(
+  redis: import("ioredis").default,
+  key: string,
+  limit: number,
+  windowMs: number,
+  token: string,
+): Promise<RateLimitResult> {
+  const now = Date.now();
+  const windowStart = now - windowMs;
+  const redisKey = `rl:${key}:${token}`;
+
+  const pipeline = redis.pipeline();
+  pipeline.zremrangebyscore(redisKey, 0, windowStart); // Remove expired entries
+  pipeline.zadd(redisKey, now.toString(), `${now}-${Math.random()}`); // Add current request
+  pipeline.zcard(redisKey); // Count requests in window
+  pipeline.pexpire(redisKey, windowMs); // Set TTL
+
+  const results = await pipeline.exec();
+  const count = (results?.[2]?.[1] as number) ?? 0;
+  const reset = now + windowMs;
+
+  if (count > limit) {
+    // Remove the entry we just added (request is rejected)
+    await redis.zremrangebyscore(redisKey, now, now);
+    throw new RateLimitError(windowMs - (now - windowStart));
+  }
+
+  return { limit, remaining: limit - count, reset };
+}
+
 function rateLimit(options: RateLimitOptions) {
   const { interval, uniqueTokenPerInterval } = options;
   const tokenMap = new Map<string, TokenBucket>();
 
-  // Periodic cleanup to prevent memory leaks
+  // Periodic cleanup for in-memory fallback
   const cleanup = () => {
     const now = Date.now();
     for (const [key, bucket] of tokenMap) {
@@ -43,28 +109,30 @@ function rateLimit(options: RateLimitOptions) {
     }
   };
 
-  // Run cleanup every interval
   if (typeof setInterval !== "undefined") {
     const timer = setInterval(cleanup, interval);
-    // Allow the process to exit without waiting for this timer
     if (typeof timer === "object" && "unref" in timer) {
       timer.unref();
     }
   }
 
   return {
-    /**
-     * Check if the token is within the rate limit.
-     * @param limit - Maximum number of requests allowed in the interval
-     * @param token - Unique identifier for the requester (e.g., IP address)
-     * @throws {RateLimitError} when the limit is exceeded
-     */
     async check(limit: number, token: string): Promise<RateLimitResult> {
+      // Try Redis first
+      try {
+        const redis = await getRedis();
+        if (redis) {
+          return await redisCheck(redis, "api", limit, interval, token);
+        }
+      } catch (error) {
+        if (error instanceof RateLimitError) throw error;
+        // Redis error — fall through to in-memory
+      }
+
+      // In-memory fallback
       const now = Date.now();
 
-      // Enforce max unique tokens to prevent memory exhaustion
       if (tokenMap.size >= uniqueTokenPerInterval && !tokenMap.has(token)) {
-        // Evict expired entries first
         cleanup();
         if (tokenMap.size >= uniqueTokenPerInterval) {
           throw new RateLimitError(interval);
@@ -73,14 +141,12 @@ function rateLimit(options: RateLimitOptions) {
 
       const existing = tokenMap.get(token);
 
-      // If no existing bucket or the window has expired, start fresh
       if (!existing || existing.expiresAt <= now) {
         const expiresAt = now + interval;
         tokenMap.set(token, { count: 1, expiresAt });
         return { limit, remaining: limit - 1, reset: expiresAt };
       }
 
-      // Increment the count within the current window
       existing.count += 1;
 
       if (existing.count > limit) {
@@ -103,7 +169,7 @@ export const apiLimiter = rateLimit({
   uniqueTokenPerInterval: 500,
 });
 
-/** Auth route rate limiter: 5 requests per minute (brute-force protection) */
+/** Auth route rate limiter: 10 requests per minute (brute-force protection) */
 export const authLimiter = rateLimit({
   interval: 60 * 1000,
   uniqueTokenPerInterval: 500,

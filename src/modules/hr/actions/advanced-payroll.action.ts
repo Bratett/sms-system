@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import { PERMISSIONS, denyPermission } from "@/lib/permissions";
@@ -14,9 +14,9 @@ export async function calculatePayslipAction(staffId: string, data: {
   additionalAllowances?: Array<{ name: string; amount: number }>;
   additionalDeductions?: Array<{ name: string; amount: number }>;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
 
   const staff = await db.staff.findUnique({
     where: { id: staffId },
@@ -51,12 +51,9 @@ export async function calculatePayslipAction(staffId: string, data: {
 export async function generateBankFileAction(data: {
   payrollPeriodId: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
 
   const period = await db.payrollPeriod.findUnique({ where: { id: data.payrollPeriodId } });
   if (!period) return { error: "Payroll period not found" };
@@ -87,17 +84,18 @@ export async function generateBankFileAction(data: {
     };
   });
 
+  const school = await db.school.findUnique({ where: { id: ctx.schoolId }, select: { name: true } });
   const today = new Date().toISOString().split("T")[0];
   const periodName = `${period.month}-${period.year}`;
 
   const result = generateCSVBankFile(payrollEntries, {
-    schoolName: school.name,
+    schoolName: school?.name ?? "School",
     payrollPeriod: periodName,
     date: today,
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "EXPORT",
     entity: "PayrollPeriod",
     entityId: data.payrollPeriodId,
@@ -109,8 +107,8 @@ export async function generateBankFileAction(data: {
 }
 
 export async function getAvailableTaxCountriesAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
   return { data: getAvailableCountries() };
 }

@@ -1,24 +1,20 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 
 export async function getBoardingReportAction(filters?: {
   termId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.REPORTS_ACADEMIC_READ);
+  if (denied) return denied;
 
   // Total hostels
   const totalHostels = await db.hostel.count({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
   });
 
   // Total beds and their statuses
@@ -26,7 +22,7 @@ export async function getBoardingReportAction(filters?: {
     by: ["status"],
     where: {
       dormitory: {
-        hostel: { schoolId: school.id, status: "ACTIVE" },
+        hostel: { schoolId: ctx.schoolId, status: "ACTIVE" },
       },
     },
     _count: { _all: true },
@@ -40,7 +36,7 @@ export async function getBoardingReportAction(filters?: {
 
   // Occupancy rate per hostel
   const hostels = await db.hostel.findMany({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     include: {
       dormitories: {
         where: { status: "ACTIVE" },
@@ -170,37 +166,37 @@ export async function getBoardingReportAction(filters?: {
     totalInspections,
   ] = await Promise.all([
     db.boardingIncident.count({
-      where: { schoolId: school.id, status: { in: ["REPORTED", "INVESTIGATING"] } },
+      where: { schoolId: ctx.schoolId, status: { in: ["REPORTED", "INVESTIGATING"] } },
     }),
     db.boardingIncident.count({
-      where: { schoolId: school.id, status: "RESOLVED" },
+      where: { schoolId: ctx.schoolId, status: "RESOLVED" },
     }),
     db.sickBayAdmission.count({
-      where: { schoolId: school.id, status: { in: ["ADMITTED", "UNDER_OBSERVATION"] } },
+      where: { schoolId: ctx.schoolId, status: { in: ["ADMITTED", "UNDER_OBSERVATION"] } },
     }),
     db.sickBayAdmission.count({
-      where: { schoolId: school.id },
+      where: { schoolId: ctx.schoolId },
     }),
     db.boardingVisitor.count({
-      where: { schoolId: school.id, status: "CHECKED_IN" },
+      where: { schoolId: ctx.schoolId, status: "CHECKED_IN" },
     }),
     db.boardingVisitor.count({
-      where: { schoolId: school.id },
+      where: { schoolId: ctx.schoolId },
     }),
     db.bedTransfer.count({
-      where: { schoolId: school.id, status: "PENDING" },
+      where: { schoolId: ctx.schoolId, status: "PENDING" },
     }),
     db.bedTransfer.count({
-      where: { schoolId: school.id, status: "COMPLETED" },
+      where: { schoolId: ctx.schoolId, status: "COMPLETED" },
     }),
     db.maintenanceRequest.count({
-      where: { schoolId: school.id, status: { in: ["OPEN", "ASSIGNED", "IN_PROGRESS"] } },
+      where: { schoolId: ctx.schoolId, status: { in: ["OPEN", "ASSIGNED", "IN_PROGRESS"] } },
     }),
     db.maintenanceRequest.count({
-      where: { schoolId: school.id, status: "RESOLVED" },
+      where: { schoolId: ctx.schoolId, status: "RESOLVED" },
     }),
     db.hostelInspection.count({
-      where: { schoolId: school.id },
+      where: { schoolId: ctx.schoolId },
     }),
   ]);
 

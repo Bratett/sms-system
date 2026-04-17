@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── List Transfers ─────────────────────────────────────────────────
@@ -10,15 +11,14 @@ export async function getTransfersAction(filters?: {
   status?: string;
   storeId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_TRANSFERS_READ);
+  if (denied) return denied;
 
   const transfers = await db.storeTransfer.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       ...(filters?.status && { status: filters.status as any }),
       ...(filters?.storeId && {
         OR: [{ fromStoreId: filters.storeId }, { toStoreId: filters.storeId }],
@@ -69,8 +69,10 @@ export async function getTransfersAction(filters?: {
 // ─── Get Transfer Detail ────────────────────────────────────────────
 
 export async function getTransferAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_TRANSFERS_READ);
+  if (denied) return denied;
 
   const transfer = await db.storeTransfer.findUnique({
     where: { id },
@@ -122,11 +124,10 @@ export async function createTransferAction(data: {
   reason?: string;
   items: Array<{ storeItemId: string; quantity: number }>;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_TRANSFERS_CREATE);
+  if (denied) return denied;
 
   if (data.fromStoreId === data.toStoreId) {
     return { error: "Source and destination stores must be different." };
@@ -160,11 +161,11 @@ export async function createTransferAction(data: {
 
   const transfer = await db.storeTransfer.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       transferNumber,
       fromStoreId: data.fromStoreId,
       toStoreId: data.toStoreId,
-      requestedBy: session.user.id!,
+      requestedBy: ctx.session.user.id,
       reason: data.reason || null,
       items: {
         create: data.items.map((item) => ({
@@ -177,7 +178,7 @@ export async function createTransferAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StoreTransfer",
     entityId: transfer.id,
@@ -192,8 +193,10 @@ export async function createTransferAction(data: {
 // ─── Approve Transfer ───────────────────────────────────────────────
 
 export async function approveTransferAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_TRANSFERS_APPROVE);
+  if (denied) return denied;
 
   const transfer = await db.storeTransfer.findUnique({ where: { id } });
   if (!transfer) return { error: "Transfer not found." };
@@ -203,13 +206,13 @@ export async function approveTransferAction(id: string) {
     where: { id },
     data: {
       status: "IN_TRANSIT",
-      approvedBy: session.user.id!,
+      approvedBy: ctx.session.user.id,
       approvedAt: new Date(),
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "StoreTransfer",
     entityId: id,
@@ -228,8 +231,10 @@ export async function receiveTransferAction(
   id: string,
   receivedItems: Array<{ storeTransferItemId: string; receivedQty: number }>,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_TRANSFERS_APPROVE);
+  if (denied) return denied;
 
   const transfer = await db.storeTransfer.findUnique({
     where: { id },
@@ -268,7 +273,7 @@ export async function receiveTransferAction(
           reason: `Transfer ${transfer.transferNumber} to destination store`,
           referenceType: "transfer",
           referenceId: transfer.id,
-          conductedBy: session.user.id!,
+          conductedBy: ctx.session.user.id,
         },
       }),
     ]);
@@ -313,7 +318,7 @@ export async function receiveTransferAction(
           reason: `Transfer ${transfer.transferNumber} from source store`,
           referenceType: "transfer",
           referenceId: transfer.id,
-          conductedBy: session.user.id!,
+          conductedBy: ctx.session.user.id,
         },
       }),
     ]);
@@ -332,7 +337,7 @@ export async function receiveTransferAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "StoreTransfer",
     entityId: id,
@@ -348,8 +353,10 @@ export async function receiveTransferAction(
 // ─── Cancel Transfer ────────────────────────────────────────────────
 
 export async function cancelTransferAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_TRANSFERS_CREATE);
+  if (denied) return denied;
 
   const transfer = await db.storeTransfer.findUnique({ where: { id } });
   if (!transfer) return { error: "Transfer not found." };
@@ -363,7 +370,7 @@ export async function cancelTransferAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "StoreTransfer",
     entityId: id,

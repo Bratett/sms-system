@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Generate Seating Arrangement ────────────────────────────────────
@@ -10,8 +11,8 @@ export async function generateSeatingArrangementAction(
   examScheduleId: string,
   strategy: "SEQUENTIAL" | "RANDOM" | "ALPHABETICAL" = "ALPHABETICAL",
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const exam = await db.examSchedule.findUnique({
     where: { id: examScheduleId },
@@ -52,6 +53,7 @@ export async function generateSeatingArrangementAction(
 
   // Assign seats
   const arrangements: Array<{
+    schoolId: string;
     examScheduleId: string;
     studentId: string;
     seatNumber: string;
@@ -67,6 +69,7 @@ export async function generateSeatingArrangementAction(
     const capacity = roomCapacities.get(room.id) ?? 40;
 
     arrangements.push({
+      schoolId: ctx.schoolId,
       examScheduleId,
       studentId: student.id,
       seatNumber: String(seatInRoom).padStart(3, "0"),
@@ -86,7 +89,7 @@ export async function generateSeatingArrangementAction(
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "ExamSeatingArrangement",
     entityId: examScheduleId,
@@ -100,8 +103,8 @@ export async function generateSeatingArrangementAction(
 // ─── Get Seating Arrangement ─────────────────────────────────────────
 
 export async function getSeatingArrangementAction(examScheduleId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const arrangements = await db.examSeatingArrangement.findMany({
     where: { examScheduleId },
@@ -138,8 +141,8 @@ export async function getSeatingArrangementAction(examScheduleId: string) {
 // ─── Generate Score Sheet Data ───────────────────────────────────────
 
 export async function generateScoreSheetAction(examScheduleId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const exam = await db.examSchedule.findUnique({
     where: { id: examScheduleId },

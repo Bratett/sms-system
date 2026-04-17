@@ -72,7 +72,7 @@ export function DisciplineClient({
         page: newPage,
         pageSize: 25,
       });
-      if (result.data) {
+      if ("data" in result) {
         setRecords(result.data);
         setPagination(
           result.pagination ?? { page: newPage, pageSize: 25, total: 0, totalPages: 0 },
@@ -96,7 +96,7 @@ export function DisciplineClient({
         severity: reportForm.severity || undefined,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Disciplinary incident reported.");
@@ -117,7 +117,7 @@ export function DisciplineClient({
         notes: resolveForm.notes || undefined,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Disciplinary record updated.");

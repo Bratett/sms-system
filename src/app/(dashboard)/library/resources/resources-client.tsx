@@ -115,7 +115,7 @@ export function ResourcesClient({
         category: resourceForm.category || undefined,
         accessLevel: resourceForm.accessLevel || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -130,7 +130,7 @@ export function ResourcesClient({
 
     startTransition(async () => {
       const result = await deleteDigitalResourceAction(resource.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

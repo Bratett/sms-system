@@ -15,8 +15,8 @@ export default async function ProgrammesPage() {
     getDepartmentsAction(),
   ]);
 
-  const programmes = programmesResult.data ?? [];
-  const departments = (departmentsResult.data ?? []).map((d) => ({
+  const programmes = "data" in programmesResult ? programmesResult.data : [];
+  const departments = ("data" in departmentsResult ? departmentsResult.data : []).map((d) => ({
     id: d.id,
     name: d.name,
   }));

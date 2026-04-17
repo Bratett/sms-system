@@ -32,9 +32,9 @@ export function DepreciationClient({ assets, summary }: { assets: DepreciationAs
   function handleRunDepreciation() {
     startTransition(async () => {
       const result = await runDepreciationAction(period);
-      if (result.error) { toast.error(result.error); return; }
-      setResults(result.data!);
-      toast.success(`Depreciation complete: ${result.data!.processed} assets processed`);
+      if ("error" in result) { toast.error(result.error); return; }
+      setResults(result.data);
+      toast.success(`Depreciation complete: ${result.data.processed} assets processed`);
       router.refresh();
     });
   }

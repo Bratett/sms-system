@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { generateExport, type ExportFormat } from "@/lib/export";
 
 export async function exportAttendanceSummaryAction(data: {
@@ -9,10 +10,8 @@ export async function exportAttendanceSummaryAction(data: {
   termId: string;
   format: ExportFormat;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   // Get term info
   const term = await db.term.findUnique({

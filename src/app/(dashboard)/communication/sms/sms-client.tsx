@@ -93,7 +93,7 @@ export function SmsClient({
         recipientName: singleForm.recipientName || undefined,
         message: singleForm.message,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -130,11 +130,11 @@ export function SmsClient({
         recipients,
         message: bulkForm.message,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
-      toast.success(`${result.data?.count ?? 0} SMS messages queued.`);
+      toast.success(`${"data" in result ? result.data?.count ?? 0 : 0} SMS messages queued.`);
       setBulkForm({ numbers: "", message: "" });
       router.refresh();
     });

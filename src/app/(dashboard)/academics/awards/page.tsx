@@ -13,10 +13,11 @@ export default async function AwardsPage() {
     getAwardsAction(),
   ]);
 
-  const classArms = dropdownsResult.data?.classArms ?? [];
-  const terms = dropdownsResult.data?.terms ?? [];
-  const academicYears = dropdownsResult.data?.academicYears ?? [];
-  const awards = awardsResult.data ?? [];
+  const dropdownsData = "data" in dropdownsResult ? dropdownsResult.data : null;
+  const classArms = dropdownsData?.classArms ?? [];
+  const terms = dropdownsData?.terms ?? [];
+  const academicYears = dropdownsData?.academicYears ?? [];
+  const awards = "data" in awardsResult ? awardsResult.data : [];
 
   return (
     <div className="space-y-6">

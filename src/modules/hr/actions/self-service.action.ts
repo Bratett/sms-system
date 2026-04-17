@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireAuth, requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { decryptOptional } from "@/lib/crypto/field-encrypt";
 import { dispatch } from "@/lib/notifications/dispatcher";
@@ -28,11 +28,11 @@ async function getMyStaffRecord(userId: string) {
 // ─── My Profile ─────────────────────────────────────────────
 
 export async function getMyStaffProfileAction() {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
   const staff = await db.staff.findFirst({
-    where: { userId: session.user.id, deletedAt: null },
+    where: { userId: ctx.session.user.id, deletedAt: null },
     include: {
       employments: { orderBy: { startDate: "desc" } },
     },
@@ -105,13 +105,13 @@ const updateMyProfileSchema = z.object({
 });
 
 export async function updateMyProfileAction(data: z.infer<typeof updateMyProfileSchema>) {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
   const parsed = updateMyProfileSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input" };
 
-  const staff = await getMyStaffRecord(session.user.id);
+  const staff = await getMyStaffRecord(ctx.session.user.id);
   if (!staff) return { error: "No staff profile linked to your account." };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -126,7 +126,7 @@ export async function updateMyProfileAction(data: z.infer<typeof updateMyProfile
   });
 
   await audit({
-    userId: session.user.id,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Staff",
     entityId: staff.id,
@@ -148,17 +148,14 @@ const requestMyLeaveSchema = z.object({
 });
 
 export async function requestMyLeaveAction(data: z.infer<typeof requestMyLeaveSchema>) {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const parsed = requestMyLeaveSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
 
-  const staff = await getMyStaffRecord(session.user.id);
+  const staff = await getMyStaffRecord(ctx.session.user.id);
   if (!staff) return { error: "No staff profile linked to your account." };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
 
   const leaveType = await db.leaveType.findUnique({ where: { id: parsed.data.leaveTypeId } });
   if (!leaveType) return { error: "Leave type not found." };
@@ -169,7 +166,7 @@ export async function requestMyLeaveAction(data: z.infer<typeof requestMyLeaveSc
 
   // Fetch holidays for accurate business day calculation
   const holidays = await db.publicHoliday.findMany({
-    where: { schoolId: school.id, date: { gte: startDate, lte: endDate } },
+    where: { schoolId: ctx.schoolId, date: { gte: startDate, lte: endDate } },
     select: { date: true },
   });
   const holidaySet = new Set<string>(holidays.map((h: { date: Date }) => toDateKey(h.date)));
@@ -188,6 +185,7 @@ export async function requestMyLeaveAction(data: z.infer<typeof requestMyLeaveSc
 
   const request = await db.leaveRequest.create({
     data: {
+      schoolId: ctx.schoolId,
       staffId: staff.id,
       leaveTypeId: parsed.data.leaveTypeId,
       startDate,
@@ -198,7 +196,7 @@ export async function requestMyLeaveAction(data: z.infer<typeof requestMyLeaveSc
   });
 
   await audit({
-    userId: session.user.id,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "LeaveRequest",
     entityId: request.id,
@@ -213,7 +211,7 @@ export async function requestMyLeaveAction(data: z.infer<typeof requestMyLeaveSc
     title: "New Leave Request",
     message: `${staff.firstName} ${staff.lastName} has requested ${daysRequested} days of ${leaveType.name} leave.`,
     recipients: [],
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
   }).catch(() => {});
 
   return { data: request };
@@ -222,10 +220,10 @@ export async function requestMyLeaveAction(data: z.infer<typeof requestMyLeaveSc
 // ─── My Payslips ────────────────────────────────────────────
 
 export async function getMyPayslipsAction(filters?: { year?: number }) {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
-  const staff = await getMyStaffRecord(session.user.id);
+  const staff = await getMyStaffRecord(ctx.session.user.id);
   if (!staff) return { error: "No staff profile linked to your account." };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -268,21 +266,18 @@ export async function getMyPayslipsAction(filters?: { year?: number }) {
 // ─── My Attendance ──────────────────────────────────────────
 
 export async function getMyAttendanceAction(month: number, year: number) {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
-  const staff = await getMyStaffRecord(session.user.id);
+  const staff = await getMyStaffRecord(ctx.session.user.id);
   if (!staff) return { error: "No staff profile linked to your account." };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
 
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0);
 
   const records = await db.staffAttendance.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       staffId: staff.id,
       date: { gte: startDate, lte: endDate },
     },
@@ -314,10 +309,10 @@ export async function getMyAttendanceAction(month: number, year: number) {
 // ─── My Leave Requests ──────────────────────────────────────
 
 export async function getMyLeaveRequestsAction(filters?: { status?: string; page?: number }) {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
-  const staff = await getMyStaffRecord(session.user.id);
+  const staff = await getMyStaffRecord(ctx.session.user.id);
   if (!staff) return { error: "No staff profile linked to your account." };
 
   const page = filters?.page ?? 1;
@@ -360,8 +355,8 @@ export async function getMyLeaveRequestsAction(filters?: { status?: string; page
 // ─── My Timetable (Teacher Portal) ─────────────────────────
 
 export async function getMyTeacherTimetableAction() {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const currentTerm = await db.term.findFirst({
     where: { isCurrent: true },
@@ -372,15 +367,10 @@ export async function getMyTeacherTimetableAction() {
     return { data: { timetable: [], periods: [] } };
   }
 
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { data: { timetable: [], periods: [] } };
-  }
-
   const [slots, periods] = await Promise.all([
     db.timetableSlot.findMany({
       where: {
-        teacherId: session.user.id,
+        teacherId: ctx.session.user.id,
         termId: currentTerm.id,
       },
       include: {
@@ -397,7 +387,7 @@ export async function getMyTeacherTimetableAction() {
       orderBy: [{ dayOfWeek: "asc" }, { period: { order: "asc" } }],
     }),
     db.period.findMany({
-      where: { schoolId: school.id, isActive: true },
+      where: { schoolId: ctx.schoolId, isActive: true },
       orderBy: { order: "asc" },
       select: { id: true, name: true, startTime: true, endTime: true, order: true, type: true },
     }),

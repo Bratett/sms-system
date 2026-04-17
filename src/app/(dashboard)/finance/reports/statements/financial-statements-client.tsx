@@ -81,7 +81,7 @@ export function FinancialStatementsClient({ accounts }: { accounts: Account[] })
         default:
           return;
       }
-      if (result?.error || !result?.data) { toast.error(result?.error ?? "Export failed"); return; }
+      if (!result || "error" in result) { toast.error(("error" in (result ?? {}) ? (result as { error: string }).error : undefined) ?? "Export failed"); return; }
 
       // Download the file
       const bytes = Uint8Array.from(atob(result.data.buffer), (c) => c.charCodeAt(0));

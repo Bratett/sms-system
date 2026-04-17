@@ -15,8 +15,8 @@ export default async function ApprovalPage() {
     getTermsAction(),
   ]);
 
-  const markGroups = marksResult.data ?? [];
-  const terms = (termsResult.data ?? []).map((t) => ({
+  const markGroups = "data" in marksResult ? marksResult.data : [];
+  const terms = ("data" in termsResult ? termsResult.data : []).map((t) => ({
     id: t.id,
     name: t.name,
     termNumber: t.termNumber,

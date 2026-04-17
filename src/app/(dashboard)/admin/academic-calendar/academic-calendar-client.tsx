@@ -148,7 +148,7 @@ export function AcademicCalendarClient({
           isAllDay: formData.isAllDay,
           color: formData.color || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -163,7 +163,7 @@ export function AcademicCalendarClient({
           isAllDay: formData.isAllDay,
           color: formData.color || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -179,7 +179,7 @@ export function AcademicCalendarClient({
     if (!deleteId) return;
     startTransition(async () => {
       const result = await deleteAcademicEventAction(deleteId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

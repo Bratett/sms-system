@@ -170,7 +170,7 @@ export function CourseDetailClient({ course }: { course: Course }) {
           content: lessonFormData.content.trim() || undefined,
           resourceUrl: lessonFormData.resourceUrl.trim() || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           setLessonFormError(result.error);
         } else {
           toast.success("Lesson updated successfully.");
@@ -185,7 +185,7 @@ export function CourseDetailClient({ course }: { course: Course }) {
           content: lessonFormData.content.trim() || undefined,
           resourceUrl: lessonFormData.resourceUrl.trim() || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           setLessonFormError(result.error);
         } else {
           toast.success("Lesson created successfully.");
@@ -200,7 +200,7 @@ export function CourseDetailClient({ course }: { course: Course }) {
     if (!confirm(`Delete lesson "${lesson.title}"?`)) return;
     startTransition(async () => {
       const result = await deleteLessonAction(lesson.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Lesson deleted.");
@@ -242,7 +242,7 @@ export function CourseDetailClient({ course }: { course: Course }) {
           ? Number(assignmentFormData.maxScore)
           : undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         setAssignmentFormError(result.error);
       } else {
         toast.success("Assignment created successfully.");
@@ -257,7 +257,7 @@ export function CourseDetailClient({ course }: { course: Course }) {
   function handlePublish() {
     startTransition(async () => {
       const result = await publishCourseAction(course.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Course published.");
@@ -269,7 +269,7 @@ export function CourseDetailClient({ course }: { course: Course }) {
   function handleArchive() {
     startTransition(async () => {
       const result = await archiveCourseAction(course.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Course archived.");

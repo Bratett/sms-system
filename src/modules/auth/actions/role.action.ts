@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import {
   createRoleSchema,
@@ -11,10 +12,10 @@ import {
 } from "@/modules/auth/schemas/role.schema";
 
 export async function getRolesAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ROLES_READ);
+  if (denied) return denied;
 
   const roles = await db.role.findMany({
     include: {
@@ -49,10 +50,8 @@ export async function getRolesAction() {
 }
 
 export async function getPermissionsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const permissions = await db.permission.findMany({
     orderBy: [{ module: "asc" }, { action: "asc" }],
@@ -62,10 +61,10 @@ export async function getPermissionsAction() {
 }
 
 export async function createRoleAction(data: CreateRoleInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ROLES_CREATE);
+  if (denied) return denied;
 
   const parsed = createRoleSchema.safeParse(data);
   if (!parsed.success) {
@@ -91,7 +90,7 @@ export async function createRoleAction(data: CreateRoleInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "Role",
     entityId: role.id,
@@ -104,10 +103,10 @@ export async function createRoleAction(data: CreateRoleInput) {
 }
 
 export async function updateRoleAction(id: string, data: UpdateRoleInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ROLES_UPDATE);
+  if (denied) return denied;
 
   const parsed = updateRoleSchema.safeParse(data);
   if (!parsed.success) {
@@ -147,7 +146,7 @@ export async function updateRoleAction(id: string, data: UpdateRoleInput) {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Role",
     entityId: role.id,
@@ -161,10 +160,10 @@ export async function updateRoleAction(id: string, data: UpdateRoleInput) {
 }
 
 export async function deleteRoleAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ROLES_DELETE);
+  if (denied) return denied;
 
   const role = await db.role.findUnique({
     where: { id },
@@ -187,7 +186,7 @@ export async function deleteRoleAction(id: string) {
   await db.role.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "Role",
     entityId: id,

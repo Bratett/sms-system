@@ -75,7 +75,7 @@ export function AssignmentsClient({
         dueDate: formData.dueDate || undefined,
         maxScore: formData.maxScore ? Number(formData.maxScore) : undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         setFormError(result.error);
       } else {
         toast.success("Assignment created successfully.");

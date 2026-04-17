@@ -13,9 +13,9 @@ export default async function PTCPage() {
     getPTCSessionsAction(),
   ]);
 
-  const academicYears = dropdownsResult.data?.academicYears ?? [];
-  const terms = dropdownsResult.data?.terms ?? [];
-  const sessions = sessionsResult.data ?? [];
+  const academicYears = "data" in dropdownsResult ? dropdownsResult.data?.academicYears ?? [] : [];
+  const terms = "data" in dropdownsResult ? dropdownsResult.data?.terms ?? [] : [];
+  const sessions = "data" in sessionsResult ? sessionsResult.data : [];
 
   return (
     <div className="space-y-6">

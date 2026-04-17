@@ -18,10 +18,10 @@ export default async function BudgetsPage() {
 
   return (
     <BudgetsClient
-      budgets={budgetsResult.data ?? []}
-      expenseCategories={categoriesResult.data ?? []}
-      academicYears={academicYearsResult.data ?? []}
-      terms={termsResult.data ?? []}
+      budgets={"data" in budgetsResult ? budgetsResult.data : []}
+      expenseCategories={"data" in categoriesResult ? categoriesResult.data : []}
+      academicYears={"data" in academicYearsResult ? academicYearsResult.data : []}
+      terms={"data" in termsResult ? termsResult.data : []}
     />
   );
 }

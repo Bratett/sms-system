@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import { dispatch } from "@/lib/notifications/dispatcher";
@@ -19,17 +19,12 @@ import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 // ─── Allowances ──────────────────────────────────────────────
 
 export async function getAllowancesAction() {
-  const session = await auth();
-  if (!session?.user) { return { error: "Unauthorized" }; }
-  if (denyPermission(session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.PAYROLL_READ)) return { error: "Insufficient permissions" };
 
   const allowances = await db.allowance.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: { name: "asc" },
   });
 
@@ -45,24 +40,19 @@ export async function getAllowancesAction() {
 }
 
 export async function createAllowanceAction(data: CreateAllowanceInput) {
-  const session = await auth();
-  if (!session?.user) { return { error: "Unauthorized" }; }
-  if (denyPermission(session, PERMISSIONS.PAYROLL_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.PAYROLL_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = createAllowanceSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  }
 
   const existing = await db.allowance.findUnique({
     where: {
       schoolId_name: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: parsed.data.name,
       },
     },
@@ -74,7 +64,7 @@ export async function createAllowanceAction(data: CreateAllowanceInput) {
 
   const allowance = await db.allowance.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: parsed.data.name,
       type: parsed.data.type,
       amount: parsed.data.amount,
@@ -82,7 +72,7 @@ export async function createAllowanceAction(data: CreateAllowanceInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Allowance",
     entityId: allowance.id,
@@ -95,10 +85,8 @@ export async function createAllowanceAction(data: CreateAllowanceInput) {
 }
 
 export async function deleteAllowanceAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const existing = await db.allowance.findUnique({ where: { id } });
   if (!existing) {
@@ -108,7 +96,7 @@ export async function deleteAllowanceAction(id: string) {
   await db.allowance.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Allowance",
     entityId: id,
@@ -123,18 +111,11 @@ export async function deleteAllowanceAction(id: string) {
 // ─── Deductions ──────────────────────────────────────────────
 
 export async function getDeductionsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const deductions = await db.deduction.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: { name: "asc" },
   });
 
@@ -151,25 +132,18 @@ export async function getDeductionsAction() {
 }
 
 export async function createDeductionAction(data: CreateDeductionInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const parsed = createDeductionSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  }
 
   const existing = await db.deduction.findUnique({
     where: {
       schoolId_name: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: parsed.data.name,
       },
     },
@@ -181,7 +155,7 @@ export async function createDeductionAction(data: CreateDeductionInput) {
 
   const deduction = await db.deduction.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: parsed.data.name,
       type: parsed.data.type,
       amount: parsed.data.amount,
@@ -190,7 +164,7 @@ export async function createDeductionAction(data: CreateDeductionInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Deduction",
     entityId: deduction.id,
@@ -203,10 +177,8 @@ export async function createDeductionAction(data: CreateDeductionInput) {
 }
 
 export async function deleteDeductionAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const existing = await db.deduction.findUnique({ where: { id } });
   if (!existing) {
@@ -216,7 +188,7 @@ export async function deleteDeductionAction(id: string) {
   await db.deduction.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Deduction",
     entityId: id,
@@ -231,18 +203,11 @@ export async function deleteDeductionAction(id: string) {
 // ─── Payroll Periods ─────────────────────────────────────────
 
 export async function getPayrollPeriodsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const periods = await db.payrollPeriod.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: [{ year: "desc" }, { month: "desc" }],
     include: {
       entries: {
@@ -267,26 +232,19 @@ export async function getPayrollPeriodsAction() {
 }
 
 export async function createPayrollPeriodAction(data: CreatePayrollPeriodInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const parsed = createPayrollPeriodSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  }
 
   // Check for duplicate
   const existing = await db.payrollPeriod.findUnique({
     where: {
       schoolId_month_year: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         month: parsed.data.month,
         year: parsed.data.year,
       },
@@ -301,14 +259,14 @@ export async function createPayrollPeriodAction(data: CreatePayrollPeriodInput) 
 
   const period = await db.payrollPeriod.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       month: parsed.data.month,
       year: parsed.data.year,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "PayrollPeriod",
     entityId: period.id,
@@ -338,15 +296,8 @@ const SALARY_GRADES: Record<string, number> = {
 const DEFAULT_SALARY = 2000;
 
 export async function generatePayrollAction(periodId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const period = await db.payrollPeriod.findUnique({
     where: { id: periodId },
@@ -371,7 +322,7 @@ export async function generatePayrollAction(periodId: string) {
   // Get all active staff with active employments
   const activeStaff = await db.staff.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       status: "ACTIVE",
       deletedAt: null,
     },
@@ -387,10 +338,10 @@ export async function generatePayrollAction(periodId: string) {
   // Get active allowances and deductions
   const [allowances, deductions] = await Promise.all([
     db.allowance.findMany({
-      where: { schoolId: school.id, status: "ACTIVE" },
+      where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     }),
     db.deduction.findMany({
-      where: { schoolId: school.id, status: "ACTIVE" },
+      where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     }),
   ]);
 
@@ -483,6 +434,7 @@ export async function generatePayrollAction(periodId: string) {
     if (deductAmount > 0) {
       await db.loanRepayment.create({
         data: {
+          schoolId: ctx.schoolId,
           loanId: loan.id,
           payrollPeriodId: periodId,
           amount: deductAmount,
@@ -501,7 +453,7 @@ export async function generatePayrollAction(periodId: string) {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "PayrollEntry",
     module: "hr",
@@ -515,10 +467,8 @@ export async function generatePayrollAction(periodId: string) {
 // ─── Approve Payroll ─────────────────────────────────────────
 
 export async function approvePayrollAction(periodId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const period = await db.payrollPeriod.findUnique({
     where: { id: periodId },
@@ -543,7 +493,7 @@ export async function approvePayrollAction(periodId: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "PayrollPeriod",
     entityId: periodId,
@@ -581,16 +531,13 @@ export async function approvePayrollAction(periodId: string) {
       })
       .filter((r): r is NonNullable<typeof r> => r !== null);
 
-    const school = await db.school.findFirst();
-    if (school) {
-      dispatch({
-        event: NOTIFICATION_EVENTS.PAYROLL_APPROVED,
-        title: "Payroll Approved",
-        message: `Payroll for ${period.month}/${period.year} has been approved. Your payslip is now available.`,
-        recipients,
-        schoolId: school.id,
-      }).catch(() => {});
-    }
+    dispatch({
+      event: NOTIFICATION_EVENTS.PAYROLL_APPROVED,
+      title: "Payroll Approved",
+      message: `Payroll for ${period.month}/${period.year} has been approved. Your payslip is now available.`,
+      recipients,
+      schoolId: ctx.schoolId,
+    }).catch(() => {});
   }
 
   return { data: updated };
@@ -599,10 +546,8 @@ export async function approvePayrollAction(periodId: string) {
 // ─── Payroll Entries ─────────────────────────────────────────
 
 export async function getPayrollEntriesAction(periodId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const entries = await db.payrollEntry.findMany({
     where: { payrollPeriodId: periodId },

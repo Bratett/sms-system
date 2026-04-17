@@ -1,25 +1,21 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Suppliers ──────────────────────────────────────────────────────
 
 export async function getSuppliersAction(search?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_SUPPLIERS_MANAGE);
+  if (denied) return denied;
 
   const suppliers = await db.supplier.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       status: "ACTIVE",
       ...(search && {
         OR: [
@@ -57,20 +53,15 @@ export async function createSupplierAction(data: {
   email?: string;
   address?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_SUPPLIERS_MANAGE);
+  if (denied) return denied;
 
   const existing = await db.supplier.findUnique({
     where: {
       schoolId_name: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: data.name,
       },
     },
@@ -82,7 +73,7 @@ export async function createSupplierAction(data: {
 
   const supplier = await db.supplier.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       contactPerson: data.contactPerson || null,
       phone: data.phone || null,
@@ -92,7 +83,7 @@ export async function createSupplierAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Supplier",
     entityId: supplier.id,
@@ -115,15 +106,10 @@ export async function updateSupplierAction(
     status?: "ACTIVE" | "INACTIVE";
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_SUPPLIERS_MANAGE);
+  if (denied) return denied;
 
   const existing = await db.supplier.findUnique({ where: { id } });
   if (!existing) {
@@ -134,7 +120,7 @@ export async function updateSupplierAction(
     const duplicate = await db.supplier.findUnique({
       where: {
         schoolId_name: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           name: data.name,
         },
       },
@@ -159,7 +145,7 @@ export async function updateSupplierAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Supplier",
     entityId: id,
@@ -173,10 +159,10 @@ export async function updateSupplierAction(
 }
 
 export async function deleteSupplierAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_SUPPLIERS_MANAGE);
+  if (denied) return denied;
 
   const supplier = await db.supplier.findUnique({
     where: { id },
@@ -194,7 +180,7 @@ export async function deleteSupplierAction(id: string) {
   await db.supplier.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Supplier",
     entityId: id,

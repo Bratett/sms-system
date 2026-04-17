@@ -91,10 +91,10 @@ export function LoansClient({
         page: newPage,
         pageSize,
       });
-      if (result.data) {
+      if ("data" in result) {
         setLoans(result.data as LoanRow[]);
-        setTotal(result.total ?? 0);
-        setPage(result.page ?? 1);
+        setTotal("total" in result ? result.total ?? 0 : 0);
+        setPage("page" in result ? result.page ?? 1 : 1);
       }
     });
   }
@@ -114,7 +114,7 @@ export function LoansClient({
         tenure: parseInt(form.tenure),
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Loan application created successfully.");
@@ -128,7 +128,7 @@ export function LoansClient({
   function handleApprove(id: string) {
     startTransition(async () => {
       const result = await approveLoanAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Loan approved.");
@@ -142,7 +142,7 @@ export function LoansClient({
 
     startTransition(async () => {
       const result = await cancelLoanAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Loan cancelled.");

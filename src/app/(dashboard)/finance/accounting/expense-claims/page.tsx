@@ -14,9 +14,9 @@ export default async function ExpenseClaimsPage() {
 
   return (
     <ExpenseClaimsClient
-      claims={claimsResult.data ?? []}
-      pagination={claimsResult.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
-      expenseCategories={categoriesResult.data ?? []}
+      claims={"data" in claimsResult ? claimsResult.data : []}
+      pagination={"pagination" in claimsResult ? claimsResult.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 } : { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
+      expenseCategories={"data" in categoriesResult ? categoriesResult.data : []}
     />
   );
 }

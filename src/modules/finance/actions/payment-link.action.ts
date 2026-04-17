@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import {
   createPaymentLinkSchema,
@@ -18,17 +19,16 @@ export async function getPaymentLinksAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PAYMENT_LINKS_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.isActive !== undefined) where.isActive = filters.isActive;
 
   const [links, total] = await Promise.all([
@@ -76,17 +76,15 @@ export async function getPaymentLinksAction(filters?: {
 }
 
 export async function createPaymentLinkAction(data: CreatePaymentLinkInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PAYMENT_LINKS_CREATE);
+  if (denied) return denied;
 
   const parsed = createPaymentLinkSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const bill = await db.studentBill.findUnique({
     where: { id: parsed.data.studentBillId },
   });
@@ -101,19 +99,19 @@ export async function createPaymentLinkAction(data: CreatePaymentLinkInput) {
 
   const link = await db.paymentLink.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       studentBillId: bill.id,
       code,
       amount: parsed.data.amount,
       description: parsed.data.description,
       expiresAt,
       isOneTime: parsed.data.isOneTime ?? true,
-      createdBy: session.user.id!,
+      createdBy: ctx.session.user.id,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "PaymentLink",
     entityId: link.id,
@@ -125,8 +123,10 @@ export async function createPaymentLinkAction(data: CreatePaymentLinkInput) {
 }
 
 export async function deactivatePaymentLinkAction(linkId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PAYMENT_LINKS_CREATE);
+  if (denied) return denied;
 
   const link = await db.paymentLink.findUnique({ where: { id: linkId } });
   if (!link) return { error: "Payment link not found" };
@@ -137,7 +137,7 @@ export async function deactivatePaymentLinkAction(linkId: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "PaymentLink",
     entityId: linkId,

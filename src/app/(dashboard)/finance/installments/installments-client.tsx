@@ -121,7 +121,7 @@ export function InstallmentsClient({
           label: s.label || undefined,
         })),
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -134,7 +134,7 @@ export function InstallmentsClient({
   function handleToggleActive(plan: Plan) {
     startTransition(async () => {
       const result = await updateInstallmentPlanAction(plan.id, { isActive: !plan.isActive });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -146,7 +146,7 @@ export function InstallmentsClient({
   function handleDelete(plan: Plan) {
     startTransition(async () => {
       const result = await deleteInstallmentPlanAction(plan.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

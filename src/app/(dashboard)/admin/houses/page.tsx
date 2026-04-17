@@ -10,7 +10,7 @@ export default async function HousesPage() {
   }
 
   const result = await getHousesAction();
-  const houses = result.data ?? [];
+  const houses = "data" in result ? result.data : [];
 
   return (
     <div className="space-y-6">

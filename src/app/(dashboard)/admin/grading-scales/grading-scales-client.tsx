@@ -116,7 +116,7 @@ export function GradingScalesClient({
     }
     startTransition(async () => {
       const result = await deleteGradingScaleAction(scale.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Grading scale "${scale.name}" deleted successfully.`);
@@ -129,7 +129,7 @@ export function GradingScalesClient({
     if (scale.isDefault) return;
     startTransition(async () => {
       const result = await setDefaultGradingScaleAction(scale.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`"${scale.name}" set as the default grading scale.`);
@@ -195,7 +195,7 @@ export function GradingScalesClient({
           isDefault: formData.isDefault,
           grades,
         });
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success(`Grading scale "${formData.name}" updated successfully.`);
@@ -208,7 +208,7 @@ export function GradingScalesClient({
           isDefault: formData.isDefault,
           grades,
         });
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success(`Grading scale "${formData.name}" created successfully.`);

@@ -17,7 +17,7 @@ export default async function OverduePage() {
         title="Overdue Books"
         description="Books that are past their due date."
       />
-      <OverdueClient issues={overdueResult.data ?? []} />
+      <OverdueClient issues={"data" in overdueResult ? overdueResult.data : []} />
     </div>
   );
 }

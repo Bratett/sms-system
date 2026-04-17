@@ -1,21 +1,21 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── List Asset Audits ──────────────────────────────────────────────
 
 export async function getAssetAuditsAction(filters?: { status?: string }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_AUDIT_CREATE);
+  if (denied) return denied;
 
   const audits = await db.assetAudit.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       ...(filters?.status && { status: filters.status as any }),
     },
     include: { items: { select: { id: true } } },
@@ -53,11 +53,10 @@ export async function createAssetAuditAction(data: {
   categoryId?: string;
   locationFilter?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_AUDIT_CREATE);
+  if (denied) return denied;
 
   // Generate reference number
   const year = new Date().getFullYear();
@@ -75,7 +74,7 @@ export async function createAssetAuditAction(data: {
   // Get active assets to audit
   const assets = await db.fixedAsset.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       status: { in: ["ACTIVE", "UNDER_MAINTENANCE"] },
       ...(data.categoryId && { categoryId: data.categoryId }),
       ...(data.locationFilter && { location: { contains: data.locationFilter } }),
@@ -87,7 +86,7 @@ export async function createAssetAuditAction(data: {
 
   const assetAudit = await db.assetAudit.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       reference,
       scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
       notes: data.notes || null,
@@ -101,7 +100,7 @@ export async function createAssetAuditAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "AssetAudit",
     entityId: assetAudit.id,
@@ -116,8 +115,10 @@ export async function createAssetAuditAction(data: {
 // ─── Get Audit Detail ───────────────────────────────────────────────
 
 export async function getAssetAuditAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_AUDIT_CREATE);
+  if (denied) return denied;
 
   const assetAudit = await db.assetAudit.findUnique({
     where: { id },
@@ -178,8 +179,10 @@ export async function recordAuditFindingsAction(
     notes?: string;
   }>,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_AUDIT_CREATE);
+  if (denied) return denied;
 
   const assetAudit = await db.assetAudit.findUnique({ where: { id } });
   if (!assetAudit) return { error: "Asset audit not found." };
@@ -191,7 +194,7 @@ export async function recordAuditFindingsAction(
   if (assetAudit.status === "PLANNED") {
     await db.assetAudit.update({
       where: { id },
-      data: { status: "IN_PROGRESS", conductedBy: session.user.id! },
+      data: { status: "IN_PROGRESS", conductedBy: ctx.session.user.id },
     });
   }
 
@@ -213,8 +216,10 @@ export async function recordAuditFindingsAction(
 // ─── Complete Asset Audit ───────────────────────────────────────────
 
 export async function completeAssetAuditAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_AUDIT_APPROVE);
+  if (denied) return denied;
 
   const assetAudit = await db.assetAudit.findUnique({
     where: { id },
@@ -251,7 +256,7 @@ export async function completeAssetAuditAction(id: string) {
   const locationMismatch = assetAudit.items.filter((i) => i.locationVerified === false).length;
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "AssetAudit",
     entityId: id,

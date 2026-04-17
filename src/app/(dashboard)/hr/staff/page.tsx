@@ -15,12 +15,12 @@ export default async function StaffPage() {
     getDepartmentsAction(),
   ]);
 
-  const staff = staffResult.staff ?? [];
-  const total = staffResult.total ?? 0;
-  const page = staffResult.page ?? 1;
-  const pageSize = staffResult.pageSize ?? 25;
+  const staff = "staff" in staffResult ? staffResult.staff ?? [] : [];
+  const total = "total" in staffResult ? staffResult.total ?? 0 : 0;
+  const page = "page" in staffResult ? staffResult.page ?? 1 : 1;
+  const pageSize = "pageSize" in staffResult ? staffResult.pageSize ?? 25 : 25;
 
-  const departments = (departmentsResult.data ?? []).map((d) => ({
+  const departments = ("data" in departmentsResult ? departmentsResult.data : []).map((d: { id: string; name: string }) => ({
     id: d.id,
     name: d.name,
   }));

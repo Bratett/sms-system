@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 
@@ -12,10 +13,10 @@ export async function getArrearsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BILLING_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 50;
@@ -145,10 +146,10 @@ export async function getArrearsAction(filters?: {
 }
 
 export async function getArrearsReportAction(termId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BILLING_READ);
+  if (denied) return denied;
 
   const whereClause: Record<string, unknown> = {
     balanceAmount: { gt: 0 },
@@ -270,10 +271,10 @@ export async function getArrearsReportAction(termId?: string) {
 }
 
 export async function carryForwardArrearsAction(fromTermId: string, toTermId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BILLING_CREATE);
+  if (denied) return denied;
 
   // Validate terms exist
   const [fromTerm, toTerm] = await Promise.all([
@@ -327,6 +328,7 @@ export async function carryForwardArrearsAction(fromTermId: string, toTermId: st
     // Create a single "Arrears" fee item
     await db.feeItem.create({
       data: {
+        schoolId,
         feeStructureId: arrearsFeeStructure.id,
         name: "Carried Forward Arrears",
         code: "ARR",
@@ -360,6 +362,7 @@ export async function carryForwardArrearsAction(fromTermId: string, toTermId: st
       await db.$transaction(async (tx) => {
         const newBill = await tx.studentBill.create({
           data: {
+            schoolId,
             studentId: bill.studentId,
             feeStructureId: arrearsFeeStructure!.id,
             termId: toTermId,
@@ -374,6 +377,7 @@ export async function carryForwardArrearsAction(fromTermId: string, toTermId: st
         if (arrearsItem) {
           await tx.studentBillItem.create({
             data: {
+              schoolId,
               studentBillId: newBill.id,
               feeItemId: arrearsItem.id,
               amount: bill.balanceAmount,
@@ -391,7 +395,7 @@ export async function carryForwardArrearsAction(fromTermId: string, toTermId: st
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StudentBill",
     entityId: arrearsFeeStructure.id,

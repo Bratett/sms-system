@@ -142,7 +142,7 @@ export function TimetableClient({
         roomId: slotForm.roomId || undefined,
         dayOfWeek: slotForm.dayOfWeek,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -157,7 +157,7 @@ export function TimetableClient({
 
     startTransition(async () => {
       const result = await deleteTimetableSlotAction(slot.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -216,10 +216,10 @@ export function TimetableClient({
                     termId,
                     classArmIds: [classArmId],
                   });
-                  if (result.error) {
+                  if ("error" in result) {
                     toast.error(result.error);
                   } else {
-                    toast.success(`Auto-generated ${result.data?.created ?? 0} slots. ${result.data?.conflicts?.length ?? 0} conflict(s).`);
+                    toast.success(`Auto-generated ${"data" in result ? result.data?.created ?? 0 : 0} slots. ${"data" in result ? result.data?.conflicts?.length ?? 0 : 0} conflict(s).`);
                     router.refresh();
                   }
                 });

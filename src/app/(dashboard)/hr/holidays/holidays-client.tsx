@@ -53,7 +53,7 @@ export function HolidaysClient({
     setYear(newYear);
     startTransition(async () => {
       const result = await getHolidaysAction({ year: newYear });
-      if (result.data) {
+      if ("data" in result) {
         setHolidays(result.data);
       }
     });
@@ -74,7 +74,7 @@ export function HolidaysClient({
         recurring: form.recurring,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Holiday created.");
@@ -92,7 +92,7 @@ export function HolidaysClient({
 
     startTransition(async () => {
       const result = await deleteHolidayAction(deletingId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Holiday deleted.");

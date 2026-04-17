@@ -1,17 +1,17 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Generate Transcript ───────────────────────────────────────────
 
 export async function generateTranscriptAction(data: { studentId: string }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSCRIPTS_CREATE);
+  if (denied) return denied;
 
   const student = await db.student.findUnique({ where: { id: data.studentId } });
   if (!student) return { error: "Student not found" };
@@ -40,7 +40,7 @@ export async function generateTranscriptAction(data: { studentId: string }) {
   // Generate transcript number
   const year = new Date().getFullYear();
   const count = await db.transcript.count({
-    where: { schoolId: school.id, transcriptNumber: { startsWith: `TRN/${year}` } },
+    where: { schoolId: ctx.schoolId, transcriptNumber: { startsWith: `TRN/${year}` } },
   });
   const transcriptNumber = `TRN/${year}/${String(count + 1).padStart(4, "0")}`;
 
@@ -53,10 +53,10 @@ export async function generateTranscriptAction(data: { studentId: string }) {
 
   const transcript = await db.transcript.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       studentId: data.studentId,
       transcriptNumber,
-      generatedBy: session.user.id!,
+      generatedBy: ctx.session.user.id!,
       coveringFrom: academicYears[0]?.name || null,
       coveringTo: academicYears[academicYears.length - 1]?.name || null,
       cumulativeGPA,
@@ -64,7 +64,7 @@ export async function generateTranscriptAction(data: { studentId: string }) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "Transcript",
     entityId: transcript.id,
@@ -91,17 +91,16 @@ export async function getTranscriptsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSCRIPTS_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.studentId) where.studentId = filters.studentId;
   if (filters?.status) where.status = filters.status;
 
@@ -124,8 +123,10 @@ export async function getTranscriptsAction(filters?: {
 // ─── Verify Transcript ─────────────────────────────────────────────
 
 export async function verifyTranscriptAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSCRIPTS_CREATE);
+  if (denied) return denied;
 
   const transcript = await db.transcript.findUnique({ where: { id } });
   if (!transcript) return { error: "Transcript not found" };
@@ -134,13 +135,13 @@ export async function verifyTranscriptAction(id: string) {
     where: { id },
     data: {
       status: "VERIFIED",
-      verifiedBy: session.user.id!,
+      verifiedBy: ctx.session.user.id!,
       verifiedAt: new Date(),
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "APPROVE",
     entity: "Transcript",
     entityId: id,

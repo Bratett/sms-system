@@ -1,25 +1,21 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 
 // ─── Stores ─────────────────────────────────────────────────────────
 
 export async function getStoresAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_READ);
+  if (denied) return denied;
 
   const stores = await db.store.findMany({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     include: {
       items: {
         where: { status: "ACTIVE" },
@@ -81,20 +77,15 @@ export async function createStoreAction(data: {
   description?: string;
   managerId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_CREATE);
+  if (denied) return denied;
 
   const existing = await db.store.findUnique({
     where: {
       schoolId_name: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: data.name,
       },
     },
@@ -106,7 +97,7 @@ export async function createStoreAction(data: {
 
   const store = await db.store.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       description: data.description || null,
       managerId: data.managerId || null,
@@ -114,7 +105,7 @@ export async function createStoreAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Store",
     entityId: store.id,
@@ -135,15 +126,10 @@ export async function updateStoreAction(
     status?: "ACTIVE" | "INACTIVE";
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.store.findUnique({ where: { id } });
   if (!existing) {
@@ -154,7 +140,7 @@ export async function updateStoreAction(
     const duplicate = await db.store.findUnique({
       where: {
         schoolId_name: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           name: data.name,
         },
       },
@@ -177,7 +163,7 @@ export async function updateStoreAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Store",
     entityId: id,
@@ -191,10 +177,10 @@ export async function updateStoreAction(
 }
 
 export async function deleteStoreAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_DELETE);
+  if (denied) return denied;
 
   const store = await db.store.findUnique({
     where: { id },
@@ -212,7 +198,7 @@ export async function deleteStoreAction(id: string) {
   await db.store.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Store",
     entityId: id,
@@ -227,18 +213,13 @@ export async function deleteStoreAction(id: string) {
 // ─── Item Categories ────────────────────────────────────────────────
 
 export async function getCategoriesAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_READ);
+  if (denied) return denied;
 
   const categories = await db.itemCategory.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     include: {
       _count: { select: { items: true } },
     },
@@ -260,20 +241,15 @@ export async function createCategoryAction(data: {
   name: string;
   description?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_CREATE);
+  if (denied) return denied;
 
   const existing = await db.itemCategory.findUnique({
     where: {
       schoolId_name: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: data.name,
       },
     },
@@ -285,14 +261,14 @@ export async function createCategoryAction(data: {
 
   const category = await db.itemCategory.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       description: data.description || null,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "ItemCategory",
     entityId: category.id,
@@ -305,10 +281,10 @@ export async function createCategoryAction(data: {
 }
 
 export async function deleteCategoryAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_DELETE);
+  if (denied) return denied;
 
   const category = await db.itemCategory.findUnique({
     where: { id },
@@ -326,7 +302,7 @@ export async function deleteCategoryAction(id: string) {
   await db.itemCategory.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "ItemCategory",
     entityId: id,

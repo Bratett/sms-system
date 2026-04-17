@@ -1,22 +1,18 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 export async function getProgrammesAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PROGRAMMES_READ);
+  if (denied) return denied;
 
   const programmes = await db.programme.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: { name: "asc" },
     include: {
       department: {
@@ -48,21 +44,16 @@ export async function createProgrammeAction(data: {
   departmentId?: string;
   duration?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PROGRAMMES_CREATE);
+  if (denied) return denied;
 
   // Check for duplicate name
   const existing = await db.programme.findUnique({
     where: {
       schoolId_name: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         name: data.name,
       },
     },
@@ -74,7 +65,7 @@ export async function createProgrammeAction(data: {
 
   const programme = await db.programme.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       code: data.code || null,
       description: data.description || null,
@@ -84,7 +75,7 @@ export async function createProgrammeAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "Programme",
     entityId: programme.id,
@@ -107,15 +98,10 @@ export async function updateProgrammeAction(
     status?: "ACTIVE" | "INACTIVE";
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PROGRAMMES_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.programme.findUnique({
     where: { id },
@@ -130,7 +116,7 @@ export async function updateProgrammeAction(
     const duplicate = await db.programme.findUnique({
       where: {
         schoolId_name: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           name: data.name,
         },
       },
@@ -156,7 +142,7 @@ export async function updateProgrammeAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Programme",
     entityId: id,
@@ -170,10 +156,10 @@ export async function updateProgrammeAction(
 }
 
 export async function deleteProgrammeAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PROGRAMMES_DELETE);
+  if (denied) return denied;
 
   const programme = await db.programme.findUnique({
     where: { id },
@@ -188,7 +174,7 @@ export async function deleteProgrammeAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "Programme",
     entityId: id,

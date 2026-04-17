@@ -61,7 +61,7 @@ export function PlacementClient({
         page: newPage,
         pageSize,
       });
-      if (result.data) {
+      if ("data" in result) {
         setApplications(result.data.applications ?? []);
         setTotal(result.data.total ?? 0);
         setPage(result.data.page ?? 1);
@@ -87,7 +87,7 @@ export function PlacementClient({
 
     startTransition(async () => {
       const result = await enrollApplicationAction(placingApp.id, classArmId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Student placed successfully.");

@@ -37,7 +37,7 @@ export function StudentAttendanceClient({
     setSelectedTermId(termId);
     startTransition(async () => {
       const result = await getMyAttendanceAction(termId || undefined);
-      if (result.data) {
+      if ("data" in result && result.data) {
         setSummary(result.data.summary);
       }
     });

@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 
@@ -16,8 +17,10 @@ export async function addInsuranceAction(data: {
   startDate: string;
   endDate: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_INSURANCE_MANAGE);
+  if (denied) return denied;
 
   const asset = await db.fixedAsset.findUnique({ where: { id: data.fixedAssetId } });
   if (!asset) return { error: "Asset not found." };
@@ -35,7 +38,7 @@ export async function addInsuranceAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "AssetInsurance",
     entityId: insurance.id,
@@ -50,8 +53,10 @@ export async function addInsuranceAction(data: {
 // ─── Get Asset Insurance ────────────────────────────────────────────
 
 export async function getAssetInsuranceAction(fixedAssetId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_INSURANCE_MANAGE);
+  if (denied) return denied;
 
   const policies = await db.assetInsurance.findMany({
     where: { fixedAssetId },
@@ -78,11 +83,10 @@ export async function getAssetInsuranceAction(fixedAssetId: string) {
 // ─── Expiring Insurance ─────────────────────────────────────────────
 
 export async function getExpiringInsuranceAction(withinDays: number = 90) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_INSURANCE_MANAGE);
+  if (denied) return denied;
 
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() + withinDays);
@@ -91,7 +95,7 @@ export async function getExpiringInsuranceAction(withinDays: number = 90) {
     where: {
       status: "ACTIVE",
       endDate: { lte: cutoffDate },
-      fixedAsset: { schoolId: school.id },
+      fixedAsset: { schoolId: ctx.schoolId },
     },
     include: {
       fixedAsset: { select: { assetNumber: true, name: true } },
@@ -128,8 +132,10 @@ export async function addWarrantyAction(data: {
   endDate: string;
   terms?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_INSURANCE_MANAGE);
+  if (denied) return denied;
 
   const asset = await db.fixedAsset.findUnique({ where: { id: data.fixedAssetId } });
   if (!asset) return { error: "Asset not found." };
@@ -146,7 +152,7 @@ export async function addWarrantyAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "AssetWarranty",
     entityId: warranty.id,
@@ -161,8 +167,10 @@ export async function addWarrantyAction(data: {
 // ─── Get Asset Warranties ───────────────────────────────────────────
 
 export async function getAssetWarrantiesAction(fixedAssetId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_INSURANCE_MANAGE);
+  if (denied) return denied;
 
   const warranties = await db.assetWarranty.findMany({
     where: { fixedAssetId },
@@ -187,11 +195,10 @@ export async function getAssetWarrantiesAction(fixedAssetId: string) {
 // ─── Expiring Warranties ────────────────────────────────────────────
 
 export async function getExpiringWarrantiesAction(withinDays: number = 90) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ASSET_INSURANCE_MANAGE);
+  if (denied) return denied;
 
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() + withinDays);
@@ -199,7 +206,7 @@ export async function getExpiringWarrantiesAction(withinDays: number = 90) {
   const warranties = await db.assetWarranty.findMany({
     where: {
       endDate: { lte: cutoffDate, gt: new Date() },
-      fixedAsset: { schoolId: school.id, status: { in: ["ACTIVE", "UNDER_MAINTENANCE"] } },
+      fixedAsset: { schoolId: ctx.schoolId, status: { in: ["ACTIVE", "UNDER_MAINTENANCE"] } },
     },
     include: {
       fixedAsset: { select: { assetNumber: true, name: true } },

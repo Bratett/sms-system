@@ -24,7 +24,7 @@ export default async function EventAttendancePage() {
           </Link>
         }
       />
-      <EventAttendanceClient events={result.data ?? []} />
+      <EventAttendanceClient events={"data" in result ? result.data : []} />
     </div>
   );
 }

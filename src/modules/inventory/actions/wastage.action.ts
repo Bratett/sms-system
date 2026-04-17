@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 
@@ -13,8 +14,10 @@ export async function recordWastageAction(data: {
   reason: "EXPIRED" | "DAMAGED" | "SPOILED" | "OBSOLETE" | "OTHER";
   description?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_WASTAGE_RECORD);
+  if (denied) return denied;
 
   if (data.quantity <= 0) return { error: "Quantity must be greater than zero." };
 
@@ -38,7 +41,7 @@ export async function recordWastageAction(data: {
         quantity: data.quantity,
         reason: data.reason,
         description: data.description || null,
-        recordedBy: session.user.id!,
+        recordedBy: ctx.session.user.id,
       },
     }),
     db.storeItem.update({
@@ -54,13 +57,13 @@ export async function recordWastageAction(data: {
         newQuantity,
         reason: `Wastage (${data.reason}): ${data.description || "No description"}`,
         referenceType: "wastage",
-        conductedBy: session.user.id!,
+        conductedBy: ctx.session.user.id,
       },
     }),
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "WastageRecord",
     entityId: wastage.id,
@@ -80,17 +83,16 @@ export async function getWastageReportAction(filters?: {
   dateFrom?: string;
   dateTo?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_WASTAGE_RECORD);
+  if (denied) return denied;
 
   const records = await db.wastageRecord.findMany({
     where: {
       storeItem: {
         store: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           ...(filters?.storeId && { id: filters.storeId }),
         },
       },
@@ -146,14 +148,13 @@ export async function getWastageReportAction(filters?: {
 // ─── Wastage Analytics ──────────────────────────────────────────────
 
 export async function getWastageAnalyticsAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_WASTAGE_RECORD);
+  if (denied) return denied;
 
   const records = await db.wastageRecord.findMany({
-    where: { storeItem: { store: { schoolId: school.id } } },
+    where: { storeItem: { store: { schoolId: ctx.schoolId } } },
     include: {
       storeItem: {
         select: { name: true, unitPrice: true, store: { select: { name: true } }, category: { select: { name: true } } },

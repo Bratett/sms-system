@@ -15,7 +15,7 @@ export default async function TeacherAvailabilityPage() {
     getTermsAction(),
   ]);
 
-  const periods = (periodsResult.data ?? []).map((p) => ({
+  const periods = ("data" in periodsResult ? periodsResult.data ?? [] : []).map((p) => ({
     id: p.id,
     name: p.name,
     startTime: p.startTime,
@@ -31,7 +31,7 @@ export default async function TeacherAvailabilityPage() {
     name: `${s.firstName} ${s.lastName}`,
   }));
 
-  const terms = (termsResult.data ?? []).map((t) => ({
+  const terms = ("data" in termsResult ? termsResult.data ?? [] : []).map((t) => ({
     id: t.id,
     name: t.name,
     isCurrent: t.isCurrent,

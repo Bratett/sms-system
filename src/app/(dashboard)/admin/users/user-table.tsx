@@ -41,7 +41,7 @@ export function UserTable({ users }: { users: UserRow[] }) {
     setDeletingId(id);
     startTransition(async () => {
       const result = await deleteUserAction(id);
-      if (result.error) {
+      if ("error" in result) {
         alert(result.error);
       }
       setDeletingId(null);

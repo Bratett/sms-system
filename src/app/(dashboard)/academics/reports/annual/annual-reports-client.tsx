@@ -121,7 +121,7 @@ export function AnnualReportsClient({
         selectedYearId,
       );
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -147,7 +147,7 @@ export function AnnualReportsClient({
         selectedYearId,
       );
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

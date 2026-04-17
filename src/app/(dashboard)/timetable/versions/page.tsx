@@ -18,7 +18,7 @@ export default async function TimetableVersionsPage({
     getTermsAction(),
   ]);
 
-  const terms = (termsResult.data ?? []).map((t) => ({
+  const terms = ("data" in termsResult ? termsResult.data ?? [] : []).map((t) => ({
     id: t.id,
     name: t.name,
     isCurrent: t.isCurrent,
@@ -33,7 +33,7 @@ export default async function TimetableVersionsPage({
         description="Snapshot, publish, and restore timetable versions."
       />
       <VersionsClient
-        versions={versionsResult.data ?? []}
+        versions={"data" in versionsResult ? versionsResult.data : []}
         terms={terms}
         currentTermId={params.termId}
       />

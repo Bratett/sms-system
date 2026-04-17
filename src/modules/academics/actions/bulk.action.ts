@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { computeTerminalResultsAction } from "./result.action";
 import { computeAnnualResultsAction } from "./annual-result.action";
@@ -14,14 +15,16 @@ export async function batchComputeResultsAction(
   termId: string,
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BULK_OPERATIONS);
+  if (denied) return denied;
 
   const results: Array<{ classArmId: string; status: string; computed?: number; error?: string }> = [];
 
   for (const classArmId of classArmIds) {
     const result = await computeTerminalResultsAction(classArmId, termId, academicYearId);
-    if (result.error) {
+    if ("error" in result) {
       results.push({ classArmId, status: "error", error: result.error });
     } else {
       results.push({ classArmId, status: "success", computed: result.data?.computed ?? 0 });
@@ -32,7 +35,7 @@ export async function batchComputeResultsAction(
   const errorCount = results.filter((r) => r.status === "error").length;
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "TerminalResult",
     entityId: "batch",
@@ -50,14 +53,16 @@ export async function batchComputeAnnualResultsAction(
   classArmIds: string[],
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BULK_OPERATIONS);
+  if (denied) return denied;
 
   const results: Array<{ classArmId: string; status: string; computed?: number; error?: string }> = [];
 
   for (const classArmId of classArmIds) {
     const result = await computeAnnualResultsAction(classArmId, academicYearId);
-    if (result.error) {
+    if ("error" in result) {
       results.push({ classArmId, status: "error", error: result.error });
     } else {
       results.push({ classArmId, status: "success", computed: result.data?.computed ?? 0 });
@@ -67,7 +72,7 @@ export async function batchComputeAnnualResultsAction(
   const totalComputed = results.reduce((sum, r) => sum + (r.computed ?? 0), 0);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "AnnualResult",
     entityId: "batch",
@@ -85,8 +90,10 @@ export async function batchGenerateReportCardsAction(
   classArmIds: string[],
   termId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BULK_OPERATIONS);
+  if (denied) return denied;
 
   const allReportCards: any[] = [];
   const errors: string[] = [];
@@ -100,7 +107,7 @@ export async function batchGenerateReportCardsAction(
 
     for (const result of terminalResults) {
       const cardResult = await generateReportCardDataAction(result.studentId, termId);
-      if (cardResult.error) {
+      if ("error" in cardResult) {
         errors.push(cardResult.error);
       } else if (cardResult.data) {
         allReportCards.push(cardResult.data);
@@ -109,7 +116,7 @@ export async function batchGenerateReportCardsAction(
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "ReportCard",
     entityId: "batch",
@@ -127,11 +134,10 @@ export async function batchPromoteAction(
   classArmIds: string[],
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.BULK_OPERATIONS);
+  if (denied) return denied;
 
   let totalPromoted = 0;
   let totalRetained = 0;
@@ -152,7 +158,7 @@ export async function batchPromoteAction(
     // Get promotion rule
     const rule = await db.promotionRule.findFirst({
       where: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         isActive: true,
         OR: [
           { yearGroup: classArm.class.yearGroup },
@@ -204,7 +210,7 @@ export async function batchPromoteAction(
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Enrollment",
     entityId: "batch",

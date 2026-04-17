@@ -36,12 +36,12 @@ export default async function ItemsPage({
         description="Manage inventory items across all stores."
       />
       <ItemsClient
-        items={itemsResult.data ?? []}
-        total={itemsResult.total ?? 0}
-        page={itemsResult.page ?? 1}
-        pageSize={itemsResult.pageSize ?? 25}
-        stores={storesResult.data ?? []}
-        categories={categoriesResult.data ?? []}
+        items={"data" in itemsResult ? itemsResult.data : []}
+        total={"total" in itemsResult ? itemsResult.total : 0}
+        page={"page" in itemsResult ? itemsResult.page : 1}
+        pageSize={"pageSize" in itemsResult ? itemsResult.pageSize : 25}
+        stores={"data" in storesResult ? storesResult.data : []}
+        categories={"data" in categoriesResult ? categoriesResult.data : []}
         filters={params}
       />
     </div>

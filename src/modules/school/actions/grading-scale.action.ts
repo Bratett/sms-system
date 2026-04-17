@@ -1,22 +1,18 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 export async function getGradingScalesAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   const scales = await db.gradingScale.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: { name: "asc" },
     include: {
       gradeDefinitions: {
@@ -46,10 +42,10 @@ export async function getGradingScalesAction() {
 }
 
 export async function getGradingScaleAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   const scale = await db.gradingScale.findUnique({
     where: { id },
@@ -94,15 +90,10 @@ export async function createGradingScaleAction(data: {
     gradePoint: number;
   }>;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   if (!data.grades || data.grades.length === 0) {
     return { error: "At least one grade definition is required." };
@@ -111,18 +102,19 @@ export async function createGradingScaleAction(data: {
   // If setting as default, unset other defaults
   if (data.isDefault) {
     await db.gradingScale.updateMany({
-      where: { schoolId: school.id, isDefault: true },
+      where: { schoolId: ctx.schoolId, isDefault: true },
       data: { isDefault: false },
     });
   }
 
   const scale = await db.gradingScale.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       isDefault: data.isDefault ?? false,
       gradeDefinitions: {
         create: data.grades.map((g) => ({
+          schoolId: ctx.schoolId,
           grade: g.grade,
           minScore: g.minScore,
           maxScore: g.maxScore,
@@ -137,7 +129,7 @@ export async function createGradingScaleAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "GradingScale",
     entityId: scale.id,
@@ -163,15 +155,10 @@ export async function updateGradingScaleAction(
     }>;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.gradingScale.findUnique({
     where: { id },
@@ -187,7 +174,7 @@ export async function updateGradingScaleAction(
   // If setting as default, unset other defaults
   if (data.isDefault) {
     await db.gradingScale.updateMany({
-      where: { schoolId: school.id, isDefault: true, id: { not: id } },
+      where: { schoolId: ctx.schoolId, isDefault: true, id: { not: id } },
       data: { isDefault: false },
     });
   }
@@ -208,6 +195,7 @@ export async function updateGradingScaleAction(
         ? {
             gradeDefinitions: {
               create: data.grades.map((g) => ({
+                schoolId: ctx.schoolId,
                 grade: g.grade,
                 minScore: g.minScore,
                 maxScore: g.maxScore,
@@ -224,7 +212,7 @@ export async function updateGradingScaleAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "GradingScale",
     entityId: id,
@@ -238,10 +226,10 @@ export async function updateGradingScaleAction(
 }
 
 export async function deleteGradingScaleAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   const scale = await db.gradingScale.findUnique({
     where: { id },
@@ -261,7 +249,7 @@ export async function deleteGradingScaleAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "GradingScale",
     entityId: id,
@@ -274,15 +262,10 @@ export async function deleteGradingScaleAction(id: string) {
 }
 
 export async function setDefaultGradingScaleAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   const scale = await db.gradingScale.findUnique({
     where: { id },
@@ -298,7 +281,7 @@ export async function setDefaultGradingScaleAction(id: string) {
 
   // Unset all current defaults
   await db.gradingScale.updateMany({
-    where: { schoolId: school.id, isDefault: true },
+    where: { schoolId: ctx.schoolId, isDefault: true },
     data: { isDefault: false },
   });
 
@@ -309,7 +292,7 @@ export async function setDefaultGradingScaleAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "GradingScale",
     entityId: id,

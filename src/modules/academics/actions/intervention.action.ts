@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Create Intervention ─────────────────────────────────────────────
@@ -18,16 +19,15 @@ export async function createInterventionAction(data: {
   endDate?: Date;
   assignedTo?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INTERVENTIONS_CREATE);
+  if (denied) return denied;
 
   const intervention = await db.academicIntervention.create({
     data: {
       studentId: data.studentId,
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       academicYearId: data.academicYearId,
       termId: data.termId,
       type: data.type as any,
@@ -37,12 +37,12 @@ export async function createInterventionAction(data: {
       startDate: data.startDate,
       endDate: data.endDate,
       assignedTo: data.assignedTo,
-      createdBy: session.user.id!,
+      createdBy: ctx.session.user.id!,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "AcademicIntervention",
     entityId: intervention.id,
@@ -67,8 +67,10 @@ export async function updateInterventionAction(
     assignedTo?: string;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INTERVENTIONS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.academicIntervention.findUnique({ where: { id } });
   if (!existing) return { error: "Intervention not found." };
@@ -87,7 +89,7 @@ export async function updateInterventionAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "AcademicIntervention",
     entityId: id,
@@ -104,8 +106,10 @@ export async function addInterventionNoteAction(
   id: string,
   note: { text: string; date?: string },
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INTERVENTIONS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.academicIntervention.findUnique({ where: { id } });
   if (!existing) return { error: "Intervention not found." };
@@ -114,7 +118,7 @@ export async function addInterventionNoteAction(
   const newNote = {
     text: note.text,
     date: note.date ?? new Date().toISOString(),
-    addedBy: session.user.id,
+    addedBy: ctx.session.user.id,
   };
 
   const updated = await db.academicIntervention.update({
@@ -128,8 +132,10 @@ export async function addInterventionNoteAction(
 // ─── Get Student Interventions ───────────────────────────────────────
 
 export async function getStudentInterventionsAction(studentId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INTERVENTIONS_READ);
+  if (denied) return denied;
 
   const interventions = await db.academicIntervention.findMany({
     where: { studentId },
@@ -148,13 +154,12 @@ export async function getInterventionsAction(filters?: {
   type?: string;
   assignedTo?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INTERVENTIONS_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.academicYearId) where.academicYearId = filters.academicYearId;
   if (filters?.termId) where.termId = filters.termId;
   if (filters?.status) where.status = filters.status;
@@ -189,8 +194,10 @@ export async function getInterventionsAction(filters?: {
 // ─── Delete Intervention ─────────────────────────────────────────────
 
 export async function deleteInterventionAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INTERVENTIONS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.academicIntervention.findUnique({ where: { id } });
   if (!existing) return { error: "Intervention not found." };
@@ -198,7 +205,7 @@ export async function deleteInterventionAction(id: string) {
   await db.academicIntervention.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "AcademicIntervention",
     entityId: id,

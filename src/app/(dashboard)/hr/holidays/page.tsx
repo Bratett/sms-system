@@ -17,7 +17,7 @@ export default async function HolidaysPage() {
         description="Manage public holidays and recurring observances."
       />
       <HolidaysClient
-        initialHolidays={result.data ?? []}
+        initialHolidays={"data" in result ? result.data : []}
         initialYear={currentYear}
       />
     </div>

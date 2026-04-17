@@ -126,14 +126,14 @@ export function PenaltiesClient({
 
       if (editingRule) {
         const result = await updateLatePenaltyRuleAction(editingRule.id, payload);
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
         toast.success("Penalty rule updated successfully");
       } else {
         const result = await createLatePenaltyRuleAction(payload);
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -160,7 +160,7 @@ export function PenaltiesClient({
   function handleToggleStatus(rule: PenaltyRule) {
     startTransition(async () => {
       const result = await updateLatePenaltyRuleAction(rule.id, { isActive: !rule.isActive });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

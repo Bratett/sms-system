@@ -78,7 +78,7 @@ export function ElectiveSelectionClient({
     startTransition(async () => {
       const result = await approveElectiveSelectionAction(id);
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -109,7 +109,7 @@ export function ElectiveSelectionClient({
         rejectionReason.trim(),
       );
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

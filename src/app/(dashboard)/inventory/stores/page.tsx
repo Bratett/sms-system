@@ -21,8 +21,8 @@ export default async function StoresPage() {
         description="Manage stores and item categories."
       />
       <StoresClient
-        stores={storesResult.data ?? []}
-        categories={categoriesResult.data ?? []}
+        stores={"data" in storesResult ? storesResult.data : []}
+        categories={"data" in categoriesResult ? categoriesResult.data : []}
       />
     </div>
   );

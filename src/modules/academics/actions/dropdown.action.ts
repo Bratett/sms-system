@@ -1,23 +1,19 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 
 export async function getAcademicDropdownsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.CLASSES_READ);
+  if (denied) return denied;
 
   const [subjects, classArmsRaw, assessmentTypes, termsRaw, academicYears] =
     await Promise.all([
       db.subject.findMany({
-        where: { schoolId: school.id, status: "ACTIVE" },
+        where: { schoolId: ctx.schoolId, status: "ACTIVE" },
         select: { id: true, name: true, code: true, type: true },
         orderBy: { name: "asc" },
       }),
@@ -37,7 +33,7 @@ export async function getAcademicDropdownsAction() {
         orderBy: [{ class: { name: "asc" } }, { name: "asc" }],
       }),
       db.assessmentType.findMany({
-        where: { schoolId: school.id },
+        where: { schoolId: ctx.schoolId },
         select: {
           id: true,
           name: true,

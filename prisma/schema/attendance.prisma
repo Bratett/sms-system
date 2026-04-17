@@ -28,6 +28,7 @@ model AttendanceRecord {
   id            String           @id @default(cuid())
   registerId    String
   studentId     String
+  schoolId      String
   status        AttendanceStatus @default(PRESENT)
   remarks       String?
   arrivalTime   DateTime?        // for LATE status: actual arrival time
@@ -35,10 +36,12 @@ model AttendanceRecord {
   createdAt     DateTime         @default(now())
 
   register AttendanceRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
+  school   School             @relation("SchoolAttendanceRecords", fields: [schoolId], references: [id])
 
   @@unique([registerId, studentId])
   @@index([registerId])
   @@index([studentId])
+  @@index([schoolId])
 }
 
 // ─── Attendance Policy Engine ─────────────────────────────────────────

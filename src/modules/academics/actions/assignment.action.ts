@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Teacher-Subject-Class Assignments ───────────────────────────────
@@ -10,10 +11,10 @@ export async function getTeacherAssignmentsAction(
   academicYearId?: string,
   termId?: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBJECTS_READ);
+  if (denied) return denied;
 
   const where: Record<string, unknown> = {};
   if (academicYearId) where.academicYearId = academicYearId;
@@ -82,10 +83,10 @@ export async function createTeacherAssignmentAction(data: {
   academicYearId: string;
   termId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBJECTS_CREATE);
+  if (denied) return denied;
 
   // Check for duplicate assignment
   const existing = await db.teacherSubjectAssignment.findUnique({
@@ -105,31 +106,35 @@ export async function createTeacherAssignmentAction(data: {
 
   const assignment = await db.teacherSubjectAssignment.create({
     data: {
+      schoolId: ctx.schoolId,
       staffId: data.staffId,
       subjectId: data.subjectId,
       classArmId: data.classArmId,
       academicYearId: data.academicYearId,
       termId: data.termId || null,
     },
-    include: {
-      subject: { select: { name: true } },
-    },
   });
 
-  // Get teacher name for audit
-  const teacher = await db.user.findUnique({
-    where: { id: data.staffId },
-    select: { firstName: true, lastName: true },
-  });
+  // Get teacher name and subject name for audit
+  const [teacher, subject] = await Promise.all([
+    db.user.findUnique({
+      where: { id: data.staffId },
+      select: { firstName: true, lastName: true },
+    }),
+    db.subject.findUnique({
+      where: { id: data.subjectId },
+      select: { name: true },
+    }),
+  ]);
   const teacherName = teacher ? `${teacher.firstName} ${teacher.lastName}` : "Unknown";
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "TeacherSubjectAssignment",
     entityId: assignment.id,
     module: "academics",
-    description: `Assigned ${teacherName} to teach "${assignment.subject.name}"`,
+    description: `Assigned ${teacherName} to teach "${subject?.name ?? "Unknown"}"`,
     newData: assignment,
   });
 
@@ -137,10 +142,10 @@ export async function createTeacherAssignmentAction(data: {
 }
 
 export async function deleteTeacherAssignmentAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBJECTS_CREATE);
+  if (denied) return denied;
 
   const existing = await db.teacherSubjectAssignment.findUnique({
     where: { id },
@@ -156,7 +161,7 @@ export async function deleteTeacherAssignmentAction(id: string) {
   await db.teacherSubjectAssignment.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "TeacherSubjectAssignment",
     entityId: id,
@@ -169,10 +174,10 @@ export async function deleteTeacherAssignmentAction(id: string) {
 }
 
 export async function getTeachersAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBJECTS_READ);
+  if (denied) return denied;
 
   // Find users who have a "teacher" or "subject_teacher" role
   const teacherRoles = await db.role.findMany({
@@ -227,10 +232,10 @@ export async function getTeachersAction() {
 }
 
 export async function getTeacherWorkloadAction(staffId: string, academicYearId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SUBJECTS_READ);
+  if (denied) return denied;
 
   const assignments = await db.teacherSubjectAssignment.findMany({
     where: { staffId, academicYearId },

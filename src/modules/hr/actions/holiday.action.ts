@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { z } from "zod";
@@ -23,19 +23,16 @@ export async function getHolidaysAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.HOLIDAY_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.HOLIDAY_READ)) return { error: "Insufficient permissions" };
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 50;
   const skip = (page - 1) * pageSize;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: any = { schoolId: school.id };
+  const where: any = { schoolId: ctx.schoolId };
   if (filters?.year) {
     where.date = {
       gte: new Date(`${filters.year}-01-01`),
@@ -57,27 +54,24 @@ export async function getHolidaysAction(filters?: {
 }
 
 export async function createHolidayAction(data: CreateHolidayInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.HOLIDAY_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.HOLIDAY_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = createHolidaySchema.safeParse(data);
-  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
 
   const date = new Date(parsed.data.date);
 
   // Check for duplicate date
   const existing = await db.publicHoliday.findUnique({
-    where: { schoolId_date: { schoolId: school.id, date } },
+    where: { schoolId_date: { schoolId: ctx.schoolId, date } },
   });
   if (existing) return { error: "A holiday already exists on this date." };
 
   const holiday = await db.publicHoliday.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: parsed.data.name,
       date,
       recurring: parsed.data.recurring ?? false,
@@ -85,7 +79,7 @@ export async function createHolidayAction(data: CreateHolidayInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "PublicHoliday",
     entityId: holiday.id,
@@ -98,9 +92,9 @@ export async function createHolidayAction(data: CreateHolidayInput) {
 }
 
 export async function deleteHolidayAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.HOLIDAY_DELETE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.HOLIDAY_DELETE)) return { error: "Insufficient permissions" };
 
   const existing = await db.publicHoliday.findUnique({ where: { id } });
   if (!existing) return { error: "Holiday not found." };
@@ -108,7 +102,7 @@ export async function deleteHolidayAction(id: string) {
   await db.publicHoliday.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "PublicHoliday",
     entityId: id,
@@ -136,23 +130,20 @@ const GHANA_HOLIDAYS = [
 ];
 
 export async function importGhanaHolidaysAction(year: number) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.HOLIDAY_CREATE)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.HOLIDAY_CREATE)) return { error: "Insufficient permissions" };
 
   let imported = 0;
   for (const h of GHANA_HOLIDAYS) {
     const date = new Date(year, h.month - 1, h.day);
     const exists = await db.publicHoliday.findUnique({
-      where: { schoolId_date: { schoolId: school.id, date } },
+      where: { schoolId_date: { schoolId: ctx.schoolId, date } },
     });
     if (!exists) {
       await db.publicHoliday.create({
         data: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           name: h.name,
           date,
           recurring: true,
@@ -163,7 +154,7 @@ export async function importGhanaHolidaysAction(year: number) {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "PublicHoliday",
     module: "hr",

@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { PERMISSIONS, denyPermission } from "@/lib/permissions";
 import { z } from "zod";
@@ -23,15 +23,12 @@ type PromoteStaffInput = z.infer<typeof promoteStaffSchema>;
 // ─── Actions ────────────────────────────────────────────────
 
 export async function promoteStaffAction(data: PromoteStaffInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.PROMOTION_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.PROMOTION_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = promoteStaffSchema.safeParse(data);
-  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
 
   const staff = await db.staff.findUnique({
     where: { id: parsed.data.staffId },
@@ -53,7 +50,7 @@ export async function promoteStaffAction(data: PromoteStaffInput) {
   // Create promotion record
   const promotion = await db.staffPromotion.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       staffId: parsed.data.staffId,
       effectiveDate: new Date(parsed.data.effectiveDate),
       previousRank,
@@ -63,7 +60,7 @@ export async function promoteStaffAction(data: PromoteStaffInput) {
       previousSalary: null, // Could be derived from salary grade lookup
       newSalary: parsed.data.newSalary ?? null,
       reason: parsed.data.reason || null,
-      approvedBy: session.user.id!,
+      approvedBy: ctx.session.user.id,
       letterDocumentId: parsed.data.letterDocumentId || null,
     },
   });
@@ -80,7 +77,7 @@ export async function promoteStaffAction(data: PromoteStaffInput) {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "StaffPromotion",
     entityId: promotion.id,
@@ -93,9 +90,9 @@ export async function promoteStaffAction(data: PromoteStaffInput) {
 }
 
 export async function getPromotionHistoryAction(staffId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.PROMOTION_READ)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.PROMOTION_READ)) return { error: "Insufficient permissions" };
 
   const promotions = await db.staffPromotion.findMany({
     where: { staffId },
@@ -109,12 +106,9 @@ export async function getAllPromotionsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.PROMOTION_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.PROMOTION_READ)) return { error: "Insufficient permissions" };
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
@@ -122,7 +116,7 @@ export async function getAllPromotionsAction(filters?: {
 
   const [promotions, total] = await Promise.all([
     db.staffPromotion.findMany({
-      where: { schoolId: school.id },
+      where: { schoolId: ctx.schoolId },
       include: {
         staff: { select: { firstName: true, lastName: true, staffId: true } },
       },
@@ -130,7 +124,7 @@ export async function getAllPromotionsAction(filters?: {
       skip,
       take: pageSize,
     }),
-    db.staffPromotion.count({ where: { schoolId: school.id } }),
+    db.staffPromotion.count({ where: { schoolId: ctx.schoolId } }),
   ]);
 
   return { data: promotions, total, page, pageSize };

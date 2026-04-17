@@ -89,7 +89,7 @@ export function TransferRequestForm({
 
     startTransition(async () => {
       const result = await getHostelAction(hostelId);
-      if (result.data) {
+      if ("data" in result) {
         setDormitories(
           result.data.dormitories.map((d: { id: string; name: string; beds: Array<{ id: string; bedNumber: string; status: string }> }) => ({
             id: d.id,

@@ -1,14 +1,17 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Get Teacher Availability ────────────────────────────────────────
 
 export async function getTeacherAvailabilityAction(teacherId: string, termId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TEACHER_AVAILABILITY_READ);
+  if (denied) return denied;
 
   const availability = await db.teacherAvailability.findMany({
     where: { teacherId, termId },
@@ -38,11 +41,8 @@ export async function setTeacherAvailabilityAction(data: {
     reason?: string;
   }>;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   let updated = 0;
   for (const entry of data.entries) {
@@ -56,7 +56,7 @@ export async function setTeacherAvailabilityAction(data: {
         },
       },
       create: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         teacherId: data.teacherId,
         dayOfWeek: entry.dayOfWeek,
         periodId: entry.periodId,
@@ -73,7 +73,7 @@ export async function setTeacherAvailabilityAction(data: {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "TeacherAvailability",
     entityId: data.teacherId,
@@ -87,8 +87,8 @@ export async function setTeacherAvailabilityAction(data: {
 // ─── Get Teacher Preferences ─────────────────────────────────────────
 
 export async function getTeacherPreferenceAction(teacherId: string, termId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const pref = await db.teacherPreference.findUnique({
     where: {
@@ -121,11 +121,8 @@ export async function saveTeacherPreferenceAction(data: {
   avoidPeriodIds?: string[];
   notes?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   await db.teacherPreference.upsert({
     where: {
@@ -135,7 +132,7 @@ export async function saveTeacherPreferenceAction(data: {
       },
     },
     create: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       teacherId: data.teacherId,
       termId: data.termId,
       maxPeriodsPerDay: data.maxPeriodsPerDay ?? null,
@@ -154,7 +151,7 @@ export async function saveTeacherPreferenceAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "TeacherPreference",
     entityId: data.teacherId,

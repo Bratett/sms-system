@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Upload Document Metadata ──────────────────────────────────────
@@ -19,15 +20,14 @@ export async function createDocumentAction(data: {
   entityId?: string;
   accessLevel?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DOCUMENTS_CREATE);
+  if (denied) return denied;
 
   const document = await db.document.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       title: data.title,
       description: data.description || null,
       fileKey: data.fileKey,
@@ -38,13 +38,13 @@ export async function createDocumentAction(data: {
       tags: data.tags || [],
       entityType: data.entityType || null,
       entityId: data.entityId || null,
-      uploadedBy: session.user.id!,
+      uploadedBy: ctx.session.user.id,
       accessLevel: data.accessLevel || "STAFF",
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Document",
     entityId: document.id,
@@ -66,18 +66,17 @@ export async function getDocumentsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DOCUMENTS_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
 
   const where: Record<string, unknown> = {
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
     isArchived: false,
   };
 
@@ -112,8 +111,10 @@ export async function getDocumentsAction(filters?: {
 // ─── Delete Document ───────────────────────────────────────────────
 
 export async function deleteDocumentAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DOCUMENTS_DELETE);
+  if (denied) return denied;
 
   const document = await db.document.findUnique({ where: { id } });
   if (!document) return { error: "Document not found" };
@@ -121,7 +122,7 @@ export async function deleteDocumentAction(id: string) {
   await db.document.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Document",
     entityId: id,
@@ -136,8 +137,10 @@ export async function deleteDocumentAction(id: string) {
 // ─── Archive Document ──────────────────────────────────────────────
 
 export async function archiveDocumentAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DOCUMENTS_CREATE);
+  if (denied) return denied;
 
   const document = await db.document.update({
     where: { id },
@@ -145,7 +148,7 @@ export async function archiveDocumentAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Document",
     entityId: id,

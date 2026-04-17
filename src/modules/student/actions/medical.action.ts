@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Create Medical Record ─────────────────────────────────────────
@@ -17,17 +18,16 @@ export async function createMedicalRecordAction(data: {
   isConfidential?: boolean;
   attachmentKey?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MEDICAL_CREATE);
+  if (denied) return denied;
 
   const record = await db.medicalRecord.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       studentId: data.studentId,
-      recordedBy: session.user.id!,
+      recordedBy: ctx.session.user.id!,
       date: new Date(data.date),
       type: data.type,
       title: data.title,
@@ -40,7 +40,7 @@ export async function createMedicalRecordAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "MedicalRecord",
     entityId: record.id,
@@ -59,17 +59,16 @@ export async function getMedicalRecordsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MEDICAL_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.studentId) where.studentId = filters.studentId;
   if (filters?.type) where.type = filters.type;
 
@@ -100,8 +99,10 @@ export async function updateMedicalRecordAction(
     description?: string;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MEDICAL_UPDATE);
+  if (denied) return denied;
 
   const previous = await db.medicalRecord.findUnique({ where: { id } });
   if (!previous) return { error: "Record not found" };
@@ -116,7 +117,7 @@ export async function updateMedicalRecordAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "MedicalRecord",
     entityId: id,

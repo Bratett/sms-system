@@ -23,11 +23,11 @@ export default async function FinanceReportsPage() {
       getDebtorListAction(undefined, 20),
     ]);
 
-  const terms = termsResult.data ?? [];
-  const collection = collectionResult.data ?? null;
-  const revenueByClass = revenueByClassResult.data ?? [];
-  const revenueByFeeItem = revenueByFeeItemResult.data ?? [];
-  const debtors = debtorResult.data ?? [];
+  const terms = "data" in termsResult ? termsResult.data : [];
+  const collection = "data" in collectionResult ? collectionResult.data : null;
+  const revenueByClass = "data" in revenueByClassResult ? revenueByClassResult.data : [];
+  const revenueByFeeItem = "data" in revenueByFeeItemResult ? revenueByFeeItemResult.data : [];
+  const debtors = "data" in debtorResult ? debtorResult.data : [];
 
   return (
     <FinanceReportsClient

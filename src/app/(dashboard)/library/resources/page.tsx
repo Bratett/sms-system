@@ -30,10 +30,10 @@ export default async function ResourcesPage({
         description="Manage digital library resources and materials."
       />
       <ResourcesClient
-        resources={resourcesResult.data ?? []}
-        total={resourcesResult.total ?? 0}
-        page={resourcesResult.page ?? 1}
-        pageSize={resourcesResult.pageSize ?? 25}
+        resources={"data" in resourcesResult ? resourcesResult.data : []}
+        total={"total" in resourcesResult ? resourcesResult.total : 0}
+        page={"page" in resourcesResult ? resourcesResult.page : 1}
+        pageSize={"pageSize" in resourcesResult ? resourcesResult.pageSize : 25}
         filters={params}
       />
     </div>

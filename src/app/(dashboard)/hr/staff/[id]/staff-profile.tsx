@@ -208,7 +208,7 @@ export function StaffProfile({
         specialization: editData.specialization || undefined,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Staff profile updated successfully.");
@@ -231,7 +231,7 @@ export function StaffProfile({
         type: terminateData.type,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Staff status updated successfully.");
@@ -256,7 +256,7 @@ export function StaffProfile({
         reason: leaveData.reason || undefined,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Leave request submitted successfully.");

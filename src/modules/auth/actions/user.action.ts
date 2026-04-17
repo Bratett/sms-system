@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import bcrypt from "bcryptjs";
 import {
@@ -12,10 +13,10 @@ import {
 } from "@/modules/auth/schemas/user.schema";
 
 export async function getUsersAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.USERS_READ);
+  if (denied) return denied;
 
   const users = await db.user.findMany({
     include: {
@@ -49,10 +50,10 @@ export async function getUsersAction() {
 }
 
 export async function createUserAction(data: CreateUserInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.USERS_CREATE);
+  if (denied) return denied;
 
   const parsed = createUserSchema.safeParse(data);
   if (!parsed.success) {
@@ -85,14 +86,14 @@ export async function createUserAction(data: CreateUserInput) {
       userRoles: {
         create: parsed.data.roleIds.map((roleId) => ({
           roleId,
-          assignedBy: session.user.id,
+          assignedBy: ctx.session.user.id,
         })),
       },
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "User",
     entityId: user.id,
@@ -105,10 +106,10 @@ export async function createUserAction(data: CreateUserInput) {
 }
 
 export async function updateUserAction(id: string, data: UpdateUserInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.USERS_UPDATE);
+  if (denied) return denied;
 
   const parsed = updateUserSchema.safeParse(data);
   if (!parsed.success) {
@@ -157,12 +158,12 @@ export async function updateUserAction(id: string, data: UpdateUserInput) {
     data: parsed.data.roleIds.map((roleId) => ({
       userId: id,
       roleId,
-      assignedBy: session.user.id,
+      assignedBy: ctx.session.user.id,
     })),
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "User",
     entityId: user.id,
@@ -176,12 +177,12 @@ export async function updateUserAction(id: string, data: UpdateUserInput) {
 }
 
 export async function deleteUserAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.USERS_DELETE);
+  if (denied) return denied;
 
-  if (id === session.user.id) {
+  if (id === ctx.session.user.id) {
     return { error: "You cannot deactivate your own account" };
   }
 
@@ -196,7 +197,7 @@ export async function deleteUserAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "User",
     entityId: id,

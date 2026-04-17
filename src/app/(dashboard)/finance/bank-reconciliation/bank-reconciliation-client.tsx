@@ -73,7 +73,7 @@ export function BankReconciliationClient({
     if (expandedId === reconId) { setExpandedId(null); return; }
     startTransition(async () => {
       const result = await getReconciliationEntriesAction(reconId);
-      if (result.data) setEntries(result.data);
+      if ("data" in result) setEntries(result.data);
       setExpandedId(reconId);
     });
   }
@@ -81,13 +81,13 @@ export function BankReconciliationClient({
   function handleAutoMatch(reconId: string) {
     startTransition(async () => {
       const result = await autoMatchEntriesAction(reconId);
-      if (result.error) { toast.error(result.error); return; }
-      toast.success(`Auto-matched ${result.data!.matched} of ${result.data!.total} entries`);
+      if ("error" in result) { toast.error(result.error); return; }
+      toast.success(`Auto-matched ${result.data.matched} of ${result.data.total} entries`);
       router.refresh();
       // Refresh entries if expanded
       if (expandedId === reconId) {
         const entriesResult = await getReconciliationEntriesAction(reconId);
-        if (entriesResult.data) setEntries(entriesResult.data);
+        if ("data" in entriesResult) setEntries(entriesResult.data);
       }
     });
   }

@@ -24,6 +24,7 @@ model Course {
 model Lesson {
   id          String     @id @default(cuid())
   courseId     String
+  schoolId    String
   title       String
   content     String?    // Rich text / markdown content
   contentType LessonContentType @default(TEXT)
@@ -35,15 +36,18 @@ model Lesson {
   updatedAt   DateTime   @updatedAt
 
   course      Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  school      School     @relation("SchoolLessons", fields: [schoolId], references: [id])
   progress    LessonProgress[]
 
   @@index([courseId])
   @@index([courseId, orderIndex])
+  @@index([schoolId])
 }
 
 model LmsAssignment {
   id           String         @id @default(cuid())
   courseId      String
+  schoolId     String
   title        String
   description  String?
   type         AssignmentType @default(WRITTEN)
@@ -54,16 +58,19 @@ model LmsAssignment {
   updatedAt    DateTime       @updatedAt
 
   course       Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  school       School         @relation("SchoolLmsAssignments", fields: [schoolId], references: [id])
   submissions  AssignmentSubmission[]
   questions    QuizQuestion[]
 
   @@index([courseId])
   @@index([dueDate])
+  @@index([schoolId])
 }
 
 model QuizQuestion {
   id           String @id @default(cuid())
   assignmentId String
+  schoolId     String
   question     String
   type         QuestionType @default(MULTIPLE_CHOICE)
   options      Json?   // Array of option strings for MCQ
@@ -72,43 +79,52 @@ model QuizQuestion {
   orderIndex   Int
 
   assignment   LmsAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  school       School        @relation("SchoolQuizQuestions", fields: [schoolId], references: [id])
 
   @@index([assignmentId])
+  @@index([schoolId])
 }
 
 model CourseEnrollment {
   id         String   @id @default(cuid())
   courseId    String
   studentId  String
+  schoolId   String
   enrolledAt DateTime @default(now())
   completedAt DateTime?
   progress   Float    @default(0) // 0-100 percentage
 
   course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  school     School   @relation("SchoolCourseEnrollments", fields: [schoolId], references: [id])
 
   @@unique([courseId, studentId])
   @@index([courseId])
   @@index([studentId])
+  @@index([schoolId])
 }
 
 model LessonProgress {
   id          String   @id @default(cuid())
   lessonId    String
   studentId   String
+  schoolId    String
   status      ProgressStatus @default(NOT_STARTED)
   startedAt   DateTime?
   completedAt DateTime?
 
   lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  school      School   @relation("SchoolLessonProgress", fields: [schoolId], references: [id])
 
   @@unique([lessonId, studentId])
   @@index([studentId])
+  @@index([schoolId])
 }
 
 model AssignmentSubmission {
   id           String          @id @default(cuid())
   assignmentId String
   studentId    String
+  schoolId     String
   content      String?         // Written answer or file URL
   answers      Json?           // Quiz answers: { questionId: answer }
   score        Float?
@@ -119,10 +135,12 @@ model AssignmentSubmission {
   gradedBy     String?
 
   assignment   LmsAssignment   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  school       School          @relation("SchoolAssignmentSubmissions", fields: [schoolId], references: [id])
 
   @@unique([assignmentId, studentId])
   @@index([assignmentId])
   @@index([studentId])
+  @@index([schoolId])
   @@index([status])
 }
 

@@ -18,7 +18,7 @@ vi.mock("@/lib/auth", () => ({
   auth: authMock,
 }));
 
-// Default: authenticated user
+// Default: authenticated user with school context
 export function mockAuthenticatedUser(overrides?: Record<string, unknown>) {
   authMock.mockResolvedValue({
     user: {
@@ -27,6 +27,9 @@ export function mockAuthenticatedUser(overrides?: Record<string, unknown>) {
       name: "Test Admin",
       roles: ["super_admin"],
       permissions: ["*"],
+      schoolId: "default-school",
+      schoolName: "Ghana SHS Demo",
+      schools: [{ id: "default-school", name: "Ghana SHS Demo", logoUrl: null, isDefault: true }],
       ...overrides,
     },
   });

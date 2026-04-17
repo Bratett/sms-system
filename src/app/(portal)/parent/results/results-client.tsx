@@ -69,7 +69,7 @@ export function ResultsClient({ students }: ResultsClientProps) {
     getChildResultsAction(selectedStudentId, selectedTermId || undefined)
       .then((res) => {
         if (cancelled) return;
-        if (res.data) {
+        if ("data" in res && res.data) {
           setResultsData(res.data as unknown as ResultsResponse);
           if (!selectedTermId && res.data.terms.length > 0) {
             setSelectedTermId(res.data.terms[0].id);

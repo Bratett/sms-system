@@ -1,21 +1,17 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Get Promotion Candidates ─────────────────────────────────────────
 
 export async function getPromotionCandidatesAction(classArmId: string, academicYearId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_READ);
+  if (denied) return denied;
 
   // Get all terms for this academic year
   const terms = await db.term.findMany({
@@ -53,7 +49,7 @@ export async function getPromotionCandidatesAction(classArmId: string, academicY
 
   // Get the default grading scale to determine F9 grade
   const gradingScale = await db.gradingScale.findFirst({
-    where: { schoolId: school.id, isDefault: true },
+    where: { schoolId: ctx.schoolId, isDefault: true },
     include: {
       gradeDefinitions: {
         orderBy: { minScore: "asc" },
@@ -105,7 +101,7 @@ export async function getPromotionCandidatesAction(classArmId: string, academicY
 
     const promotionRule = await db.promotionRule.findFirst({
       where: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         isActive: true,
         OR: [
           { academicYearId, yearGroup: classArm?.class?.yearGroup ?? null },
@@ -179,15 +175,10 @@ export async function processPromotionsAction(data: {
     status: "PROMOTED" | "RETAINED" | "GRADUATED";
   }>;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_COMPUTE);
+  if (denied) return denied;
 
   if (!data.promotions || data.promotions.length === 0) {
     return { error: "No promotions to process." };
@@ -267,7 +258,7 @@ export async function processPromotionsAction(data: {
 
   // Audit log
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Enrollment",
     entityId: data.classArmId,

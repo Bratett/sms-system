@@ -30,8 +30,8 @@ export default async function DocumentsPage({
         description="Manage and organize school documents."
       />
       <DocumentsClient
-        documents={result.data ?? []}
-        pagination={result.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
+        documents={"data" in result ? result.data : []}
+        pagination={"pagination" in result ? result.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 } : { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
         filters={params}
       />
     </div>

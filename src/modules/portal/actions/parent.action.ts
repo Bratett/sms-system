@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireAuth, requireSchoolContext } from "@/lib/auth-context";
 import { toNum } from "@/lib/decimal";
 
 // ─── Helper: verify parent has access to a student ────────────────────
@@ -26,13 +26,11 @@ async function verifyParentAccess(userId: string, studentId: string) {
 // ─── Get Parent's Children ────────────────────────────────────────────
 
 export async function getParentChildrenAction() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
   const guardian = await db.guardian.findUnique({
-    where: { userId: session.user.id },
+    where: { userId: ctx.session.user.id },
     include: {
       students: {
         include: {
@@ -140,12 +138,10 @@ export async function getParentChildrenAction() {
 // ─── Get Child Results ────────────────────────────────────────────────
 
 export async function getChildResultsAction(studentId: string, termId?: string) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
-  const hasAccess = await verifyParentAccess(session.user.id, studentId);
+  const hasAccess = await verifyParentAccess(ctx.session.user.id, studentId);
   if (!hasAccess) {
     return { error: "You do not have access to this student's data." };
   }
@@ -257,12 +253,10 @@ export async function getChildResultsAction(studentId: string, termId?: string) 
 // ─── Get Child Fees ───────────────────────────────────────────────────
 
 export async function getChildFeesAction(studentId: string) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
-  const hasAccess = await verifyParentAccess(session.user.id, studentId);
+  const hasAccess = await verifyParentAccess(ctx.session.user.id, studentId);
   if (!hasAccess) {
     return { error: "You do not have access to this student's data." };
   }
@@ -340,12 +334,10 @@ export async function getChildFeesAction(studentId: string) {
 // ─── Get Child Attendance ─────────────────────────────────────────────
 
 export async function getChildAttendanceAction(studentId: string, termId?: string) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireAuth();
+  if ("error" in ctx) return ctx;
 
-  const hasAccess = await verifyParentAccess(session.user.id, studentId);
+  const hasAccess = await verifyParentAccess(ctx.session.user.id, studentId);
   if (!hasAccess) {
     return { error: "You do not have access to this student's data." };
   }
@@ -453,17 +445,12 @@ export async function getChildAttendanceAction(studentId: string, termId?: strin
 // ─── Get Announcements for Parent ─────────────────────────────────────
 
 export async function getParentAnnouncementsAction() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const announcements = await db.announcement.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       status: "PUBLISHED",
       targetType: { in: ["all", "specific"] },
     },

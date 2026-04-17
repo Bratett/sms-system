@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Create Counseling Record ──────────────────────────────────────
@@ -15,17 +16,16 @@ export async function createCounselingRecordAction(data: {
   followUpDate?: string;
   isConfidential?: boolean;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COUNSELING_CREATE);
+  if (denied) return denied;
 
   const record = await db.counselingRecord.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       studentId: data.studentId,
-      counselorId: session.user.id!,
+      counselorId: ctx.session.user.id,
       sessionDate: new Date(data.sessionDate),
       type: data.type,
       summary: data.summary,
@@ -36,7 +36,7 @@ export async function createCounselingRecordAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "CounselingRecord",
     entityId: record.id,
@@ -56,17 +56,16 @@ export async function getCounselingRecordsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COUNSELING_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.studentId) where.studentId = filters.studentId;
   if (filters?.type) where.type = filters.type;
   if (filters?.status) where.status = filters.status;
@@ -98,8 +97,10 @@ export async function updateCounselingRecordAction(
     status?: string;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COUNSELING_UPDATE);
+  if (denied) return denied;
 
   const previous = await db.counselingRecord.findUnique({ where: { id } });
   if (!previous) return { error: "Record not found" };
@@ -115,7 +116,7 @@ export async function updateCounselingRecordAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "CounselingRecord",
     entityId: id,

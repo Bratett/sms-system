@@ -15,8 +15,8 @@ export default async function AttendancePage() {
     getClassesAction(),
   ]);
 
-  const recentRegisters = historyResult.data ?? [];
-  const classes = classesResult.data ?? [];
+  const recentRegisters = "data" in historyResult ? historyResult.data : [];
+  const classes = "data" in classesResult ? classesResult.data : [];
   const totalClassArms = classes.reduce((sum, cls) => sum + cls.classArms.length, 0);
 
   return (
@@ -46,7 +46,7 @@ export default async function AttendancePage() {
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Recent Registers</p>
-          <p className="mt-1 text-2xl font-bold">{historyResult.pagination?.total ?? 0}</p>
+          <p className="mt-1 text-2xl font-bold">{"pagination" in historyResult ? historyResult.pagination?.total ?? 0 : 0}</p>
         </div>
       </div>
 

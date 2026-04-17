@@ -25,7 +25,7 @@ export default async function RoomsPage({
         description="Manage classrooms, laboratories, and other facilities."
       />
       <RoomsClient
-        rooms={roomsResult.data ?? []}
+        rooms={"data" in roomsResult ? roomsResult.data : []}
         filters={params}
       />
     </div>

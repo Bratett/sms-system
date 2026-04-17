@@ -85,7 +85,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           schoolId: defaultSchool?.id ?? null,
           schoolName: defaultSchool?.name ?? null,
           schools,
-        } as unknown as import("next-auth").User;
+        };
       },
     }),
   ],
@@ -100,11 +100,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
-        token.roles = (user as unknown as Record<string, unknown>).roles as string[];
-        token.permissions = (user as unknown as Record<string, unknown>).permissions as string[];
-        token.schoolId = (user as unknown as Record<string, unknown>).schoolId as string | null;
-        token.schoolName = (user as unknown as Record<string, unknown>).schoolName as string | null;
-        token.schools = (user as unknown as Record<string, unknown>).schools;
+        token.roles = user.roles;
+        token.permissions = user.permissions;
+        token.schoolId = user.schoolId;
+        token.schoolName = user.schoolName;
+        token.schools = user.schools;
       }
       // Allow school switching via session update
       if (trigger === "update" && session?.schoolId) {
@@ -116,11 +116,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id as string;
-        (session.user as unknown as Record<string, unknown>).roles = token.roles;
-        (session.user as unknown as Record<string, unknown>).permissions = token.permissions;
-        (session.user as unknown as Record<string, unknown>).schoolId = token.schoolId;
-        (session.user as unknown as Record<string, unknown>).schoolName = token.schoolName;
-        (session.user as unknown as Record<string, unknown>).schools = token.schools;
+        session.user.roles = token.roles as string[];
+        session.user.permissions = token.permissions as string[];
+        session.user.schoolId = token.schoolId as string | null;
+        session.user.schoolName = token.schoolName as string | null;
+        session.user.schools = token.schools as typeof session.user.schools;
       }
       return session;
     },

@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Roll Call ──────────────────────────────────────────────────────
@@ -15,10 +16,10 @@ export async function conductRollCallAction(data: {
     notes?: string;
   }>;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ROLL_CALL_CREATE);
+  if (denied) return denied;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -45,6 +46,7 @@ export async function conductRollCallAction(data: {
           },
         },
         create: {
+          schoolId: ctx.schoolId,
           rollCallId: existing.id,
           studentId: record.studentId,
           status: record.status,
@@ -60,7 +62,7 @@ export async function conductRollCallAction(data: {
     await db.$transaction(upserts);
 
     await audit({
-      userId: session.user.id!,
+      userId: ctx.session.user.id,
       action: "UPDATE",
       entity: "RollCall",
       entityId: existing.id,
@@ -75,12 +77,14 @@ export async function conductRollCallAction(data: {
   // Create new roll call
   const rollCall = await db.rollCall.create({
     data: {
+      schoolId: ctx.schoolId,
       hostelId: data.hostelId,
       date: today,
       type: data.type,
-      conductedBy: session.user.id!,
+      conductedBy: ctx.session.user.id,
       records: {
         create: data.records.map((record) => ({
+          schoolId: ctx.schoolId,
           studentId: record.studentId,
           status: record.status,
           notes: record.notes || null,
@@ -90,7 +94,7 @@ export async function conductRollCallAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "RollCall",
     entityId: rollCall.id,
@@ -110,10 +114,10 @@ export async function getRollCallHistoryAction(
     pageSize?: number;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ROLL_CALL_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
@@ -178,10 +182,10 @@ export async function getRollCallHistoryAction(
 }
 
 export async function getRollCallAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ROLL_CALL_READ);
+  if (denied) return denied;
 
   const rollCall = await db.rollCall.findUnique({
     where: { id },
@@ -237,10 +241,10 @@ export async function getRollCallAction(id: string) {
 }
 
 export async function getBoardingStudentsAction(hostelId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ROLL_CALL_READ);
+  if (denied) return denied;
 
   // Get students who have active bed allocations in this hostel
   const allocations = await db.bedAllocation.findMany({

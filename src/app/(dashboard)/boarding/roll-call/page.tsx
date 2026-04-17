@@ -10,7 +10,7 @@ export default async function RollCallPage() {
   }
 
   const hostelsResult = await getHostelsAction();
-  const hostels = (hostelsResult.data ?? []).map((h) => ({
+  const hostels = ("data" in hostelsResult ? hostelsResult.data : []).map((h: { id: string; name: string; gender: string }) => ({
     id: h.id,
     name: h.name,
     gender: h.gender,

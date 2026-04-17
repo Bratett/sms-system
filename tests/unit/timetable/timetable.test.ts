@@ -33,9 +33,9 @@ describe("createRoomAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await createRoomAction({ name: "Room 1", type: "CLASSROOM" });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should reject duplicate room name", async () => {
@@ -86,9 +86,9 @@ describe("getRoomsAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getRoomsAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return rooms list", async () => {
@@ -140,9 +140,9 @@ describe("updateRoomAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await updateRoomAction("room-1", { name: "Updated" });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return error if room not found", async () => {
@@ -286,7 +286,7 @@ describe("createPeriodAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await createPeriodAction({
       name: "Period 1",
       startTime: "08:00",
@@ -294,7 +294,7 @@ describe("createPeriodAction", () => {
       order: 1,
       type: "LESSON",
     });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should reject duplicate order", async () => {
@@ -352,9 +352,9 @@ describe("getPeriodsAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getPeriodsAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return periods list ordered by order", async () => {
@@ -384,9 +384,9 @@ describe("updatePeriodAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await updatePeriodAction("p-1", { name: "Updated" });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return error if period not found", async () => {
@@ -522,9 +522,9 @@ describe("createTimetableSlotAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await createTimetableSlotAction(slotData);
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should reject class arm conflict", async () => {
@@ -625,9 +625,9 @@ describe("getTimetableAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getTimetableAction({});
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return timetable slots", async () => {

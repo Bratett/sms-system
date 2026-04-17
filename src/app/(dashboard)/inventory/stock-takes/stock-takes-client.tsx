@@ -144,7 +144,7 @@ export function StockTakesClient({
         scheduledDate: createScheduledDate || undefined,
         notes: createNotes || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -159,7 +159,7 @@ export function StockTakesClient({
   function handleStart(id: string) {
     startTransition(async () => {
       const result = await startStockTakeAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -170,8 +170,12 @@ export function StockTakesClient({
 
   async function openCountForm(stockTakeId: string) {
     const result = await getStockTakeAction(stockTakeId);
-    if (result.error || !result.data) {
-      toast.error(result.error ?? "Failed to load stock take details.");
+    if ("error" in result) {
+      toast.error(result.error);
+      return;
+    }
+    if (!result.data) {
+      toast.error("Failed to load stock take details.");
       return;
     }
     const detail = result.data;
@@ -214,7 +218,7 @@ export function StockTakesClient({
 
     startTransition(async () => {
       const result = await recordCountAction(countStockTake.id, counts);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -229,7 +233,7 @@ export function StockTakesClient({
     if (!confirm("Complete this stock take? Ensure all items have been counted.")) return;
     startTransition(async () => {
       const result = await completeStockTakeAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -242,7 +246,7 @@ export function StockTakesClient({
     if (!confirm("Approve this stock take? This will apply inventory adjustments.")) return;
     startTransition(async () => {
       const result = await approveStockTakeAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -253,8 +257,12 @@ export function StockTakesClient({
 
   async function viewVarianceSummary(stockTakeId: string, reference: string) {
     const result = await getVarianceSummaryAction(stockTakeId);
-    if (result.error || !result.data) {
-      toast.error(result.error ?? "Failed to load variance summary.");
+    if ("error" in result) {
+      toast.error(result.error);
+      return;
+    }
+    if (!result.data) {
+      toast.error("Failed to load variance summary.");
       return;
     }
     setVarianceSummary(result.data);

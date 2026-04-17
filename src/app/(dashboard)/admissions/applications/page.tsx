@@ -14,9 +14,10 @@ export default async function ApplicationsPage() {
     getAdmissionStatsAction(),
   ]);
 
-  const applications = applicationsResult.data?.applications ?? [];
-  const total = applicationsResult.data?.total ?? 0;
-  const stats = statsResult.data ?? {
+  const applicationsData = "data" in applicationsResult ? applicationsResult.data : null;
+  const applications = applicationsData?.applications ?? [];
+  const total = applicationsData?.total ?? 0;
+  const stats = ("data" in statsResult ? statsResult.data : null) ?? {
     total: 0,
     submitted: 0,
     underReview: 0,

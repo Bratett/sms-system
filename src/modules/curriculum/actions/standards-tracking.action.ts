@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 // ─── Link Marks to Curriculum Standards ──────────────────────────────
 
 export async function linkMarkToStandardsAction(
@@ -10,8 +10,10 @@ export async function linkMarkToStandardsAction(
   standardIds: string[],
   proficiencies: string[],
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   if (standardIds.length !== proficiencies.length) {
     return { error: "Standards and proficiencies arrays must have same length." };
@@ -25,6 +27,7 @@ export async function linkMarkToStandardsAction(
     standardIds.map((standardId, i) =>
       db.markStandardLink.create({
         data: {
+          schoolId: ctx.schoolId,
           markId,
           standardId,
           proficiency: proficiencies[i] as any,
@@ -43,8 +46,10 @@ export async function computeStudentMasteryAction(
   academicYearId: string,
   termId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   // Get all marks for this student/term
   const marks = await db.mark.findMany({
@@ -90,6 +95,7 @@ export async function computeStudentMasteryAction(
 
     await db.studentStandardMastery.create({
       data: {
+        schoolId: ctx.schoolId,
         studentId,
         standardId,
         academicYearId,
@@ -110,8 +116,10 @@ export async function getStudentCompetencyReportAction(
   studentId: string,
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   const masteryRecords = await db.studentStandardMastery.findMany({
     where: { studentId, academicYearId },

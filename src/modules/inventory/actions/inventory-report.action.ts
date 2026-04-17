@@ -1,27 +1,23 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
 
 // ─── Stock Level Report ─────────────────────────────────────────────
 
 export async function getStockLevelReportAction(storeId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ANALYTICS_READ);
+  if (denied) return denied;
 
   const items = await db.storeItem.findMany({
     where: {
       status: "ACTIVE",
       store: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         status: "ACTIVE",
         ...(storeId && { id: storeId }),
       },
@@ -63,21 +59,16 @@ export async function getStockMovementReportAction(filters?: {
   dateFrom?: string;
   dateTo?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ANALYTICS_READ);
+  if (denied) return denied;
 
   const movements = await db.stockMovement.findMany({
     where: {
       storeItem: {
         store: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           ...(filters?.storeId && { id: filters.storeId }),
         },
       },
@@ -165,18 +156,13 @@ export async function getStockMovementReportAction(filters?: {
 // ─── Stock Valuation ────────────────────────────────────────────────
 
 export async function getStockValuationAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ANALYTICS_READ);
+  if (denied) return denied;
 
   const stores = await db.store.findMany({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     include: {
       items: {
         where: { status: "ACTIVE" },

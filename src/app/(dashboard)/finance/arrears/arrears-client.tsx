@@ -77,13 +77,13 @@ export function ArrearsClient({
         getArrearsReportAction(selectedTermId || undefined),
       ]);
 
-      if (arrearsResult.error) {
+      if ("error" in arrearsResult) {
         toast.error(arrearsResult.error);
         return;
       }
 
-      setArrears(arrearsResult.data ?? []);
-      setReport(reportResult.data ?? null);
+      setArrears("data" in arrearsResult ? arrearsResult.data : []);
+      setReport("data" in reportResult ? reportResult.data : null);
     });
   }
 
@@ -95,8 +95,8 @@ export function ArrearsClient({
         getArrearsAction(),
         getArrearsReportAction(),
       ]);
-      setArrears(arrearsResult.data ?? []);
-      setReport(reportResult.data ?? null);
+      setArrears("data" in arrearsResult ? arrearsResult.data : []);
+      setReport("data" in reportResult ? reportResult.data : null);
     });
   }
 

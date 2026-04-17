@@ -17,7 +17,7 @@ export default async function TransportPage() {
         title="Transport"
         description="Manage vehicles, routes, and student transportation."
       />
-      <TransportClient stats={result.data ?? null} />
+      <TransportClient stats={"data" in result ? result.data : null} />
     </div>
   );
 }

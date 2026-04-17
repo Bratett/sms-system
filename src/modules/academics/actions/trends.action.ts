@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 
 // ─── Get Student Performance Trends ──────────────────────────────────
 
@@ -9,10 +10,10 @@ export async function getStudentPerformanceTrendsAction(
   studentId: string,
   academicYearId?: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_READ);
+  if (denied) return denied;
 
   const where: Record<string, unknown> = { studentId };
   if (academicYearId) {
@@ -73,10 +74,10 @@ export async function getClassPerformanceTrendsAction(
   classArmId: string,
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_READ);
+  if (denied) return denied;
 
   const terms = await db.term.findMany({
     where: { academicYearId },

@@ -60,7 +60,7 @@ export function MaintenanceForm({ hostels }: { hostels: HostelOption[] }) {
 
     setLoadingDorms(true);
     const result = await getDormitoriesAction(hostelId);
-    if (result.data) {
+    if ("data" in result) {
       setDormitories(result.data);
     }
     setLoadingDorms(false);
@@ -76,7 +76,7 @@ export function MaintenanceForm({ hostels }: { hostels: HostelOption[] }) {
 
     setLoadingBeds(true);
     const result = await getBedsAction(dormitoryId);
-    if (result.data) {
+    if ("data" in result) {
       setBeds(result.data);
     }
     setLoadingBeds(false);

@@ -95,8 +95,8 @@ export function FixedAssetsClient({
         depreciationMethod: formData.depreciationMethod as "STRAIGHT_LINE" | "REDUCING_BALANCE" | "NONE",
         condition: formData.condition,
       });
-      if (result.error) { toast.error(result.error); return; }
-      toast.success(`Asset registered: ${result.data!.assetNumber}`);
+      if ("error" in result) { toast.error(result.error); return; }
+      toast.success(`Asset registered: ${result.data.assetNumber}`);
       setShowCreateModal(false);
       router.refresh();
     });
@@ -105,7 +105,7 @@ export function FixedAssetsClient({
   function handleDispose(asset: Asset) {
     startTransition(async () => {
       const result = await disposeAssetAction({ assetId: asset.id, disposalMethod: "WRITTEN_OFF", disposalAmount: 0 });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Asset disposed");
       router.refresh();
     });
@@ -129,7 +129,7 @@ export function FixedAssetsClient({
         performedBy: maintenanceData.performedBy || undefined,
         nextDueDate: maintenanceData.nextDueDate ? new Date(maintenanceData.nextDueDate) : undefined,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Maintenance recorded");
       setShowMaintenanceModal(false);
       router.refresh();
@@ -152,7 +152,7 @@ export function FixedAssetsClient({
         purpose: checkoutData.purpose || undefined,
         expectedReturn: checkoutData.expectedReturnDate || undefined,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Asset checked out successfully");
       setShowCheckoutModal(false);
       router.refresh();
@@ -178,7 +178,7 @@ export function FixedAssetsClient({
         startDate: insuranceData.startDate,
         endDate: insuranceData.endDate,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Insurance added successfully");
       setShowInsuranceModal(false);
       router.refresh();
@@ -203,7 +203,7 @@ export function FixedAssetsClient({
         endDate: warrantyData.endDate,
         terms: warrantyData.terms || undefined,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Warranty added successfully");
       setShowWarrantyModal(false);
       router.refresh();

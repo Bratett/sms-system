@@ -156,7 +156,7 @@ export function ResultsClient({
         getResultSummaryAction(selectedClassArmId, selectedTermId),
       ]);
 
-      if (resultsRes.error) {
+      if ("error" in resultsRes) {
         toast.error(resultsRes.error);
         setResults([]);
         setSummary(null);
@@ -164,7 +164,7 @@ export function ResultsClient({
         setResults(resultsRes.data ?? []);
       }
 
-      if (summaryRes.data) {
+      if ("data" in summaryRes) {
         setSummary(summaryRes.data);
       } else {
         setSummary(null);
@@ -197,12 +197,12 @@ export function ResultsClient({
         selectedYearId,
       );
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
 
-      if (result.data) {
+      if ("data" in result) {
         toast.success(
           `Results computed for ${result.data.computed} student(s).`,
         );
@@ -235,7 +235,7 @@ export function ResultsClient({
         selectedClassArmId,
         selectedTermId,
       );
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(
@@ -266,7 +266,7 @@ export function ResultsClient({
           headmasterRemarks,
         },
       );
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Remarks updated successfully.");

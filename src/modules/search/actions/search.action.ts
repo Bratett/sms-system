@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 interface SearchResultStudent {
   id: string;
   studentId: string;
@@ -43,17 +43,12 @@ export async function globalSearchAction(
   query: string,
   limit = 5,
 ): Promise<GlobalSearchResult | { error: string }> {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   if (!query || query.trim().length < 2) {
-    return { students: [], staff: [], subjects: [], items: [] };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
     return { students: [], staff: [], subjects: [], items: [] };
   }
 
@@ -63,7 +58,7 @@ export async function globalSearchAction(
     // Students: search firstName, lastName, studentId
     db.student.findMany({
       where: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         OR: [
           { firstName: { contains: searchTerm, mode: "insensitive" } },
           { lastName: { contains: searchTerm, mode: "insensitive" } },
@@ -95,7 +90,7 @@ export async function globalSearchAction(
     // Staff: search firstName, lastName, staffId
     db.staff.findMany({
       where: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         OR: [
           { firstName: { contains: searchTerm, mode: "insensitive" } },
           { lastName: { contains: searchTerm, mode: "insensitive" } },
@@ -116,7 +111,7 @@ export async function globalSearchAction(
     // Subjects: search name, code
     db.subject.findMany({
       where: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         OR: [
           { name: { contains: searchTerm, mode: "insensitive" } },
           { code: { contains: searchTerm, mode: "insensitive" } },
@@ -133,7 +128,7 @@ export async function globalSearchAction(
     // Store Items: search name
     db.storeItem.findMany({
       where: {
-        store: { schoolId: school.id },
+        store: { schoolId: ctx.schoolId },
         name: { contains: searchTerm, mode: "insensitive" },
       },
       select: {

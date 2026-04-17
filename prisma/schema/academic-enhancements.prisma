@@ -5,6 +5,7 @@ model StudentSubjectSelection {
   studentId        String
   subjectId        String
   academicYearId   String
+  schoolId         String
   status           SelectionStatus @default(PENDING)
   selectedAt       DateTime        @default(now())
   approvedBy       String?
@@ -12,11 +13,13 @@ model StudentSubjectSelection {
   rejectionReason  String?
 
   subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  school  School  @relation("SchoolStudentSubjectSelections", fields: [schoolId], references: [id])
 
   @@unique([studentId, subjectId, academicYearId])
   @@index([studentId])
   @@index([subjectId])
   @@index([academicYearId])
+  @@index([schoolId])
   @@index([status])
 }
 
@@ -34,6 +37,7 @@ model StudentConduct {
   classArmId      String
   termId          String
   academicYearId  String
+  schoolId        String
   punctuality     ConductRating @default(GOOD)
   attendance      ConductRating @default(GOOD)
   attentiveness   ConductRating @default(GOOD)
@@ -52,10 +56,13 @@ model StudentConduct {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
+  school School @relation("SchoolStudentConducts", fields: [schoolId], references: [id])
+
   @@unique([studentId, termId, academicYearId])
   @@index([classArmId])
   @@index([termId])
   @@index([studentId])
+  @@index([schoolId])
 }
 
 enum ConductRating {
@@ -76,6 +83,7 @@ model MarkAuditLog {
   subjectId        String
   assessmentTypeId String
   termId           String
+  schoolId         String
   previousScore    Float?
   newScore         Float?
   previousStatus   MarkStatus?
@@ -84,11 +92,14 @@ model MarkAuditLog {
   changeReason     String?
   changedAt        DateTime    @default(now())
 
+  school School @relation("SchoolMarkAuditLogs", fields: [schoolId], references: [id])
+
   @@index([markId])
   @@index([studentId])
   @@index([changedBy])
   @@index([changedAt])
   @@index([subjectId, termId])
+  @@index([schoolId])
 }
 
 // ─── Phase 3: Academic Calendar Events ──────────────────────────────
@@ -202,6 +213,7 @@ model StudentActivity {
   activityId     String
   studentId      String
   academicYearId String
+  schoolId       String
   role           String?
   joinedAt       DateTime @default(now())
   leftAt         DateTime?
@@ -209,11 +221,13 @@ model StudentActivity {
   status         Status   @default(ACTIVE)
 
   activity CoCurricularActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  school   School               @relation("SchoolStudentActivities", fields: [schoolId], references: [id])
 
   @@unique([activityId, studentId, academicYearId])
   @@index([activityId])
   @@index([studentId])
   @@index([academicYearId])
+  @@index([schoolId])
 }
 
 enum ActivityType {
@@ -267,15 +281,18 @@ model ExamSeatingArrangement {
   studentId      String
   seatNumber     String
   roomId         String
+  schoolId       String
   createdAt      DateTime @default(now())
 
   examSchedule ExamSchedule @relation(fields: [examScheduleId], references: [id], onDelete: Cascade)
   room         Room         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  school       School       @relation("SchoolExamSeatingArrangements", fields: [schoolId], references: [id])
 
   @@unique([examScheduleId, studentId])
   @@unique([examScheduleId, roomId, seatNumber])
   @@index([examScheduleId])
   @@index([studentId])
+  @@index([schoolId])
 }
 
 // ─── Phase 5: Standards-Based Tracking ──────────────────────────────
@@ -284,11 +301,15 @@ model MarkStandardLink {
   id          String              @id @default(cuid())
   markId      String
   standardId  String
+  schoolId    String
   proficiency StandardProficiency @default(DEVELOPING)
+
+  school School @relation("SchoolMarkStandardLinks", fields: [schoolId], references: [id])
 
   @@unique([markId, standardId])
   @@index([markId])
   @@index([standardId])
+  @@index([schoolId])
 }
 
 model StudentStandardMastery {
@@ -297,14 +318,18 @@ model StudentStandardMastery {
   standardId     String
   academicYearId String
   termId         String
+  schoolId       String
   proficiency    StandardProficiency
   evidence       Json?
   computedAt     DateTime            @default(now())
+
+  school School @relation("SchoolStudentStandardMasteries", fields: [schoolId], references: [id])
 
   @@unique([studentId, standardId, termId])
   @@index([studentId])
   @@index([standardId])
   @@index([studentId, academicYearId])
+  @@index([schoolId])
 }
 
 enum StandardProficiency {
@@ -345,18 +370,21 @@ model PTCBooking {
   teacherId String
   parentId  String
   studentId String
+  schoolId  String
   timeSlot  String
   status    BookingStatus @default(CONFIRMED)
   notes     String?
   createdAt DateTime      @default(now())
 
   session PTCSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  school  School     @relation("SchoolPTCBookings", fields: [schoolId], references: [id])
 
   @@unique([sessionId, teacherId, timeSlot])
   @@index([sessionId])
   @@index([teacherId])
   @@index([parentId])
   @@index([studentId])
+  @@index([schoolId])
 }
 
 enum BookingStatus {
@@ -398,6 +426,7 @@ model HomeworkSubmission {
   id          String                   @id @default(cuid())
   homeworkId  String
   studentId   String
+  schoolId    String
   submittedAt DateTime                 @default(now())
   content     String?
   fileUrl     String?
@@ -408,10 +437,12 @@ model HomeworkSubmission {
   status      HomeworkSubmissionStatus  @default(SUBMITTED)
 
   homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  school   School   @relation("SchoolHomeworkSubmissions", fields: [schoolId], references: [id])
 
   @@unique([homeworkId, studentId])
   @@index([homeworkId])
   @@index([studentId])
+  @@index([schoolId])
   @@index([status])
 }
 

@@ -72,7 +72,7 @@ export function HousesClient({ houses }: { houses: House[] }) {
     }
     startTransition(async () => {
       const result = await deleteHouseAction(house.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`House "${house.name}" deleted successfully.`);
@@ -97,7 +97,7 @@ export function HousesClient({ houses }: { houses: House[] }) {
           motto: formData.motto.trim(),
           description: formData.description.trim(),
         });
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success(`House "${formData.name}" updated successfully.`);
@@ -111,7 +111,7 @@ export function HousesClient({ houses }: { houses: House[] }) {
           motto: formData.motto.trim() || undefined,
           description: formData.description.trim() || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           setFormError(result.error);
         } else {
           toast.success(`House "${formData.name}" created successfully.`);

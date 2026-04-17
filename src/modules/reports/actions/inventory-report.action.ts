@@ -1,24 +1,20 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
 
 export async function getInventoryReportAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ANALYTICS_READ);
+  if (denied) return denied;
 
   // Total items and total value
   const items = await db.storeItem.findMany({
     where: {
-      store: { schoolId: school.id },
+      store: { schoolId: ctx.schoolId },
       status: "ACTIVE",
     },
     select: {
@@ -61,7 +57,7 @@ export async function getInventoryReportAction() {
     where: {
       conductedAt: { gte: thirtyDaysAgo },
       storeItem: {
-        store: { schoolId: school.id },
+        store: { schoolId: ctx.schoolId },
       },
     },
     _sum: { quantity: true },
@@ -85,7 +81,7 @@ export async function getInventoryReportAction() {
       type: "OUT",
       conductedAt: { gte: thirtyDaysAgo },
       storeItem: {
-        store: { schoolId: school.id },
+        store: { schoolId: ctx.schoolId },
       },
     },
     _sum: { quantity: true },
@@ -115,7 +111,7 @@ export async function getInventoryReportAction() {
       storeId: {
         in: (
           await db.store.findMany({
-            where: { schoolId: school.id },
+            where: { schoolId: ctx.schoolId },
             select: { id: true },
           })
         ).map((s) => s.id),

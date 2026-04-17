@@ -1,16 +1,17 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── List Guardians ─────────────────────────────────────────────
 
 export async function getGuardiansAction(search?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_READ);
+  if (denied) return denied;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {};
@@ -54,10 +55,8 @@ export async function getGuardiansAction(search?: string) {
 // ─── Single Guardian ────────────────────────────────────────────
 
 export async function getGuardianAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const guardian = await db.guardian.findUnique({
     where: { id },
@@ -119,10 +118,10 @@ export async function createGuardianAction(data: {
   address?: string;
   relationship?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_UPDATE);
+  if (denied) return denied;
 
   if (!data.firstName?.trim() || !data.lastName?.trim()) {
     return { error: "Guardian first and last names are required." };
@@ -134,6 +133,7 @@ export async function createGuardianAction(data: {
 
   const guardian = await db.guardian.create({
     data: {
+      schoolId: ctx.schoolId,
       firstName: data.firstName.trim(),
       lastName: data.lastName.trim(),
       phone: data.phone.trim(),
@@ -146,7 +146,7 @@ export async function createGuardianAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "Guardian",
     entityId: guardian.id,
@@ -173,10 +173,10 @@ export async function updateGuardianAction(
     relationship?: string;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.guardian.findUnique({ where: { id } });
   if (!existing) {
@@ -202,7 +202,7 @@ export async function updateGuardianAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Guardian",
     entityId: id,
@@ -222,10 +222,10 @@ export async function linkGuardianToStudentAction(
   guardianId: string,
   isPrimary?: boolean,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_UPDATE);
+  if (denied) return denied;
 
   // Check if link already exists
   const existing = await db.studentGuardian.findUnique({
@@ -243,6 +243,7 @@ export async function linkGuardianToStudentAction(
 
   const link = await db.studentGuardian.create({
     data: {
+      schoolId: ctx.schoolId,
       studentId,
       guardianId,
       isPrimary: isPrimary ?? false,
@@ -266,7 +267,7 @@ export async function linkGuardianToStudentAction(
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "StudentGuardian",
     entityId: link.id,
@@ -281,10 +282,10 @@ export async function linkGuardianToStudentAction(
 // ─── Unlink Guardian from Student ───────────────────────────────
 
 export async function unlinkGuardianFromStudentAction(studentId: string, guardianId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.studentGuardian.findUnique({
     where: {
@@ -309,7 +310,7 @@ export async function unlinkGuardianFromStudentAction(studentId: string, guardia
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "StudentGuardian",
     entityId: existing.id,
@@ -324,10 +325,10 @@ export async function unlinkGuardianFromStudentAction(studentId: string, guardia
 // ─── Get Student's Guardians ────────────────────────────────────
 
 export async function getStudentGuardiansAction(studentId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_READ);
+  if (denied) return denied;
 
   const links = await db.studentGuardian.findMany({
     where: { studentId },

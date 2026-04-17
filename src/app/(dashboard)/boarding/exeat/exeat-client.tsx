@@ -119,7 +119,7 @@ export function ExeatClient({
         page,
         pageSize: pagination.pageSize,
       });
-      if (result.data) {
+      if ("data" in result) {
         setExeats(result.data);
         if (result.pagination) {
           setPagination(result.pagination);

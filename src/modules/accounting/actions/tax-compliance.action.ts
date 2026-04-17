@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import {
@@ -10,13 +11,10 @@ import {
 } from "@/modules/accounting/schemas/financial-reports.schema";
 
 export async function getTaxRecordsAction(filters?: { taxType?: string; status?: string; year?: string }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.taxType) where.taxType = filters.taxType;
   if (filters?.status) where.status = filters.status;
   if (filters?.year) where.period = { startsWith: filters.year };
@@ -43,27 +41,25 @@ export async function getTaxRecordsAction(filters?: { taxType?: string; status?:
 }
 
 export async function createTaxRecordAction(data: CreateTaxRecordInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const parsed = createTaxRecordSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const record = await db.taxRecord.create({
-    data: { schoolId: school.id, ...parsed.data },
+    data: { schoolId: ctx.schoolId, ...parsed.data },
   });
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "TaxRecord", entityId: record.id, module: "accounting", description: `Created ${parsed.data.taxType} tax record for ${parsed.data.period}` });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "TaxRecord", entityId: record.id, module: "accounting", description: `Created ${parsed.data.taxType} tax record for ${parsed.data.period}` });
 
   return { data: record };
 }
 
 export async function fileTaxReturnAction(recordId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TAX_COMPLIANCE_FILE);
+  if (denied) return denied;
 
   const record = await db.taxRecord.findUnique({ where: { id: recordId } });
   if (!record) return { error: "Tax record not found" };
@@ -71,17 +67,17 @@ export async function fileTaxReturnAction(recordId: string) {
 
   await db.taxRecord.update({
     where: { id: recordId },
-    data: { status: "FILED", filedBy: session.user.id!, filedAt: new Date() },
+    data: { status: "FILED", filedBy: ctx.session.user.id, filedAt: new Date() },
   });
 
-  await audit({ userId: session.user.id!, action: "UPDATE", entity: "TaxRecord", entityId: recordId, module: "accounting", description: `Filed ${record.taxType} tax return for ${record.period}` });
+  await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "TaxRecord", entityId: recordId, module: "accounting", description: `Filed ${record.taxType} tax return for ${record.period}` });
 
   return { data: { success: true } };
 }
 
 export async function recordTaxPaymentAction(recordId: string, amount: number, referenceNumber?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const record = await db.taxRecord.findUnique({ where: { id: recordId } });
   if (!record) return { error: "Tax record not found" };
@@ -98,19 +94,18 @@ export async function recordTaxPaymentAction(recordId: string, amount: number, r
     },
   });
 
-  await audit({ userId: session.user.id!, action: "UPDATE", entity: "TaxRecord", entityId: recordId, module: "accounting", description: `Recorded tax payment of GHS ${amount} for ${record.taxType} (${record.period})` });
+  await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "TaxRecord", entityId: recordId, module: "accounting", description: `Recorded tax payment of GHS ${amount} for ${record.taxType} (${record.period})` });
 
   return { data: { success: true } };
 }
 
 export async function getTaxSummaryAction(year?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TAX_COMPLIANCE_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (year) where.period = { startsWith: year };
 
   const records = await db.taxRecord.findMany({ where });

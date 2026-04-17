@@ -31,9 +31,9 @@ export default async function TimetablePage({
         description="Manage class timetables, rooms, and periods."
       />
       <TimetableClient
-        slots={slotsResult.data ?? []}
-        periods={periodsResult.data ?? []}
-        rooms={roomsResult.data ?? []}
+        slots={"data" in slotsResult ? slotsResult.data : []}
+        periods={"data" in periodsResult ? periodsResult.data : []}
+        rooms={"data" in roomsResult ? roomsResult.data : []}
         filters={params}
       />
     </div>

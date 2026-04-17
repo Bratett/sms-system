@@ -1,22 +1,22 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Data Export (Right to Portability) ─────────────────────────────
 
 export async function requestDataExportAction(format?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COMPLIANCE_DATA_RIGHTS_CREATE);
+  if (denied) return denied;
 
   // Check for existing pending/processing request
   const existing = await db.dataExportRequest.findFirst({
     where: {
-      userId: session.user.id!,
+      userId: ctx.session.user.id,
       status: { in: ["PENDING", "PROCESSING"] },
     },
   });
@@ -27,15 +27,15 @@ export async function requestDataExportAction(format?: string) {
 
   const request = await db.dataExportRequest.create({
     data: {
-      userId: session.user.id!,
-      schoolId: school.id,
+      userId: ctx.session.user.id,
+      schoolId: ctx.schoolId,
       format: format || "json",
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "DataExportRequest",
     entityId: request.id,
@@ -47,11 +47,13 @@ export async function requestDataExportAction(format?: string) {
 }
 
 export async function getDataExportRequestsAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COMPLIANCE_DATA_RIGHTS_READ);
+  if (denied) return denied;
 
   const requests = await db.dataExportRequest.findMany({
-    where: { userId: session.user.id! },
+    where: { userId: ctx.session.user.id },
     orderBy: { requestedAt: "desc" },
     take: 10,
   });
@@ -60,8 +62,10 @@ export async function getDataExportRequestsAction() {
 }
 
 export async function processDataExportAction(requestId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COMPLIANCE_DATA_RIGHTS_PROCESS);
+  if (denied) return denied;
 
   const request = await db.dataExportRequest.findUnique({
     where: { id: requestId },
@@ -91,7 +95,7 @@ export async function processDataExportAction(requestId: string) {
     });
 
     await audit({
-      userId: session.user.id!,
+      userId: ctx.session.user.id,
       action: "EXPORT",
       entity: "DataExportRequest",
       entityId: requestId,
@@ -191,16 +195,15 @@ export async function requestDataDeletionAction(data: {
   entityId: string;
   reason?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COMPLIANCE_DATA_RIGHTS_CREATE);
+  if (denied) return denied;
 
   const request = await db.dataDeletionRequest.create({
     data: {
-      userId: session.user.id!,
-      schoolId: school.id,
+      userId: ctx.session.user.id,
+      schoolId: ctx.schoolId,
       entityType: data.entityType,
       entityId: data.entityId,
       reason: data.reason || null,
@@ -209,7 +212,7 @@ export async function requestDataDeletionAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "DataDeletionRequest",
     entityId: request.id,
@@ -225,16 +228,15 @@ export async function getDeletionRequestsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COMPLIANCE_DATA_RIGHTS_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.status) where.status = filters.status;
 
   const [requests, total] = await Promise.all([
@@ -254,8 +256,10 @@ export async function reviewDeletionRequestAction(
   requestId: string,
   decision: { status: "APPROVED" | "REJECTED"; scheduledFor?: string },
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COMPLIANCE_DATA_RIGHTS_PROCESS);
+  if (denied) return denied;
 
   const request = await db.dataDeletionRequest.findUnique({
     where: { id: requestId },
@@ -268,7 +272,7 @@ export async function reviewDeletionRequestAction(
     where: { id: requestId },
     data: {
       status: decision.status === "APPROVED" ? "SCHEDULED" : "REJECTED",
-      reviewedBy: session.user.id!,
+      reviewedBy: ctx.session.user.id,
       reviewedAt: new Date(),
       scheduledFor: decision.status === "APPROVED" && decision.scheduledFor
         ? new Date(decision.scheduledFor)
@@ -279,7 +283,7 @@ export async function reviewDeletionRequestAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "DataDeletionRequest",
     entityId: requestId,
@@ -293,14 +297,13 @@ export async function reviewDeletionRequestAction(
 // ─── Privacy Policies ───────────────────────────────────────────────
 
 export async function getPrivacyPoliciesAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COMPLIANCE_DATA_RIGHTS_READ);
+  if (denied) return denied;
 
   const policies = await db.privacyPolicy.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: { effectiveDate: "desc" },
   });
 
@@ -313,21 +316,20 @@ export async function createPrivacyPolicyAction(data: {
   content: string;
   effectiveDate: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COMPLIANCE_DATA_RIGHTS_CREATE);
+  if (denied) return denied;
 
   // Deactivate previous policies
   await db.privacyPolicy.updateMany({
-    where: { schoolId: school.id, isActive: true },
+    where: { schoolId: ctx.schoolId, isActive: true },
     data: { isActive: false },
   });
 
   const policy = await db.privacyPolicy.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       version: data.version,
       title: data.title,
       content: data.content,
@@ -337,7 +339,7 @@ export async function createPrivacyPolicyAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "PrivacyPolicy",
     entityId: policy.id,
@@ -351,14 +353,13 @@ export async function createPrivacyPolicyAction(data: {
 // ─── Retention Policies ─────────────────────────────────────────────
 
 export async function getRetentionPoliciesAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COMPLIANCE_DATA_RIGHTS_READ);
+  if (denied) return denied;
 
   const policies = await db.dataRetentionPolicy.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: { entityType: "asc" },
   });
 
@@ -370,11 +371,10 @@ export async function upsertRetentionPolicyAction(data: {
   retentionDays: number;
   description?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COMPLIANCE_DATA_RIGHTS_CREATE);
+  if (denied) return denied;
 
   if (data.retentionDays < 30) {
     return { error: "Minimum retention period is 30 days" };
@@ -383,12 +383,12 @@ export async function upsertRetentionPolicyAction(data: {
   const policy = await db.dataRetentionPolicy.upsert({
     where: {
       schoolId_entityType: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         entityType: data.entityType,
       },
     },
     create: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       entityType: data.entityType,
       retentionDays: data.retentionDays,
       description: data.description || null,
@@ -400,7 +400,7 @@ export async function upsertRetentionPolicyAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "DataRetentionPolicy",
     entityId: policy.id,

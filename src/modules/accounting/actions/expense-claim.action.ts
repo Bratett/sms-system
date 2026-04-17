@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import {
   submitExpenseClaimSchema,
@@ -13,17 +14,16 @@ export async function getExpenseClaimsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXPENSE_CLAIMS_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.status) where.status = filters.status;
 
   const [claims, total] = await Promise.all([
@@ -52,22 +52,18 @@ export async function getExpenseClaimsAction(filters?: {
 }
 
 export async function submitExpenseClaimAction(data: SubmitExpenseClaimInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const parsed = submitExpenseClaimSchema.safeParse(data);
   if (!parsed.success) return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const totalAmount = parsed.data.items.reduce((sum, item) => sum + item.amount, 0);
 
   const claim = await db.$transaction(async (tx) => {
     const created = await tx.expenseClaim.create({
       data: {
-        schoolId: school.id,
-        claimantId: session.user.id!,
+        schoolId: ctx.schoolId,
+        claimantId: ctx.session.user.id,
         description: parsed.data.description,
         totalAmount,
       },
@@ -75,6 +71,7 @@ export async function submitExpenseClaimAction(data: SubmitExpenseClaimInput) {
 
     await tx.expenseClaimItem.createMany({
       data: parsed.data.items.map((item) => ({
+        schoolId: ctx.schoolId,
         expenseClaimId: created.id,
         description: item.description,
         amount: item.amount,
@@ -87,14 +84,16 @@ export async function submitExpenseClaimAction(data: SubmitExpenseClaimInput) {
     return created;
   });
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "ExpenseClaim", entityId: claim.id, module: "accounting", description: `Submitted expense claim (GHS ${totalAmount})` });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "ExpenseClaim", entityId: claim.id, module: "accounting", description: `Submitted expense claim (GHS ${totalAmount})` });
 
   return { data: claim };
 }
 
 export async function approveExpenseClaimAction(claimId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXPENSE_CLAIMS_APPROVE);
+  if (denied) return denied;
 
   const claim = await db.expenseClaim.findUnique({ where: { id: claimId } });
   if (!claim) return { error: "Expense claim not found" };
@@ -102,17 +101,19 @@ export async function approveExpenseClaimAction(claimId: string) {
 
   await db.expenseClaim.update({
     where: { id: claimId },
-    data: { status: "APPROVED", approvedBy: session.user.id!, approvedAt: new Date() },
+    data: { status: "APPROVED", approvedBy: ctx.session.user.id, approvedAt: new Date() },
   });
 
-  await audit({ userId: session.user.id!, action: "UPDATE", entity: "ExpenseClaim", entityId: claimId, module: "accounting", description: `Approved expense claim (GHS ${claim.totalAmount})` });
+  await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "ExpenseClaim", entityId: claimId, module: "accounting", description: `Approved expense claim (GHS ${claim.totalAmount})` });
 
   return { data: { success: true } };
 }
 
 export async function rejectExpenseClaimAction(claimId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXPENSE_CLAIMS_APPROVE);
+  if (denied) return denied;
 
   const claim = await db.expenseClaim.findUnique({ where: { id: claimId } });
   if (!claim) return { error: "Expense claim not found" };
@@ -124,8 +125,8 @@ export async function rejectExpenseClaimAction(claimId: string) {
 }
 
 export async function markClaimPaidAction(claimId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const claim = await db.expenseClaim.findUnique({ where: { id: claimId } });
   if (!claim) return { error: "Expense claim not found" };
@@ -136,7 +137,7 @@ export async function markClaimPaidAction(claimId: string) {
     data: { status: "PAID", paidAt: new Date() },
   });
 
-  await audit({ userId: session.user.id!, action: "UPDATE", entity: "ExpenseClaim", entityId: claimId, module: "accounting", description: `Marked expense claim as paid (GHS ${claim.totalAmount})` });
+  await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "ExpenseClaim", entityId: claimId, module: "accounting", description: `Marked expense claim as paid (GHS ${claim.totalAmount})` });
 
   return { data: { success: true } };
 }

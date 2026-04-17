@@ -200,7 +200,7 @@ export function InterventionsClient({
     if (!confirm(`Delete intervention "${item.title}"?`)) return;
     startTransition(async () => {
       const result = await deleteInterventionAction(item.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Intervention deleted.");
@@ -232,7 +232,7 @@ export function InterventionsClient({
           endDate: formData.endDate ? new Date(formData.endDate) : undefined,
           assignedTo: formData.assignedTo.trim() || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
         } else {
           toast.success("Intervention updated.");
@@ -252,7 +252,7 @@ export function InterventionsClient({
           endDate: formData.endDate ? new Date(formData.endDate) : undefined,
           assignedTo: formData.assignedTo.trim() || undefined,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
         } else {
           toast.success("Intervention created.");
@@ -280,7 +280,7 @@ export function InterventionsClient({
       const result = await addInterventionNoteAction(noteTargetId!, {
         text: noteText.trim(),
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Note added.");

@@ -66,7 +66,7 @@ export default async function EventAttendanceDetailPage({
       <EventDetailClient
         eventId={event.id}
         students={students}
-        existingRecords={attendanceResult.data ?? []}
+        existingRecords={"data" in attendanceResult ? attendanceResult.data : []}
       />
     </div>
   );

@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
@@ -26,14 +26,9 @@ export async function getStaffAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
@@ -41,7 +36,7 @@ export async function getStaffAction(filters?: {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
     deletedAt: null,
   };
 
@@ -129,9 +124,9 @@ export async function getStaffAction(filters?: {
 // ─── Single Staff Member ─────────────────────────────────────
 
 export async function getStaffMemberAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
 
   const staff = await db.staff.findUnique({
     where: { id },
@@ -234,19 +229,14 @@ export async function getStaffMemberAction(id: string) {
 // ─── Create Staff ────────────────────────────────────────────
 
 export async function createStaffAction(data: CreateStaffInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_CREATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_CREATE)) return { error: "Insufficient permissions" };
 
   const parsed = createStaffSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  }
 
   // Auto-generate staff ID: STF/YYYY/NNNN
   const year = new Date().getFullYear();
@@ -290,7 +280,7 @@ export async function createStaffAction(data: CreateStaffInput) {
           userRoles: {
             create: {
               roleId: teacherRole.id,
-              assignedBy: session.user.id,
+              assignedBy: ctx.session.user.id,
             },
           },
         },
@@ -302,7 +292,7 @@ export async function createStaffAction(data: CreateStaffInput) {
 
   const staff = await db.staff.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       staffId,
       userId: userId || null,
       firstName: parsed.data.firstName,
@@ -328,6 +318,7 @@ export async function createStaffAction(data: CreateStaffInput) {
         : null,
       employments: {
         create: {
+          schoolId: ctx.schoolId,
           position: parsed.data.position,
           rank: parsed.data.rank || null,
           departmentId: parsed.data.departmentId || null,
@@ -340,7 +331,7 @@ export async function createStaffAction(data: CreateStaffInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Staff",
     entityId: staff.id,
@@ -355,9 +346,9 @@ export async function createStaffAction(data: CreateStaffInput) {
 // ─── Update Staff ────────────────────────────────────────────
 
 export async function updateStaffAction(id: string, data: UpdateStaffInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_UPDATE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_UPDATE)) return { error: "Insufficient permissions" };
 
   const parsed = updateStaffSchema.safeParse(data);
   if (!parsed.success) {
@@ -408,7 +399,7 @@ export async function updateStaffAction(id: string, data: UpdateStaffInput) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Staff",
     entityId: id,
@@ -424,9 +415,9 @@ export async function updateStaffAction(id: string, data: UpdateStaffInput) {
 // ─── Terminate Staff ─────────────────────────────────────────
 
 export async function terminateStaffAction(id: string, data: TerminateStaffInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_DELETE)) return { error: "Insufficient permissions" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_DELETE)) return { error: "Insufficient permissions" };
 
   const parsed = terminateStaffSchema.safeParse(data);
   if (!parsed.success) {
@@ -472,7 +463,7 @@ export async function terminateStaffAction(id: string, data: TerminateStaffInput
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Staff",
     entityId: id,
@@ -488,40 +479,35 @@ export async function terminateStaffAction(id: string, data: TerminateStaffInput
 // ─── Staff Stats ─────────────────────────────────────────────
 
 export async function getStaffStatsAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_READ)) return { error: "Insufficient permissions" };
 
   const [total, active, teaching, nonTeaching, terminated, retired, onLeave] = await Promise.all([
-    db.staff.count({ where: { schoolId: school.id, deletedAt: null } }),
-    db.staff.count({ where: { schoolId: school.id, status: "ACTIVE", deletedAt: null } }),
+    db.staff.count({ where: { schoolId: ctx.schoolId, deletedAt: null } }),
+    db.staff.count({ where: { schoolId: ctx.schoolId, status: "ACTIVE", deletedAt: null } }),
     db.staff.count({
-      where: { schoolId: school.id, staffType: "TEACHING", status: "ACTIVE", deletedAt: null },
+      where: { schoolId: ctx.schoolId, staffType: "TEACHING", status: "ACTIVE", deletedAt: null },
     }),
     db.staff.count({
-      where: { schoolId: school.id, staffType: "NON_TEACHING", status: "ACTIVE", deletedAt: null },
+      where: { schoolId: ctx.schoolId, staffType: "NON_TEACHING", status: "ACTIVE", deletedAt: null },
     }),
-    db.staff.count({ where: { schoolId: school.id, status: "TERMINATED", deletedAt: null } }),
-    db.staff.count({ where: { schoolId: school.id, status: "RETIRED", deletedAt: null } }),
-    db.staff.count({ where: { schoolId: school.id, status: "ON_LEAVE", deletedAt: null } }),
+    db.staff.count({ where: { schoolId: ctx.schoolId, status: "TERMINATED", deletedAt: null } }),
+    db.staff.count({ where: { schoolId: ctx.schoolId, status: "RETIRED", deletedAt: null } }),
+    db.staff.count({ where: { schoolId: ctx.schoolId, status: "ON_LEAVE", deletedAt: null } }),
   ]);
 
   // Pending leave requests
   const pendingLeaveRequests = await db.leaveRequest.count({
     where: {
       status: "PENDING",
-      staff: { schoolId: school.id },
+      staff: { schoolId: ctx.schoolId },
     },
   });
 
   // By department
   const departments = await db.department.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     select: { id: true, name: true },
   });
 
@@ -567,17 +553,12 @@ export async function importStaffAction(
     appointmentType?: string;
   }[],
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  if (denyPermission(session, PERMISSIONS.STAFF_CREATE)) return { error: "Insufficient permissions" };
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  if (denyPermission(ctx.session, PERMISSIONS.STAFF_CREATE)) return { error: "Insufficient permissions" };
 
   const year = new Date().getFullYear();
-  let currentCount = await db.staff.count({ where: { schoolId: school.id } });
+  let currentCount = await db.staff.count({ where: { schoolId: ctx.schoolId } });
 
   const imported: string[] = [];
   const errors: { row: number; message: string }[] = [];
@@ -613,7 +594,7 @@ export async function importStaffAction(
 
       const staff = await db.staff.create({
         data: {
-          schoolId: school.id,
+          schoolId: ctx.schoolId,
           staffId,
           firstName: row.firstName.trim(),
           lastName: row.lastName.trim(),
@@ -624,6 +605,7 @@ export async function importStaffAction(
           staffType: staffType as "TEACHING" | "NON_TEACHING",
           employments: {
             create: {
+              schoolId: ctx.schoolId,
               position: row.position.trim(),
               appointmentType,
               startDate: new Date(),
@@ -643,7 +625,7 @@ export async function importStaffAction(
 
   if (imported.length > 0) {
     await audit({
-      userId: session.user.id!,
+      userId: ctx.session.user.id,
       action: "CREATE",
       entity: "Staff",
       module: "hr",

@@ -47,15 +47,18 @@ model Route {
 model RouteStop {
   id          String  @id @default(cuid())
   routeId     String
+  schoolId    String
   name        String
   orderIndex  Int
   pickupTime  String?
   dropoffTime String?
 
-  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  route  Route  @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  school School @relation("SchoolRouteStops", fields: [schoolId], references: [id])
 
   @@index([routeId])
   @@index([routeId, orderIndex])
+  @@index([schoolId])
 }
 
 model StudentTransport {
@@ -64,16 +67,19 @@ model StudentTransport {
   routeId        String
   stopId         String?
   academicYearId String
+  schoolId       String
   pickupPoint    String?
   dropoffPoint   String?
   assignedAt     DateTime @default(now())
 
-  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  route  Route  @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  school School @relation("SchoolStudentTransports", fields: [schoolId], references: [id])
 
   @@unique([studentId, academicYearId])
   @@index([routeId])
   @@index([studentId])
   @@index([academicYearId])
+  @@index([schoolId])
 }
 
 enum VehicleType {

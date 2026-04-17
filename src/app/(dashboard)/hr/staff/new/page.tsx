@@ -10,7 +10,7 @@ export default async function NewStaffPage() {
   }
 
   const departmentsResult = await getDepartmentsAction();
-  const departments = (departmentsResult.data ?? []).map((d) => ({
+  const departments = ("data" in departmentsResult ? departmentsResult.data : []).map((d: { id: string; name: string }) => ({
     id: d.id,
     name: d.name,
   }));

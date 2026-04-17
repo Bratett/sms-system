@@ -117,14 +117,14 @@ export function TermsClient({
           startDate: formData.startDate,
           endDate: formData.endDate,
         });
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
         toast.success("Term updated successfully");
       } else {
         const result = await createTermAction(formData);
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -139,7 +139,7 @@ export function TermsClient({
   function handleDelete(term: Term) {
     startTransition(async () => {
       const result = await deleteTermAction(term.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -151,7 +151,7 @@ export function TermsClient({
   function handleSetCurrent(term: Term) {
     startTransition(async () => {
       const result = await setCurrentTermAction(term.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

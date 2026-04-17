@@ -17,7 +17,7 @@ export default async function SchoolSettingsPage() {
         title="School Settings"
         description="Manage your school's basic information, location, and contact details."
       />
-      <SchoolSettingsForm school={result.data ?? null} />
+      <SchoolSettingsForm school={"data" in result ? result.data : null} />
     </div>
   );
 }

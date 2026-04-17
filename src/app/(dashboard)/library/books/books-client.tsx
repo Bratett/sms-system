@@ -153,14 +153,14 @@ export function BooksClient({
 
       if (editingBook) {
         const result = await updateBookAction(editingBook.id, payload);
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
         toast.success("Book updated successfully.");
       } else {
         const result = await createBookAction(payload);
-        if (result.error) {
+        if ("error" in result) {
           toast.error(result.error);
           return;
         }
@@ -176,7 +176,7 @@ export function BooksClient({
 
     startTransition(async () => {
       const result = await deleteBookAction(book.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

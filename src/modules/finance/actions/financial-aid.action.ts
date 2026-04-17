@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import {
@@ -18,17 +19,16 @@ export async function getFinancialAidApplicationsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCIAL_AID_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.status) where.status = filters.status;
   if (filters?.academicYearId) where.academicYearId = filters.academicYearId;
   if (filters?.aidType) where.aidType = filters.aidType;
@@ -112,17 +112,15 @@ export async function getFinancialAidApplicationsAction(filters?: {
 }
 
 export async function createFinancialAidApplicationAction(data: CreateFinancialAidApplicationInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCIAL_AID_CREATE);
+  if (denied) return denied;
 
   const parsed = createFinancialAidApplicationSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   // Verify student exists
   const student = await db.student.findUnique({
     where: { id: parsed.data.studentId },
@@ -133,7 +131,7 @@ export async function createFinancialAidApplicationAction(data: CreateFinancialA
   // Check for duplicate application
   const existing = await db.financialAidApplication.findFirst({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       studentId: parsed.data.studentId,
       academicYearId: parsed.data.academicYearId,
       termId: parsed.data.termId,
@@ -146,7 +144,7 @@ export async function createFinancialAidApplicationAction(data: CreateFinancialA
 
   const application = await db.financialAidApplication.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       studentId: parsed.data.studentId,
       academicYearId: parsed.data.academicYearId,
       termId: parsed.data.termId,
@@ -156,12 +154,12 @@ export async function createFinancialAidApplicationAction(data: CreateFinancialA
       householdIncome: parsed.data.householdIncome,
       numberOfDependents: parsed.data.numberOfDependents,
       supportingDocs: parsed.data.supportingDocs ?? [],
-      submittedBy: session.user.id!,
+      submittedBy: ctx.session.user.id,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "FinancialAidApplication",
     entityId: application.id,
@@ -173,8 +171,10 @@ export async function createFinancialAidApplicationAction(data: CreateFinancialA
 }
 
 export async function reviewFinancialAidAction(data: ReviewFinancialAidInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCIAL_AID_REVIEW);
+  if (denied) return denied;
 
   const parsed = reviewFinancialAidSchema.safeParse(data);
   if (!parsed.success) {
@@ -194,14 +194,14 @@ export async function reviewFinancialAidAction(data: ReviewFinancialAidInput) {
     data: {
       status: parsed.data.status,
       approvedAmount: parsed.data.status === "APPROVED" ? parsed.data.approvedAmount : null,
-      reviewedBy: session.user.id!,
+      reviewedBy: ctx.session.user.id,
       reviewedAt: new Date(),
       reviewNotes: parsed.data.reviewNotes,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "FinancialAidApplication",
     entityId: parsed.data.applicationId,
@@ -213,8 +213,10 @@ export async function reviewFinancialAidAction(data: ReviewFinancialAidInput) {
 }
 
 export async function markUnderReviewAction(applicationId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCIAL_AID_REVIEW);
+  if (denied) return denied;
 
   const application = await db.financialAidApplication.findUnique({
     where: { id: applicationId },
@@ -233,13 +235,12 @@ export async function markUnderReviewAction(applicationId: string) {
 }
 
 export async function getFinancialAidSummaryAction(academicYearId?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCIAL_AID_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (academicYearId) where.academicYearId = academicYearId;
 
   const applications = await db.financialAidApplication.findMany({ where });

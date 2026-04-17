@@ -24,8 +24,8 @@ export default async function PerformancePage({
         description="Manage staff performance notes, ratings, and development goals."
       />
       <PerformanceClient
-        notes={result.data ?? []}
-        pagination={result.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
+        notes={"data" in result ? result.data : []}
+        pagination={"pagination" in result ? result.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 } : { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
       />
     </div>
   );

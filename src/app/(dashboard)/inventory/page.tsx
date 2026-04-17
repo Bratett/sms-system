@@ -24,10 +24,10 @@ export default async function InventoryPage() {
         description="Overview of stores, stock levels, and alerts."
       />
       <InventoryDashboardClient
-        stores={storesResult.data ?? []}
-        lowStockAlerts={alertsResult.data ?? []}
-        valuation={valuationResult.data ?? []}
-        grandTotal={valuationResult.grandTotal ?? 0}
+        stores={"data" in storesResult ? storesResult.data : []}
+        lowStockAlerts={"data" in alertsResult ? alertsResult.data : []}
+        valuation={"data" in valuationResult ? valuationResult.data : []}
+        grandTotal={"grandTotal" in valuationResult ? valuationResult.grandTotal : 0}
       />
     </div>
   );

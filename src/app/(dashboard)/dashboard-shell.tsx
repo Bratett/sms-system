@@ -33,15 +33,24 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div
           className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity lg:hidden"
           onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* Mobile sidebar */}
       {mobileMenuOpen && (
-        <div className="fixed inset-y-0 left-0 z-50 w-64 lg:hidden">
+        <div
+          className="fixed inset-y-0 left-0 z-50 w-64 lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation menu"
+        >
           <Sidebar />
         </div>
       )}
+
+      {/* Screen-reader live region for dynamic status updates */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only" id="sr-status" />
 
       <div
         className={`transition-all duration-200 ${sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"}`}

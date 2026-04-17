@@ -14,10 +14,10 @@ export default async function FixedAssetsPage() {
 
   return (
     <FixedAssetsClient
-      assets={assetsResult.data ?? []}
-      pagination={assetsResult.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
-      categories={categoriesResult.data ?? []}
-      summary={summaryResult.data ?? null}
+      assets={"data" in assetsResult ? assetsResult.data : []}
+      pagination={"pagination" in assetsResult ? assetsResult.pagination : { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
+      categories={"data" in categoriesResult ? categoriesResult.data : []}
+      summary={"data" in summaryResult ? summaryResult.data : null}
     />
   );
 }

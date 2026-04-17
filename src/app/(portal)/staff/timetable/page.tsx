@@ -8,7 +8,7 @@ export default async function StaffTimetablePage() {
   if (!session?.user) redirect("/login");
 
   const result = await getMyTeacherTimetableAction();
-  const data = result.data ?? { timetable: [], periods: [] };
+  const data = "data" in result ? result.data : { timetable: [], periods: [] };
 
   return <TeacherTimetableClient timetable={data.timetable} periods={data.periods} />;
 }

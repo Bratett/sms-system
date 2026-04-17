@@ -47,7 +47,7 @@ export function CompetencyClient({
         studentId.trim(),
         selectedYearId
       );
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         setReportData(null);
         return;

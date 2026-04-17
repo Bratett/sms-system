@@ -1,17 +1,17 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
 
 // ─── Inventory Overview KPIs ────────────────────────────────────────
 
 export async function getInventoryOverviewAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ANALYTICS_READ);
+  if (denied) return denied;
 
   const [
     totalStores,
@@ -23,11 +23,11 @@ export async function getInventoryOverviewAction() {
     items,
     monthlySpend,
   ] = await Promise.all([
-    db.store.count({ where: { schoolId: school.id, status: "ACTIVE" } }),
-    db.storeItem.count({ where: { store: { schoolId: school.id }, status: "ACTIVE" } }),
+    db.store.count({ where: { schoolId: ctx.schoolId, status: "ACTIVE" } }),
+    db.storeItem.count({ where: { store: { schoolId: ctx.schoolId }, status: "ACTIVE" } }),
     db.storeItem.count({
       where: {
-        store: { schoolId: school.id },
+        store: { schoolId: ctx.schoolId },
         status: "ACTIVE",
         quantity: { gt: 0 },
         reorderLevel: { gt: 0 },
@@ -35,26 +35,26 @@ export async function getInventoryOverviewAction() {
     }).then(async () => {
       // Low stock: quantity > 0 but <= reorderLevel
       const items = await db.storeItem.findMany({
-        where: { store: { schoolId: school.id }, status: "ACTIVE", reorderLevel: { gt: 0 } },
+        where: { store: { schoolId: ctx.schoolId }, status: "ACTIVE", reorderLevel: { gt: 0 } },
         select: { quantity: true, reorderLevel: true },
       });
       return items.filter((i) => i.quantity > 0 && i.quantity <= i.reorderLevel).length;
     }),
     db.storeItem.count({
-      where: { store: { schoolId: school.id }, status: "ACTIVE", quantity: 0 },
+      where: { store: { schoolId: ctx.schoolId }, status: "ACTIVE", quantity: 0 },
     }),
     db.purchaseOrder.count({
-      where: { supplier: { schoolId: school.id }, status: { in: ["DRAFT", "SENT"] } },
+      where: { supplier: { schoolId: ctx.schoolId }, status: { in: ["DRAFT", "SENT"] } },
     }),
-    db.fixedAsset.count({ where: { schoolId: school.id, status: "ACTIVE" } }),
+    db.fixedAsset.count({ where: { schoolId: ctx.schoolId, status: "ACTIVE" } }),
     db.storeItem.findMany({
-      where: { store: { schoolId: school.id }, status: "ACTIVE" },
+      where: { store: { schoolId: ctx.schoolId }, status: "ACTIVE" },
       select: { quantity: true, unitPrice: true },
     }),
     // Monthly spend from purchase orders in current month
     db.purchaseOrder.aggregate({
       where: {
-        supplier: { schoolId: school.id },
+        supplier: { schoolId: ctx.schoolId },
         status: { in: ["SENT", "PARTIALLY_RECEIVED", "RECEIVED"] },
         orderedAt: {
           gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -83,11 +83,10 @@ export async function getInventoryOverviewAction() {
 // ─── Stock Movement Trends ──────────────────────────────────────────
 
 export async function getStockTrendAnalyticsAction(months: number = 6) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ANALYTICS_READ);
+  if (denied) return denied;
 
   const startDate = new Date();
   startDate.setMonth(startDate.getMonth() - months);
@@ -97,7 +96,7 @@ export async function getStockTrendAnalyticsAction(months: number = 6) {
   const movements = await db.stockMovement.findMany({
     where: {
       conductedAt: { gte: startDate },
-      storeItem: { store: { schoolId: school.id } },
+      storeItem: { store: { schoolId: ctx.schoolId } },
     },
     select: { type: true, quantity: true, conductedAt: true },
   });
@@ -136,11 +135,10 @@ export async function getStockTrendAnalyticsAction(months: number = 6) {
 // ─── ABC Analysis ───────────────────────────────────────────────────
 
 export async function getABCAnalysisAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ANALYTICS_READ);
+  if (denied) return denied;
 
   // Get annual consumption: total OUT movements in the last 12 months
   const oneYearAgo = new Date();
@@ -150,7 +148,7 @@ export async function getABCAnalysisAction() {
     where: {
       type: "OUT",
       conductedAt: { gte: oneYearAgo },
-      storeItem: { store: { schoolId: school.id } },
+      storeItem: { store: { schoolId: ctx.schoolId } },
     },
     select: { storeItemId: true, quantity: true },
   });
@@ -163,7 +161,7 @@ export async function getABCAnalysisAction() {
 
   // Get item details
   const items = await db.storeItem.findMany({
-    where: { store: { schoolId: school.id }, status: "ACTIVE" },
+    where: { store: { schoolId: ctx.schoolId }, status: "ACTIVE" },
     include: {
       store: { select: { name: true } },
       category: { select: { name: true } },
@@ -213,14 +211,13 @@ export async function getABCAnalysisAction() {
 // ─── Category Distribution ──────────────────────────────────────────
 
 export async function getCategoryDistributionAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ANALYTICS_READ);
+  if (denied) return denied;
 
   const items = await db.storeItem.findMany({
-    where: { store: { schoolId: school.id }, status: "ACTIVE" },
+    where: { store: { schoolId: ctx.schoolId }, status: "ACTIVE" },
     include: { category: { select: { name: true } } },
   });
 
@@ -242,14 +239,13 @@ export async function getCategoryDistributionAction() {
 // ─── Stock Aging Analysis ───────────────────────────────────────────
 
 export async function getStockAgingAnalysisAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ANALYTICS_READ);
+  if (denied) return denied;
 
   const items = await db.storeItem.findMany({
-    where: { store: { schoolId: school.id }, status: "ACTIVE", quantity: { gt: 0 } },
+    where: { store: { schoolId: ctx.schoolId }, status: "ACTIVE", quantity: { gt: 0 } },
     include: {
       store: { select: { name: true } },
       category: { select: { name: true } },
@@ -314,15 +310,14 @@ export async function getStockAgingAnalysisAction() {
 // ─── Reorder Analytics ──────────────────────────────────────────────
 
 export async function getReorderAnalyticsAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ANALYTICS_READ);
+  if (denied) return denied;
 
   const items = await db.storeItem.findMany({
     where: {
-      store: { schoolId: school.id },
+      store: { schoolId: ctx.schoolId },
       status: "ACTIVE",
       reorderLevel: { gt: 0 },
     },
@@ -369,11 +364,10 @@ export async function getReorderAnalyticsAction() {
 // ─── Procurement Analytics ──────────────────────────────────────────
 
 export async function getProcurementAnalyticsAction(dateRange?: { from?: string; to?: string }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ANALYTICS_READ);
+  if (denied) return denied;
 
   const dateFilter = {
     ...(dateRange?.from && { gte: new Date(dateRange.from) }),
@@ -384,7 +378,7 @@ export async function getProcurementAnalyticsAction(dateRange?: { from?: string;
   const [orders, requests] = await Promise.all([
     db.purchaseOrder.findMany({
       where: {
-        supplier: { schoolId: school.id },
+        supplier: { schoolId: ctx.schoolId },
         ...(hasDateFilter && { orderedAt: dateFilter }),
       },
       include: {
@@ -479,14 +473,13 @@ export async function getProcurementAnalyticsAction(dateRange?: { from?: string;
 // ─── Supplier Performance ───────────────────────────────────────────
 
 export async function getSupplierPerformanceAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ANALYTICS_READ);
+  if (denied) return denied;
 
   const suppliers = await db.supplier.findMany({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     include: {
       purchaseOrders: {
         include: {
@@ -545,14 +538,13 @@ export async function getSupplierPerformanceAction() {
 // ─── Asset Analytics ────────────────────────────────────────────────
 
 export async function getAssetAnalyticsAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_ANALYTICS_READ);
+  if (denied) return denied;
 
   const assets = await db.fixedAsset.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     include: {
       category: { select: { name: true } },
       maintenanceRecords: { select: { cost: true, date: true } },

@@ -141,7 +141,7 @@ export function PaymentsClient({
     startTransition(async () => {
       setSearchingStudent(true);
       const result = await getBillsAction({ page: 1, pageSize: 10 });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         setSearchingStudent(false);
         return;
@@ -195,13 +195,13 @@ export function PaymentsClient({
         notes: paymentForm.notes || undefined,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
 
       toast.success(
-        `Payment recorded. Receipt: ${result.data?.receipt?.receiptNumber ?? "N/A"}`
+        `Payment recorded. Receipt: ${"data" in result ? result.data?.receipt?.receiptNumber ?? "N/A" : "N/A"}`
       );
       setShowPaymentModal(false);
       router.refresh();
@@ -221,7 +221,7 @@ export function PaymentsClient({
         paymentId: reversalPaymentId,
         reason: reversalReason,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -240,7 +240,7 @@ export function PaymentsClient({
       const result = await getPaymentsAction(
         filters as Parameters<typeof getPaymentsAction>[0]
       );
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -261,7 +261,7 @@ export function PaymentsClient({
       const result = await getPaymentsAction(
         filters as Parameters<typeof getPaymentsAction>[0]
       );
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

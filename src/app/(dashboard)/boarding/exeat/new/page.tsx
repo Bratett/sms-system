@@ -11,7 +11,7 @@ export default async function NewExeatPage() {
   }
 
   const termsResult = await getTermsAction();
-  const terms = termsResult.data ?? [];
+  const terms = "data" in termsResult ? termsResult.data : [];
 
   return (
     <div className="space-y-6">

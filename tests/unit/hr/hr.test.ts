@@ -97,9 +97,9 @@ describe("getStaffAction", () => {
   });
 
   it("should return error if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getStaffAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return paginated staff list", async () => {

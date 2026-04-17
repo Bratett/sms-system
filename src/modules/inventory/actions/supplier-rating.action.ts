@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 
@@ -15,8 +16,10 @@ export async function rateSupplierAction(data: {
   pricingScore: number;
   comments?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_SUPPLIERS_MANAGE);
+  if (denied) return denied;
 
   // Validate scores
   for (const [field, score] of [
@@ -43,12 +46,12 @@ export async function rateSupplierAction(data: {
       pricingScore: data.pricingScore,
       overallScore,
       comments: data.comments || null,
-      ratedBy: session.user.id!,
+      ratedBy: ctx.session.user.id,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "SupplierRating",
     entityId: rating.id,
@@ -63,8 +66,10 @@ export async function rateSupplierAction(data: {
 // ─── Get Supplier Ratings ───────────────────────────────────────────
 
 export async function getSupplierRatingsAction(supplierId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_SUPPLIERS_MANAGE);
+  if (denied) return denied;
 
   const ratings = await db.supplierRating.findMany({
     where: { supplierId },
@@ -112,14 +117,13 @@ export async function getSupplierRatingsAction(supplierId: string) {
 // ─── Supplier Scorecards ────────────────────────────────────────────
 
 export async function getSupplierScorecardsAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.INVENTORY_SUPPLIERS_MANAGE);
+  if (denied) return denied;
 
   const suppliers = await db.supplier.findMany({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     include: {
       ratings: true,
       purchaseOrders: {

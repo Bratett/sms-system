@@ -17,7 +17,7 @@ export default async function ReportsPage() {
         title="Reports Center"
         description="Comprehensive school reports and analytics."
       />
-      <ReportsClient report={result.data ?? null} />
+      <ReportsClient report={"data" in result ? result.data : null} />
     </div>
   );
 }

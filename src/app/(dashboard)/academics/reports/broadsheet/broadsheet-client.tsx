@@ -101,13 +101,13 @@ export function BroadsheetClient({
         selectedTermId,
       );
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         setBroadsheet(null);
         return;
       }
 
-      if (result.data) {
+      if ("data" in result) {
         setBroadsheet(result.data);
         toast.success(
           `Broadsheet generated for ${result.data.students.length} student(s).`,

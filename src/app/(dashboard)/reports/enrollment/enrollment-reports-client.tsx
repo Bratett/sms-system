@@ -46,7 +46,7 @@ export function EnrollmentReportsClient({
       const result = await getEnrollmentReportAction({
         academicYearId: selectedYear,
       });
-      if (result.error) {
+      if ("error" in result) {
         setError(result.error);
         return;
       }

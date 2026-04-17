@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 export async function createAssignmentAction(data: {
@@ -12,8 +13,10 @@ export async function createAssignmentAction(data: {
   dueDate?: string;
   maxScore?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_ASSIGNMENT_CREATE);
+  if (denied) return denied;
 
   const course = await db.course.findUnique({ where: { id: data.courseId } });
   if (!course) return { error: "Course not found" };
@@ -21,6 +24,7 @@ export async function createAssignmentAction(data: {
 
   const assignment = await db.lmsAssignment.create({
     data: {
+      schoolId: ctx.schoolId,
       courseId: data.courseId,
       title: data.title.trim(),
       description: data.description?.trim() || null,
@@ -31,7 +35,7 @@ export async function createAssignmentAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "LmsAssignment",
     entityId: assignment.id,
@@ -43,8 +47,10 @@ export async function createAssignmentAction(data: {
 }
 
 export async function getAssignmentAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_ASSIGNMENT_READ);
+  if (denied) return denied;
 
   const assignment = await db.lmsAssignment.findUnique({
     where: { id },
@@ -66,8 +72,10 @@ export async function addQuizQuestionAction(data: {
   correctAnswer?: string;
   points?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_ASSIGNMENT_CREATE);
+  if (denied) return denied;
 
   const assignment = await db.lmsAssignment.findUnique({ where: { id: data.assignmentId } });
   if (!assignment) return { error: "Assignment not found" };
@@ -81,6 +89,7 @@ export async function addQuizQuestionAction(data: {
 
   const question = await db.quizQuestion.create({
     data: {
+      schoolId: ctx.schoolId,
       assignmentId: data.assignmentId,
       question: data.question,
       type: (data.type as "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER") || "MULTIPLE_CHOICE",
@@ -99,8 +108,10 @@ export async function submitAssignmentAction(data: {
   content?: string;
   answers?: Record<string, string>;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_ASSIGNMENT_READ);
+  if (denied) return denied;
 
   const assignment = await db.lmsAssignment.findUnique({
     where: { id: data.assignmentId },
@@ -114,7 +125,7 @@ export async function submitAssignmentAction(data: {
     where: {
       assignmentId_studentId: {
         assignmentId: data.assignmentId,
-        studentId: session.user.id!,
+        studentId: ctx.session.user.id,
       },
     },
   });
@@ -140,8 +151,9 @@ export async function submitAssignmentAction(data: {
 
   const submission = await db.assignmentSubmission.create({
     data: {
+      schoolId: ctx.schoolId,
       assignmentId: data.assignmentId,
-      studentId: session.user.id!,
+      studentId: ctx.session.user.id,
       content: data.content || null,
       answers: data.answers ?? undefined,
       score,
@@ -157,8 +169,10 @@ export async function gradeSubmissionAction(
   submissionId: string,
   data: { score: number; feedback?: string },
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_ASSIGNMENT_GRADE);
+  if (denied) return denied;
 
   const submission = await db.assignmentSubmission.findUnique({
     where: { id: submissionId },
@@ -178,7 +192,7 @@ export async function gradeSubmissionAction(
       feedback: data.feedback || null,
       status: "GRADED",
       gradedAt: new Date(),
-      gradedBy: session.user.id!,
+      gradedBy: ctx.session.user.id,
     },
   });
 
@@ -186,8 +200,10 @@ export async function gradeSubmissionAction(
 }
 
 export async function getSubmissionsAction(assignmentId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LMS_ASSIGNMENT_READ);
+  if (denied) return denied;
 
   const submissions = await db.assignmentSubmission.findMany({
     where: { assignmentId },

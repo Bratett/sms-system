@@ -19,9 +19,9 @@ export default async function PayrollPage() {
     getDeductionsAction(),
   ]);
 
-  const periods = periodsResult.data ?? [];
-  const allowances = allowancesResult.data ?? [];
-  const deductions = deductionsResult.data ?? [];
+  const periods = "data" in periodsResult ? periodsResult.data : [];
+  const allowances = "data" in allowancesResult ? allowancesResult.data : [];
+  const deductions = "data" in deductionsResult ? deductionsResult.data : [];
 
   return (
     <div className="space-y-6">

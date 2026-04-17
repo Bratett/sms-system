@@ -16,13 +16,13 @@ export default async function LeavePage() {
     getStaffAction({ status: "ACTIVE", pageSize: 500 }),
   ]);
 
-  const leaveTypes = leaveTypesResult.data ?? [];
-  const leaveRequests = leaveRequestsResult.data ?? [];
-  const total = leaveRequestsResult.total ?? 0;
-  const page = leaveRequestsResult.page ?? 1;
-  const pageSize = leaveRequestsResult.pageSize ?? 25;
+  const leaveTypes = "data" in leaveTypesResult ? leaveTypesResult.data : [];
+  const leaveRequests = "data" in leaveRequestsResult ? leaveRequestsResult.data : [];
+  const total = "total" in leaveRequestsResult ? leaveRequestsResult.total ?? 0 : 0;
+  const page = "page" in leaveRequestsResult ? leaveRequestsResult.page ?? 1 : 1;
+  const pageSize = "pageSize" in leaveRequestsResult ? leaveRequestsResult.pageSize ?? 25 : 25;
 
-  const staffOptions = (staffResult.staff ?? []).map((s) => ({
+  const staffOptions = ("staff" in staffResult ? staffResult.staff ?? [] : []).map((s: { id: string; staffId: string; firstName: string; lastName: string }) => ({
     id: s.id,
     staffId: s.staffId,
     name: `${s.firstName} ${s.lastName}`,

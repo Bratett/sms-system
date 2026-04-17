@@ -15,9 +15,9 @@ export default async function ExeatPage() {
     getExeatStatsAction(),
   ]);
 
-  const exeats = exeatsResult.data ?? [];
-  const pagination = exeatsResult.pagination ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 };
-  const stats = statsResult.data ?? {
+  const exeats = "data" in exeatsResult ? exeatsResult.data : [];
+  const pagination = "pagination" in exeatsResult ? exeatsResult.pagination : { page: 1, pageSize: 20, total: 0, totalPages: 0 };
+  const stats = "data" in statsResult ? statsResult.data : {
     total: 0,
     requested: 0,
     housemasterApproved: 0,

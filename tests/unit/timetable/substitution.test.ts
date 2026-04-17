@@ -46,13 +46,13 @@ describe("createSubstitutionAction", () => {
   });
 
   it("should reject when no school is configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await createSubstitutionAction({
       timetableSlotId: "slot-1",
       substituteTeacherId: "teacher-sub",
       date: "2026-04-01",
     });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should reject when timetable slot not found", async () => {

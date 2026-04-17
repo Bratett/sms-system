@@ -106,7 +106,7 @@ export function HostelsClient({ hostels: initialHostels }: { hostels: HostelRow[
 
     startTransition(async () => {
       const result = await getHostelAction(hostelId);
-      if (result.data) {
+      if ("data" in result) {
         setHostelDetail({
           id: result.data.id,
           dormitories: result.data.dormitories,
@@ -217,7 +217,7 @@ export function HostelsClient({ hostels: initialHostels }: { hostels: HostelRow[
         setShowDormForm(false);
         // Reload hostel detail
         const hostelResult = await getHostelAction(dormParentHostelId);
-        if (hostelResult.data) {
+        if ("data" in hostelResult) {
           setHostelDetail({
             id: hostelResult.data.id,
             dormitories: hostelResult.data.dormitories,
@@ -239,7 +239,7 @@ export function HostelsClient({ hostels: initialHostels }: { hostels: HostelRow[
         toast.success("Dormitory deleted.");
         if (expandedHostelId) {
           const hostelResult = await getHostelAction(expandedHostelId);
-          if (hostelResult.data) {
+          if ("data" in hostelResult) {
             setHostelDetail({
               id: hostelResult.data.id,
               dormitories: hostelResult.data.dormitories,
@@ -274,7 +274,7 @@ export function HostelsClient({ hostels: initialHostels }: { hostels: HostelRow[
         setShowBedForm(false);
         if (expandedHostelId) {
           const hostelResult = await getHostelAction(expandedHostelId);
-          if (hostelResult.data) {
+          if ("data" in hostelResult) {
             setHostelDetail({
               id: hostelResult.data.id,
               dormitories: hostelResult.data.dormitories,
@@ -297,7 +297,7 @@ export function HostelsClient({ hostels: initialHostels }: { hostels: HostelRow[
         toast.success("Bed deleted.");
         if (expandedHostelId) {
           const hostelResult = await getHostelAction(expandedHostelId);
-          if (hostelResult.data) {
+          if ("data" in hostelResult) {
             setHostelDetail({
               id: hostelResult.data.id,
               dormitories: hostelResult.data.dormitories,

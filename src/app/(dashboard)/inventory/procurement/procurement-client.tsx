@@ -183,7 +183,7 @@ export function ProcurementClient({
         reason: requestReason || undefined,
         items: requestItems,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -196,7 +196,7 @@ export function ProcurementClient({
   function handleApproveRequest(id: string) {
     startTransition(async () => {
       const result = await approvePurchaseRequestAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -210,7 +210,7 @@ export function ProcurementClient({
 
     startTransition(async () => {
       const result = await rejectPurchaseRequestAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -273,7 +273,7 @@ export function ProcurementClient({
         supplierId: orderSupplierId,
         items: orderItems,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -286,7 +286,7 @@ export function ProcurementClient({
   function handleSendOrder(id: string) {
     startTransition(async () => {
       const result = await updatePurchaseOrderStatusAction(id, "SENT");
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -352,7 +352,7 @@ export function ProcurementClient({
         })),
         notes: receiveNotes || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -389,7 +389,7 @@ export function ProcurementClient({
         pricingScore: ratingData.pricingScore,
         comments: ratingData.comments || undefined,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if ("error" in result) { toast.error(result.error); return; }
       toast.success("Supplier rated successfully.");
       setShowRatingModal(false);
     });

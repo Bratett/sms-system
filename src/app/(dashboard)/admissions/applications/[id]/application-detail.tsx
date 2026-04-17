@@ -93,7 +93,7 @@ export function ApplicationDetail({
         status,
         notes: reviewNotes,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Application ${status.toLowerCase().replace("_", " ")} successfully.`);
@@ -109,7 +109,7 @@ export function ApplicationDetail({
     }
     startTransition(async () => {
       const result = await enrollApplicationAction(application.id, selectedClassArmId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Student enrolled successfully.");

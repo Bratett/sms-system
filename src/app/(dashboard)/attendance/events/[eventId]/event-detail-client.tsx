@@ -95,7 +95,7 @@ export function EventDetailClient({
 
     startTransition(async () => {
       const result = await recordEventAttendanceAction({ eventId, records: entries });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`Saved attendance for ${result.data?.saved} students.`);

@@ -111,12 +111,12 @@ export function ConductEntryClient({
         selectedTermId,
       );
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
 
-      if (result.data && result.data.length > 0) {
+      if ("data" in result && result.data.length > 0) {
         const studentRows: StudentRow[] = [];
         const newConductData = new Map<string, ConductRecord>();
 
@@ -194,12 +194,12 @@ export function ConductEntryClient({
         selectedYearId,
       );
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
 
-      if (result.data) {
+      if ("data" in result) {
         toast.success(`Saved conduct for ${result.data.saved} student(s).`);
         if (result.data.errors.length > 0) {
           for (const err of result.data.errors) {

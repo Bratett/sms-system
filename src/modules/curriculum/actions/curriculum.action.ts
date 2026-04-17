@@ -1,14 +1,17 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Curriculum Frameworks ──────────────────────────────────────────
 
 export async function getFrameworksAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   const frameworks = await db.curriculumFramework.findMany({
     where: { isActive: true },
@@ -22,8 +25,10 @@ export async function getFrameworksAction() {
 }
 
 export async function getFrameworkAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   const framework = await db.curriculumFramework.findUnique({
     where: { id },
@@ -48,8 +53,10 @@ export async function createFrameworkAction(data: {
   organization?: string;
   gradeLevels?: string[];
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   if (!data.code?.trim() || !data.name?.trim()) {
     return { error: "Code and name are required" };
@@ -72,7 +79,7 @@ export async function createFrameworkAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "CurriculumFramework",
     entityId: framework.id,
@@ -94,8 +101,10 @@ export async function getStandardsAction(filters: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 50;
@@ -133,8 +142,10 @@ export async function createStandardAction(data: {
   description: string;
   learningOutcome?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   const framework = await db.curriculumFramework.findUnique({
     where: { id: data.frameworkId },
@@ -169,8 +180,10 @@ export async function bulkImportStandardsAction(data: {
     learningOutcome?: string;
   }>;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   const framework = await db.curriculumFramework.findUnique({
     where: { id: data.frameworkId },
@@ -196,7 +209,7 @@ export async function bulkImportStandardsAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "IMPORT",
     entity: "CurriculumStandard",
     module: "curriculum",
@@ -210,14 +223,13 @@ export async function bulkImportStandardsAction(data: {
 // ─── School Curriculum Assignment ───────────────────────────────────
 
 export async function getSchoolCurriculaAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   const curricula = await db.schoolCurriculum.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     include: {
       framework: {
         select: { id: true, code: true, name: true, country: true, organization: true },
@@ -234,11 +246,10 @@ export async function assignCurriculumAction(data: {
   isPrimary?: boolean;
   customConfig?: Record<string, unknown>;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   const framework = await db.curriculumFramework.findUnique({
     where: { id: data.frameworkId },
@@ -248,7 +259,7 @@ export async function assignCurriculumAction(data: {
   // If setting as primary, unset existing primary
   if (data.isPrimary) {
     await db.schoolCurriculum.updateMany({
-      where: { schoolId: school.id, isPrimary: true },
+      where: { schoolId: ctx.schoolId, isPrimary: true },
       data: { isPrimary: false },
     });
   }
@@ -256,12 +267,12 @@ export async function assignCurriculumAction(data: {
   const curriculum = await db.schoolCurriculum.upsert({
     where: {
       schoolId_frameworkId: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         frameworkId: data.frameworkId,
       },
     },
     create: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       frameworkId: data.frameworkId,
       isPrimary: data.isPrimary ?? false,
       customConfig: (data.customConfig ?? undefined) as import("@prisma/client").Prisma.InputJsonValue | undefined,
@@ -273,7 +284,7 @@ export async function assignCurriculumAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "SchoolCurriculum",
     entityId: curriculum.id,
@@ -285,14 +296,13 @@ export async function assignCurriculumAction(data: {
 }
 
 export async function removeCurriculumAction(frameworkId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   await db.schoolCurriculum.deleteMany({
-    where: { schoolId: school.id, frameworkId },
+    where: { schoolId: ctx.schoolId, frameworkId },
   });
 
   return { success: true };
@@ -301,8 +311,10 @@ export async function removeCurriculumAction(frameworkId: string) {
 // ─── Grading Templates ──────────────────────────────────────────────
 
 export async function getGradingTemplatesAction(frameworkId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   const templates = await db.gradingTemplate.findMany({
     where: { frameworkId },
@@ -319,8 +331,10 @@ export async function createGradingTemplateAction(data: {
   gradeScale: Array<{ grade: string; min: number; max: number; gpa?: number }>;
   passThreshold?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   const framework = await db.curriculumFramework.findUnique({
     where: { id: data.frameworkId },
@@ -349,8 +363,10 @@ export async function createGradingTemplateAction(data: {
 // ─── Report Templates ───────────────────────────────────────────────
 
 export async function getReportTemplatesAction(frameworkId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_READ);
+  if (denied) return denied;
 
   const templates = await db.reportTemplate.findMany({
     where: { frameworkId },
@@ -369,8 +385,10 @@ export async function createReportTemplateAction(data: {
   headerConfig?: Record<string, unknown>;
   isDefault?: boolean;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
+  if (denied) return denied;
 
   const template = await db.reportTemplate.create({
     data: {

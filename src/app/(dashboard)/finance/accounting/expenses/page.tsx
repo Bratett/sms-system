@@ -16,9 +16,9 @@ export default async function ExpensesPage() {
 
   return (
     <ExpensesClient
-      expenses={expensesResult.data ?? []}
-      categories={categoriesResult.data ?? []}
-      pagination={expensesResult.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
+      expenses={"data" in expensesResult ? expensesResult.data : []}
+      categories={"data" in categoriesResult ? categoriesResult.data : []}
+      pagination={"pagination" in expensesResult ? expensesResult.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 } : { page: 1, pageSize: 25, total: 0, totalPages: 0 }}
     />
   );
 }

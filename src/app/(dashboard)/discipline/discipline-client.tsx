@@ -130,7 +130,7 @@ export function DisciplineClient({
     if (value.length >= 2) {
       startTransition(async () => {
         const result = await searchStudentsForDisciplineAction(value);
-        if (result.data) {
+        if ("data" in result) {
           setStudentResults(result.data);
           setShowStudentDropdown(true);
         }
@@ -183,7 +183,7 @@ export function DisciplineClient({
         severity: form.severity,
         sanction: form.sanction || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -204,7 +204,7 @@ export function DisciplineClient({
 
     startTransition(async () => {
       const result = await resolveIncidentAction(resolvingId, resolveNotes || undefined);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

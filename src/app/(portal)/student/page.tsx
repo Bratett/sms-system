@@ -9,8 +9,8 @@ export default async function StudentPage() {
   }
 
   const result = await getStudentPortalDataAction();
-  const studentData = result.data ?? null;
-  const error = result.error ?? null;
+  const studentData = "data" in result ? result.data : null;
+  const error = "error" in result ? result.error : null;
 
   return <StudentDashboard data={studentData} error={error} />;
 }

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 
 export async function logMarkChange(params: {
+  schoolId: string;
   markId: string;
   studentId: string;
   subjectId: string;
@@ -15,6 +16,7 @@ export async function logMarkChange(params: {
 }) {
   await db.markAuditLog.create({
     data: {
+      schoolId: params.schoolId,
       markId: params.markId,
       studentId: params.studentId,
       subjectId: params.subjectId,

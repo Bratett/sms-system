@@ -13,9 +13,10 @@ export default async function ElectiveSelectionPage() {
     getElectiveSelectionsAction(),
   ]);
 
-  const classArms = dropdownsResult.data?.classArms ?? [];
-  const academicYears = dropdownsResult.data?.academicYears ?? [];
-  const selections = selectionsResult.data ?? [];
+  const dropdownsData = "data" in dropdownsResult ? dropdownsResult.data : null;
+  const classArms = dropdownsData?.classArms ?? [];
+  const academicYears = dropdownsData?.academicYears ?? [];
+  const selections = "data" in selectionsResult ? selectionsResult.data : [];
 
   return (
     <div className="space-y-6">

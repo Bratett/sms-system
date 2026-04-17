@@ -52,7 +52,7 @@ export function AcademicReportsClient({ filters }: { filters: Filters }) {
         selectedTerm,
         selectedClassArm || undefined,
       );
-      if (result.error) {
+      if ("error" in result) {
         setError(result.error);
         return;
       }

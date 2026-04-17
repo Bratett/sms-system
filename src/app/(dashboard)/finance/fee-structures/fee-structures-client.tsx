@@ -174,7 +174,7 @@ export function FeeStructuresClient({
         })),
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -188,7 +188,7 @@ export function FeeStructuresClient({
   function handleActivate(fs: FeeStructure) {
     startTransition(async () => {
       const result = await activateFeeStructureAction(fs.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -200,7 +200,7 @@ export function FeeStructuresClient({
   function handleDelete(fs: FeeStructure) {
     startTransition(async () => {
       const result = await deleteFeeStructureAction(fs.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

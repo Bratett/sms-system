@@ -13,7 +13,7 @@ export default async function StaffDailySchedulePage() {
 
   return (
     <DailyScheduleClient
-      initialSchedule={result.data?.schedule ?? []}
+      initialSchedule={"data" in result ? result.data?.schedule ?? [] : []}
       initialDate={today}
     />
   );

@@ -13,9 +13,10 @@ export default async function InterventionsPage() {
     getInterventionsAction(),
   ]);
 
-  const terms = dropdownsResult.data?.terms ?? [];
-  const academicYears = dropdownsResult.data?.academicYears ?? [];
-  const interventions = interventionsResult.data ?? [];
+  const dropdownsData = "data" in dropdownsResult ? dropdownsResult.data : null;
+  const terms = dropdownsData?.terms ?? [];
+  const academicYears = dropdownsData?.academicYears ?? [];
+  const interventions = "data" in interventionsResult ? interventionsResult.data : [];
 
   return (
     <div className="space-y-6">

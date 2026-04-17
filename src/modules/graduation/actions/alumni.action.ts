@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Create or Update Alumni Profile ───────────────────────────────
@@ -20,11 +21,10 @@ export async function upsertAlumniProfileAction(data: {
   bio?: string;
   isPublic?: boolean;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.GRADUATION_CREATE);
+  if (denied) return denied;
 
   // Verify student exists and is graduated
   const student = await db.student.findUnique({ where: { id: data.studentId } });
@@ -37,7 +37,7 @@ export async function upsertAlumniProfileAction(data: {
     where: { studentId: data.studentId },
     create: {
       studentId: data.studentId,
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       graduationYear: data.graduationYear,
       email: data.email || null,
       phone: data.phone || null,
@@ -66,7 +66,7 @@ export async function upsertAlumniProfileAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: profile.createdAt.getTime() === profile.updatedAt.getTime() ? "CREATE" : "UPDATE",
     entity: "AlumniProfile",
     entityId: profile.id,
@@ -87,17 +87,16 @@ export async function getAlumniProfilesAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.GRADUATION_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
 
   if (filters?.graduationYear) where.graduationYear = filters.graduationYear;
   if (filters?.industry) where.industry = { contains: filters.industry, mode: "insensitive" };
@@ -156,8 +155,10 @@ export async function getAlumniProfilesAction(filters?: {
 // ─── Get Single Alumni Profile ─────────────────────────────────────
 
 export async function getAlumniProfileAction(studentId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.GRADUATION_READ);
+  if (denied) return denied;
 
   const profile = await db.alumniProfile.findUnique({
     where: { studentId },
@@ -204,14 +205,13 @@ export async function getAlumniProfileAction(studentId: string) {
 // ─── Get Graduation Years (for filter dropdown) ────────────────────
 
 export async function getAlumniGraduationYearsAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.GRADUATION_READ);
+  if (denied) return denied;
 
   const years = await db.alumniProfile.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     select: { graduationYear: true },
     distinct: ["graduationYear"],
     orderBy: { graduationYear: "desc" },

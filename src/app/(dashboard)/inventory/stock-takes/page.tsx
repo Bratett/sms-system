@@ -22,8 +22,8 @@ export default async function StockTakesPage() {
         description="Plan and conduct physical inventory counts."
       />
       <StockTakesClient
-        stockTakes={stockTakesResult.data ?? []}
-        stores={storesResult.data ?? []}
+        stockTakes={"data" in stockTakesResult ? stockTakesResult.data : []}
+        stores={"data" in storesResult ? storesResult.data : []}
       />
     </div>
   );

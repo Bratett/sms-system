@@ -9,7 +9,7 @@ export default async function AcademicYearPage() {
   }
 
   const result = await getAcademicYearsAction();
-  const academicYears = result.data ?? [];
+  const academicYears = "data" in result ? result.data : [];
 
   return <AcademicYearClient academicYears={academicYears} />;
 }

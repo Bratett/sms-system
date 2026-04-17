@@ -112,7 +112,7 @@ export function TransfersClient({
     }
     setLoadingItems(true);
     const result = await getItemsAction({ storeId, pageSize: 500 });
-    if (result.data) {
+    if ("data" in result && result.data) {
       setSourceItems(
         result.data.map((i) => ({
           id: i.id,
@@ -181,7 +181,7 @@ export function TransfersClient({
         reason: reason || undefined,
         items: transferItems,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -196,7 +196,7 @@ export function TransfersClient({
   function handleApprove(id: string) {
     startTransition(async () => {
       const result = await approveTransferAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -209,7 +209,7 @@ export function TransfersClient({
     if (!confirm("Cancel this transfer?")) return;
     startTransition(async () => {
       const result = await cancelTransferAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -220,8 +220,12 @@ export function TransfersClient({
 
   async function openReceiveForm(transferId: string) {
     const result = await getTransferAction(transferId);
-    if (result.error || !result.data) {
-      toast.error(result.error ?? "Failed to load transfer details.");
+    if ("error" in result) {
+      toast.error(result.error);
+      return;
+    }
+    if (!result.data) {
+      toast.error("Failed to load transfer details.");
       return;
     }
     const detail = result.data;
@@ -255,7 +259,7 @@ export function TransfersClient({
 
     startTransition(async () => {
       const result = await receiveTransferAction(receiveTransfer.id, receivedItems);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

@@ -26,14 +26,14 @@ export default async function StudentProfilePage({ params }: Props) {
     getAcademicYearsAction(),
   ]);
 
-  if (studentResult.error || !studentResult.data) {
+  if ("error" in studentResult || !("data" in studentResult) || !studentResult.data) {
     notFound();
   }
 
   const student = studentResult.data;
 
   // All guardians for linking
-  const allGuardians = (guardiansResult.data ?? []).map((g) => ({
+  const allGuardians = ("data" in guardiansResult ? guardiansResult.data ?? [] : []).map((g) => ({
     id: g.id,
     name: `${g.firstName} ${g.lastName}`,
     phone: g.phone,
@@ -41,7 +41,7 @@ export default async function StudentProfilePage({ params }: Props) {
   }));
 
   // Class arm options for enrollment
-  const allClasses = classesResult.data ?? [];
+  const allClasses = "data" in classesResult ? classesResult.data : [];
   const classArmOptions = allClasses.flatMap((cls) =>
     cls.classArms.map((arm) => ({
       id: arm.id,
@@ -51,7 +51,7 @@ export default async function StudentProfilePage({ params }: Props) {
     })),
   );
 
-  const academicYears = (academicYearsResult.data ?? []).map((ay) => ({
+  const academicYears = ("data" in academicYearsResult ? academicYearsResult.data ?? [] : []).map((ay) => ({
     id: ay.id,
     name: ay.name,
     isCurrent: ay.isCurrent,

@@ -9,7 +9,7 @@ export default async function AttendanceAnalyticsPage() {
   if (!session?.user) return null;
 
   const termsResult = await getTermsAction();
-  const terms = (termsResult.data ?? []).map((t) => ({
+  const terms = ("data" in termsResult ? termsResult.data : []).map((t) => ({
     id: t.id,
     name: t.name,
     isCurrent: t.isCurrent,

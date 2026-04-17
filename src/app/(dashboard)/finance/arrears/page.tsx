@@ -15,9 +15,9 @@ export default async function ArrearsPage() {
     getArrearsReportAction(),
   ]);
 
-  const terms = termsResult.data ?? [];
-  const arrears = arrearsResult.data ?? [];
-  const report = reportResult.data ?? null;
+  const terms = "data" in termsResult ? termsResult.data : [];
+  const arrears = "data" in arrearsResult ? arrearsResult.data : [];
+  const report = "data" in reportResult ? reportResult.data : null;
 
   return (
     <ArrearsClient

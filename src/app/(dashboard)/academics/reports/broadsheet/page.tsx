@@ -10,10 +10,11 @@ export default async function BroadsheetPage() {
   }
 
   const dropdownsResult = await getAcademicDropdownsAction();
+  const dropdownsData = "data" in dropdownsResult ? dropdownsResult.data : null;
 
-  const classArms = dropdownsResult.data?.classArms ?? [];
-  const terms = dropdownsResult.data?.terms ?? [];
-  const academicYears = dropdownsResult.data?.academicYears ?? [];
+  const classArms = dropdownsData?.classArms ?? [];
+  const terms = dropdownsData?.terms ?? [];
+  const academicYears = dropdownsData?.academicYears ?? [];
 
   return (
     <div className="space-y-6">

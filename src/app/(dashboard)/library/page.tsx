@@ -18,7 +18,7 @@ export default async function LibraryPage() {
         description="Manage books, issues, and digital resources."
       />
       <LibraryClient
-        stats={statsResult.data ?? {
+        stats={"data" in statsResult ? statsResult.data : {
           totalBooks: 0,
           availableBooks: 0,
           issuedCount: 0,

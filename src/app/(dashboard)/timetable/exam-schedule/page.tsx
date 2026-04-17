@@ -26,7 +26,7 @@ export default async function ExamSchedulePage({
         description="Manage examination timetables and room assignments."
       />
       <ExamScheduleClient
-        exams={result.data ?? []}
+        exams={"data" in result ? result.data : []}
         filters={params}
       />
     </div>

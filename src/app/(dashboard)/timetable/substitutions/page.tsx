@@ -24,8 +24,8 @@ export default async function SubstitutionsPage({
         description="Manage teacher substitutions when staff are absent."
       />
       <SubstitutionsClient
-        substitutions={result.data ?? []}
-        pagination={result.pagination ?? { page: 1, pageSize: 20, total: 0, totalPages: 0 }}
+        substitutions={"data" in result ? result.data : []}
+        pagination={"pagination" in result ? result.pagination : { page: 1, pageSize: 20, total: 0, totalPages: 0 }}
         filters={params}
       />
     </div>

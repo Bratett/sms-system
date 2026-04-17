@@ -34,10 +34,10 @@ describe("getAnnouncementsAction", () => {
   });
 
   it("should return error when no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await getAnnouncementsAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return paginated announcements", async () => {
@@ -99,7 +99,7 @@ describe("createAnnouncementAction", () => {
   });
 
   it("should return error when no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await createAnnouncementAction({
       title: "Test",
@@ -107,7 +107,7 @@ describe("createAnnouncementAction", () => {
       targetType: "ALL",
       priority: "NORMAL",
     });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should create announcement with DRAFT status", async () => {
@@ -289,13 +289,13 @@ describe("sendSmsAction", () => {
   });
 
   it("should return error when no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await sendSmsAction({
       recipientPhone: "+233201234567",
       message: "Hello",
     });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should create smsLog record and add job to queue", async () => {
@@ -350,13 +350,13 @@ describe("sendBulkSmsAction", () => {
   });
 
   it("should return error when no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await sendBulkSmsAction({
       recipients: [{ phone: "+233201234567" }],
       message: "Hello",
     });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should reject empty recipients", async () => {
@@ -409,10 +409,10 @@ describe("getSmsLogsAction", () => {
   });
 
   it("should return error when no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await getSmsLogsAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return paginated sms logs", async () => {

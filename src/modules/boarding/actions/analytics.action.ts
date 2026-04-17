@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 
 // ─── Occupancy Trends ──────────────────────────────────────────────
@@ -9,16 +9,13 @@ import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 export async function getOccupancyTrendsAction(range?: {
   months?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.HOSTELS_READ);
-  if (permErr) return permErr;
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.HOSTELS_READ);
+  if (permErr) return permErr;
 
   const hostels = await db.hostel.findMany({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     include: {
       dormitories: {
         where: { status: "ACTIVE" },
@@ -68,9 +65,9 @@ export async function getOccupancyTrendsAction(range?: {
 export async function getExeatAnalyticsAction(filters?: {
   termId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.HOSTELS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.HOSTELS_READ);
   if (permErr) return permErr;
 
   const where: Record<string, unknown> = {};
@@ -178,9 +175,9 @@ export async function getRollCallAnalyticsAction(filters?: {
   hostelId?: string;
   days?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.HOSTELS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.HOSTELS_READ);
   if (permErr) return permErr;
 
   const days = filters?.days ?? 30;
@@ -273,20 +270,17 @@ export async function getIncidentAnalyticsAction(filters?: {
   days?: number;
   hostelId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.HOSTELS_READ);
-  if (permErr) return permErr;
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.HOSTELS_READ);
+  if (permErr) return permErr;
 
   const days = filters?.days ?? 90;
   const since = new Date();
   since.setDate(since.getDate() - days);
 
   const where: Record<string, unknown> = {
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
     date: { gte: since },
   };
   if (filters?.hostelId) where.hostelId = filters.hostelId;
@@ -361,13 +355,10 @@ export async function getIncidentAnalyticsAction(filters?: {
 export async function getSickBayAnalyticsAction(filters?: {
   days?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.HOSTELS_READ);
-  if (permErr) return permErr;
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.HOSTELS_READ);
+  if (permErr) return permErr;
 
   const days = filters?.days ?? 90;
   const since = new Date();
@@ -375,7 +366,7 @@ export async function getSickBayAnalyticsAction(filters?: {
 
   const admissions = await db.sickBayAdmission.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       admittedAt: { gte: since },
     },
     select: {
@@ -444,13 +435,10 @@ export async function getSickBayAnalyticsAction(filters?: {
 // ─── Comprehensive Boarding Overview ───────────────────────────────
 
 export async function getBoardingOverviewAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.HOSTELS_READ);
-  if (permErr) return permErr;
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.HOSTELS_READ);
+  if (permErr) return permErr;
 
   const [
     totalHostels,
@@ -463,29 +451,29 @@ export async function getBoardingOverviewAction() {
     openMaintenance,
     recentIncidents,
   ] = await Promise.all([
-    db.hostel.count({ where: { schoolId: school.id, status: "ACTIVE" } }),
+    db.hostel.count({ where: { schoolId: ctx.schoolId, status: "ACTIVE" } }),
     db.bed.groupBy({
       by: ["status"],
-      where: { dormitory: { hostel: { schoolId: school.id, status: "ACTIVE" } } },
+      where: { dormitory: { hostel: { schoolId: ctx.schoolId, status: "ACTIVE" } } },
       _count: { _all: true },
     }),
     db.exeat.count({ where: { status: "DEPARTED" } }),
     db.exeat.count({ where: { status: "OVERDUE" } }),
     db.sickBayAdmission.count({
-      where: { schoolId: school.id, status: { in: ["ADMITTED", "UNDER_OBSERVATION"] } },
+      where: { schoolId: ctx.schoolId, status: { in: ["ADMITTED", "UNDER_OBSERVATION"] } },
     }),
     db.boardingVisitor.count({
-      where: { schoolId: school.id, status: "CHECKED_IN" },
+      where: { schoolId: ctx.schoolId, status: "CHECKED_IN" },
     }),
     db.bedTransfer.count({
-      where: { schoolId: school.id, status: "PENDING" },
+      where: { schoolId: ctx.schoolId, status: "PENDING" },
     }),
     db.maintenanceRequest.count({
-      where: { schoolId: school.id, status: { in: ["OPEN", "ASSIGNED", "IN_PROGRESS"] } },
+      where: { schoolId: ctx.schoolId, status: { in: ["OPEN", "ASSIGNED", "IN_PROGRESS"] } },
     }),
     db.boardingIncident.count({
       where: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         status: { in: ["REPORTED", "INVESTIGATING"] },
       },
     }),

@@ -1,16 +1,14 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 
 // ─── Attendance Rate by Period ───────────────────────────────────────
 
 export async function getAttendanceByPeriodAction(termId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const term = await db.term.findUnique({
     where: { id: termId },
@@ -21,7 +19,7 @@ export async function getAttendanceByPeriodAction(termId: string) {
   // Get all period-based registers with records
   const registers = await db.attendanceRegister.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       type: "PERIOD",
       periodId: { not: null },
       date: { gte: term.startDate, lte: term.endDate },
@@ -65,11 +63,8 @@ export async function getAttendanceByPeriodAction(termId: string) {
 // ─── Attendance Rate by Day of Week ──────────────────────────────────
 
 export async function getAttendanceByDayAction(termId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const term = await db.term.findUnique({
     where: { id: termId },
@@ -79,7 +74,7 @@ export async function getAttendanceByDayAction(termId: string) {
 
   const registers = await db.attendanceRegister.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       date: { gte: term.startDate, lte: term.endDate },
     },
     include: {
@@ -118,11 +113,8 @@ export async function getAttendanceByDayAction(termId: string) {
 // ─── Chronic Absenteeism Overview ────────────────────────────────────
 
 export async function getChronicAbsenteeismAction(termId: string, threshold?: number) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const term = await db.term.findUnique({
     where: { id: termId },
@@ -135,7 +127,7 @@ export async function getChronicAbsenteeismAction(termId: string, threshold?: nu
   // Get all registers for the term
   const registers = await db.attendanceRegister.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       date: { gte: term.startDate, lte: term.endDate },
     },
     include: { records: { select: { studentId: true, status: true } } },
@@ -206,11 +198,8 @@ export async function getChronicAbsenteeismAction(termId: string, threshold?: nu
 // ─── Attendance Trend (Weekly) ───────────────────────────────────────
 
 export async function getAttendanceTrendAction(termId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const term = await db.term.findUnique({
     where: { id: termId },
@@ -220,7 +209,7 @@ export async function getAttendanceTrendAction(termId: string) {
 
   const registers = await db.attendanceRegister.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       date: { gte: term.startDate, lte: term.endDate },
     },
     include: { records: { select: { status: true } } },

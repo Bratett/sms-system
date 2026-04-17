@@ -1,26 +1,23 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
-import { PERMISSIONS, requirePermission } from "@/lib/permissions";
+import { PERMISSIONS, requirePermission, assertPermission } from "@/lib/permissions";
 import {
   generateReportSchema,
   type GenerateReportInput,
 } from "@/modules/accounting/schemas/financial-reports.schema";
 
 export async function generateTrialBalanceAction(periodEnd: Date) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
   if (permErr) return permErr;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const accounts = await db.account.findMany({
-    where: { schoolId: school.id, isActive: true },
+    where: { schoolId: ctx.schoolId, isActive: true },
     include: { category: { select: { name: true, type: true } } },
     orderBy: { code: "asc" },
   });
@@ -29,7 +26,7 @@ export async function generateTrialBalanceAction(periodEnd: Date) {
   const entries = await db.journalEntry.findMany({
     where: {
       journalTransaction: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         status: "POSTED",
         date: { lte: periodEnd },
       },
@@ -85,16 +82,13 @@ export async function generateTrialBalanceAction(periodEnd: Date) {
 }
 
 export async function generateBalanceSheetAction(periodEnd: Date) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
   if (permErr) return permErr;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const accounts = await db.account.findMany({
-    where: { schoolId: school.id, isActive: true },
+    where: { schoolId: ctx.schoolId, isActive: true },
     include: { category: { select: { name: true, type: true } } },
     orderBy: { code: "asc" },
   });
@@ -130,19 +124,16 @@ export async function generateBalanceSheetAction(periodEnd: Date) {
 }
 
 export async function generateIncomeStatementAction(periodStart: Date, periodEnd: Date) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
   if (permErr) return permErr;
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
 
   // Get journal entries for the period
   const entries = await db.journalEntry.findMany({
     where: {
       journalTransaction: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         status: "POSTED",
         date: { gte: periodStart, lte: periodEnd },
       },
@@ -192,18 +183,15 @@ export async function generateIncomeStatementAction(periodStart: Date, periodEnd
 }
 
 export async function generateCashFlowAction(periodStart: Date, periodEnd: Date) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
   if (permErr) return permErr;
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
 
   // Get cash/bank account IDs
   const cashAccounts = await db.account.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       code: { in: ["1000", "1010", "1020", "1030"] }, // Cash, Bank accounts
     },
     select: { id: true, code: true, name: true },
@@ -214,7 +202,7 @@ export async function generateCashFlowAction(periodStart: Date, periodEnd: Date)
   const entries = await db.journalEntry.findMany({
     where: {
       journalTransaction: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         status: "POSTED",
         date: { gte: periodStart, lte: periodEnd },
       },
@@ -274,17 +262,14 @@ export async function generateCashFlowAction(periodStart: Date, periodEnd: Date)
 }
 
 export async function generateBoardSummaryAction(periodStart: Date, periodEnd: Date) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
   if (permErr) return permErr;
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
 
   // Fee collection summary
   const bills = await db.studentBill.findMany({
-    where: { feeStructure: { schoolId: school.id } },
+    where: { feeStructure: { schoolId: ctx.schoolId } },
   });
   const totalBilled = bills.reduce((sum, b) => sum + toNum(b.totalAmount), 0);
   const totalCollected = bills.reduce((sum, b) => sum + toNum(b.paidAmount), 0);
@@ -292,20 +277,20 @@ export async function generateBoardSummaryAction(periodStart: Date, periodEnd: D
 
   // Expense summary
   const expenses = await db.expense.findMany({
-    where: { schoolId: school.id, status: { in: ["APPROVED", "PAID"] }, date: { gte: periodStart, lte: periodEnd } },
+    where: { schoolId: ctx.schoolId, status: { in: ["APPROVED", "PAID"] }, date: { gte: periodStart, lte: periodEnd } },
   });
   const totalExpenses = expenses.reduce((sum, e) => sum + toNum(e.amount), 0);
 
   // Government subsidies
   const subsidies = await db.governmentSubsidy.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
   });
   const subsidyExpected = subsidies.reduce((sum, s) => sum + toNum(s.expectedAmount), 0);
   const subsidyReceived = subsidies.reduce((sum, s) => sum + toNum(s.receivedAmount), 0);
 
   // Budget utilization
   const activeBudgets = await db.budget.findMany({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     include: { lines: true },
   });
   const budgetAllocated = activeBudgets.reduce((sum, b) => sum + toNum(b.totalAmount), 0);
@@ -325,39 +310,32 @@ export async function generateBoardSummaryAction(periodStart: Date, periodEnd: D
 }
 
 export async function saveFinancialReportAction(input: GenerateReportInput, reportData: unknown) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const parsed = generateReportSchema.safeParse(input);
   if (!parsed.success) return { error: "Invalid input" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const report = await db.financialReport.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       reportType: parsed.data.reportType,
       periodStart: parsed.data.periodStart,
       periodEnd: parsed.data.periodEnd,
-      generatedBy: session.user.id!,
+      generatedBy: ctx.session.user.id,
       data: reportData as object,
     },
   });
 
-  await audit({ userId: session.user.id!, action: "CREATE", entity: "FinancialReport", entityId: report.id, module: "accounting", description: `Generated ${parsed.data.reportType} report` });
+  await audit({ userId: ctx.session.user.id, action: "CREATE", entity: "FinancialReport", entityId: report.id, module: "accounting", description: `Generated ${parsed.data.reportType} report` });
 
   return { data: report };
 }
 
 export async function getSavedReportsAction(filters?: { reportType?: string }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.reportType) where.reportType = filters.reportType;
 
   const reports = await db.financialReport.findMany({

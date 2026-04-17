@@ -25,10 +25,10 @@ export default async function SuppliersPage() {
         description="Manage your supplier directory, contracts, and performance scorecards."
       />
       <SuppliersClient
-        suppliers={suppliersResult.data ?? []}
-        contracts={contractsResult.data ?? []}
-        expiringContracts={expiringResult.data ?? []}
-        scorecards={scorecardsResult.data ?? []}
+        suppliers={"data" in suppliersResult ? suppliersResult.data : []}
+        contracts={"data" in contractsResult ? contractsResult.data : []}
+        expiringContracts={"data" in expiringResult ? expiringResult.data : []}
+        scorecards={"data" in scorecardsResult ? scorecardsResult.data : []}
       />
     </div>
   );

@@ -134,13 +134,13 @@ export function MarkEntryClient({ dropdowns }: { dropdowns: Dropdowns }) {
         selectedTermId,
       );
 
-      if (result.error) {
+      if ("error" in result) {
         setLoadError(result.error);
         setIsLoaded(false);
         return;
       }
 
-      if (result.data) {
+      if ("data" in result) {
         const { assessmentType, students, marks } = result.data;
         setAssessmentInfo(assessmentType);
 
@@ -202,7 +202,7 @@ export function MarkEntryClient({ dropdowns }: { dropdowns: Dropdowns }) {
         marks: marksToSave,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(`${result.data?.count} mark(s) saved as draft.`);
@@ -250,7 +250,7 @@ export function MarkEntryClient({ dropdowns }: { dropdowns: Dropdowns }) {
         marks: marksToSave,
       });
 
-      if (saveResult.error) {
+      if ("error" in saveResult) {
         toast.error(saveResult.error);
         return;
       }
@@ -263,7 +263,7 @@ export function MarkEntryClient({ dropdowns }: { dropdowns: Dropdowns }) {
         selectedTermId,
       );
 
-      if (submitResult.error) {
+      if ("error" in submitResult) {
         toast.error(submitResult.error);
       } else {
         toast.success(`${submitResult.data?.count} mark(s) submitted for approval.`);

@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Create Academic Event ───────────────────────────────────────────
@@ -17,15 +18,14 @@ export async function createAcademicEventAction(data: {
   isAllDay?: boolean;
   color?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ACADEMIC_EVENTS_CREATE);
+  if (denied) return denied;
 
   const event = await db.academicEvent.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       title: data.title,
       description: data.description,
       startDate: data.startDate,
@@ -35,12 +35,12 @@ export async function createAcademicEventAction(data: {
       termId: data.termId,
       isAllDay: data.isAllDay ?? true,
       color: data.color,
-      createdBy: session.user.id!,
+      createdBy: ctx.session.user.id!,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "AcademicEvent",
     entityId: event.id,
@@ -67,8 +67,10 @@ export async function updateAcademicEventAction(
     color?: string;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ACADEMIC_EVENTS_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.academicEvent.findUnique({ where: { id } });
   if (!existing) return { error: "Event not found." };
@@ -89,7 +91,7 @@ export async function updateAcademicEventAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "AcademicEvent",
     entityId: id,
@@ -103,8 +105,10 @@ export async function updateAcademicEventAction(
 // ─── Delete Academic Event ───────────────────────────────────────────
 
 export async function deleteAcademicEventAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ACADEMIC_EVENTS_DELETE);
+  if (denied) return denied;
 
   const existing = await db.academicEvent.findUnique({ where: { id } });
   if (!existing) return { error: "Event not found." };
@@ -112,7 +116,7 @@ export async function deleteAcademicEventAction(id: string) {
   await db.academicEvent.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "DELETE",
     entity: "AcademicEvent",
     entityId: id,
@@ -132,13 +136,12 @@ export async function getAcademicEventsAction(filters?: {
   endDate?: Date;
   type?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ACADEMIC_EVENTS_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.academicYearId) where.academicYearId = filters.academicYearId;
   if (filters?.termId) where.termId = filters.termId;
   if (filters?.type) where.type = filters.type;

@@ -18,9 +18,9 @@ export default async function GovernmentSubsidiesPage() {
   return (
     <GovernmentSubsidiesClient
       subsidies={"data" in subsidiesResult ? subsidiesResult.data ?? [] : []}
-      summary={summaryResult.data ?? null}
-      academicYears={academicYearsResult.data ?? []}
-      terms={termsResult.data ?? []}
+      summary={"data" in summaryResult ? summaryResult.data : null}
+      academicYears={"data" in academicYearsResult ? academicYearsResult.data : []}
+      terms={"data" in termsResult ? termsResult.data : []}
     />
   );
 }

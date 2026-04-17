@@ -76,7 +76,7 @@ export function FeeStructureDetail({
     }
     startTransition(async () => {
       const result = await updateFeeStructureAction(feeStructure.id, { name: name.trim() });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -96,7 +96,7 @@ export function FeeStructureDetail({
         isOptional: newItem.isOptional,
         description: newItem.description || undefined,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -110,7 +110,7 @@ export function FeeStructureDetail({
   function handleRemoveItem(item: FeeItem) {
     startTransition(async () => {
       const result = await removeFeeItemAction(item.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -122,7 +122,7 @@ export function FeeStructureDetail({
   function handleActivate() {
     startTransition(async () => {
       const result = await activateFeeStructureAction(feeStructure.id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

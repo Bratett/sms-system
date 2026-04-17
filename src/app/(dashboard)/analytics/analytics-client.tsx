@@ -47,12 +47,12 @@ export function AnalyticsClient() {
         termId,
       });
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
 
-      if (result.data) {
+      if ("data" in result) {
         setDashboard(result.data);
       }
     });
@@ -76,12 +76,12 @@ export function AnalyticsClient() {
 
       const result = await computeRiskProfilesAction(payload);
 
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
 
-      if (result.data) {
+      if ("data" in result) {
         toast.success(
           `Risk profiles computed: ${result.data.summary.total} students assessed (${result.data.summary.critical} critical, ${result.data.summary.high} high, ${result.data.summary.moderate} moderate, ${result.data.summary.low} low).`
         );

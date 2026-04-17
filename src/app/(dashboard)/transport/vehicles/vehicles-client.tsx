@@ -129,14 +129,14 @@ export function VehiclesClient({
 
     if (editingVehicle) {
       const res = await updateVehicleAction(editingVehicle.id, payload);
-      if (res.error) {
+      if ("error" in res) {
         toast.error(res.error);
         return;
       }
       toast.success("Vehicle updated successfully");
     } else {
       const res = await createVehicleAction(payload);
-      if (res.error) {
+      if ("error" in res) {
         toast.error(res.error);
         return;
       }
@@ -149,7 +149,7 @@ export function VehiclesClient({
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this vehicle?")) return;
     const res = await deleteVehicleAction(id);
-    if (res.error) {
+    if ("error" in res) {
       toast.error(res.error);
       return;
     }

@@ -65,11 +65,11 @@ describe("createExamScheduleAction", () => {
   });
 
   it("should reject when no school is configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await createExamScheduleAction(validExamData);
 
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 });
 

@@ -8,7 +8,7 @@ export default async function ActivitiesPage() {
   if (!session?.user) return null;
 
   const result = await getActivitiesAction();
-  const activities = result.data ?? [];
+  const activities = "data" in result ? result.data : [];
 
   return (
     <div className="space-y-6">

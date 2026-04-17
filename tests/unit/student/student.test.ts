@@ -24,9 +24,9 @@ describe("getStudentsAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getStudentsAction({});
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return paginated students with defaults", async () => {
@@ -233,7 +233,7 @@ describe("createStudentAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
 
     const result = await createStudentAction({
       firstName: "Ama",
@@ -242,7 +242,7 @@ describe("createStudentAction", () => {
       gender: "FEMALE",
       boardingStatus: "DAY",
     });
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should auto-generate student ID and create student", async () => {
@@ -527,9 +527,9 @@ describe("getStudentStatsAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.school.findFirst.mockResolvedValue(null as never);
+    mockAuthenticatedUser({ schoolId: null });
     const result = await getStudentStatsAction();
-    expect(result).toEqual({ error: "No school configured" });
+    expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
   it("should return counts by status, gender, and boarding status", async () => {

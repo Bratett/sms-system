@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 
 // ─── Suggest Awards Based on Results ─────────────────────────────────
@@ -11,8 +12,10 @@ export async function suggestAwardsAction(
   termId: string,
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.AWARDS_READ);
+  if (denied) return denied;
 
   const results = await db.terminalResult.findMany({
     where: { classArmId, termId, academicYearId },
@@ -140,28 +143,27 @@ export async function createAwardAction(data: {
   description?: string;
   subjectId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.AWARDS_CREATE);
+  if (denied) return denied;
 
   const award = await db.academicAward.create({
     data: {
       studentId: data.studentId,
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       academicYearId: data.academicYearId,
       termId: data.termId,
       type: data.type as any,
       title: data.title,
       description: data.description,
       subjectId: data.subjectId,
-      awardedBy: session.user.id!,
+      awardedBy: ctx.session.user.id!,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "AcademicAward",
     entityId: award.id,
@@ -173,16 +175,20 @@ export async function createAwardAction(data: {
 }
 
 export async function deleteAwardAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.AWARDS_CREATE);
+  if (denied) return denied;
 
   await db.academicAward.delete({ where: { id } });
   return { data: { deleted: true } };
 }
 
 export async function getStudentAwardsAction(studentId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.AWARDS_READ);
+  if (denied) return denied;
 
   const awards = await db.academicAward.findMany({
     where: { studentId },
@@ -198,13 +204,12 @@ export async function getAwardsAction(filters?: {
   termId?: string;
   type?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.AWARDS_READ);
+  if (denied) return denied;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.academicYearId) where.academicYearId = filters.academicYearId;
   if (filters?.termId) where.termId = filters.termId;
   if (filters?.type) where.type = filters.type;

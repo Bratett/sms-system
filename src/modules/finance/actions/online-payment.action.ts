@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
 import { getPaymentProvider, getProviderForCurrency } from "@/lib/payment/registry";
@@ -16,11 +17,10 @@ export async function initiateOnlinePaymentAction(data: {
   currency?: string;
   provider?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PAYMENTS_CREATE);
+  if (denied) return denied;
 
   if (data.amount <= 0) return { error: "Amount must be greater than zero" };
 
@@ -66,7 +66,7 @@ export async function initiateOnlinePaymentAction(data: {
     metadata: {
       studentBillId: bill.id,
       studentId: bill.studentId,
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       provider: provider.name,
     },
   });
@@ -76,7 +76,7 @@ export async function initiateOnlinePaymentAction(data: {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Payment",
     module: "finance",
@@ -97,8 +97,10 @@ export async function initiateOnlinePaymentAction(data: {
 // ─── Verify Online Payment (callback handler) ──────────────────────
 
 export async function verifyOnlinePaymentAction(reference: string, providerName?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.PAYMENTS_READ);
+  if (denied) return denied;
 
   // Try to determine provider from reference or use specified one
   const provider = providerName

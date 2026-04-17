@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { solveTimetable, type SolverConstraints } from "@/modules/timetable/lib/constraint-solver";
 
@@ -18,15 +19,14 @@ export async function autoGenerateTimetableAction(data: {
   classArmIds: string[];
   constraints?: TimetableConstraints;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TIMETABLE_GENERATE);
+  if (denied) return denied;
 
   // Get lesson periods (not breaks/assembly)
   const periods = await db.period.findMany({
-    where: { schoolId: school.id, type: "LESSON", isActive: true },
+    where: { schoolId: ctx.schoolId, type: "LESSON", isActive: true },
     orderBy: { order: "asc" },
   });
 
@@ -34,7 +34,7 @@ export async function autoGenerateTimetableAction(data: {
 
   // Get available rooms
   const rooms = await db.room.findMany({
-    where: { schoolId: school.id, isActive: true },
+    where: { schoolId: ctx.schoolId, isActive: true },
   });
 
   // Get teacher-subject assignments for the given term/year
@@ -110,7 +110,7 @@ export async function autoGenerateTimetableAction(data: {
     rooms: rooms.map((r) => ({ id: r.id, name: r.name, features: r.features })),
     days,
     constraints: solverConstraints,
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
     academicYearId: data.academicYearId,
     termId: data.termId,
   });
@@ -118,7 +118,7 @@ export async function autoGenerateTimetableAction(data: {
   // Bulk create all slots
   if (result.slots.length > 0) {
     const createData = result.slots.map((s) => ({
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       academicYearId: data.academicYearId,
       termId: data.termId,
       classArmId: s.classArmId,
@@ -132,7 +132,7 @@ export async function autoGenerateTimetableAction(data: {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "TimetableSlot",
     entityId: "auto-generate",
@@ -147,8 +147,8 @@ export async function autoGenerateTimetableAction(data: {
 // ─── Validate Timetable ──────────────────────────────────────────────
 
 export async function validateTimetableAction(classArmId: string, termId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const slots = await db.timetableSlot.findMany({
     where: { classArmId, termId },
@@ -179,15 +179,15 @@ export async function validateTimetableAction(classArmId: string, termId: string
 // ─── Clear Timetable ─────────────────────────────────────────────────
 
 export async function clearTimetableAction(classArmId: string, termId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const deleted = await db.timetableSlot.deleteMany({
     where: { classArmId, termId },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "TimetableSlot",
     entityId: classArmId,

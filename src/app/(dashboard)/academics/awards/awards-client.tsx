@@ -112,7 +112,7 @@ export function AwardsClient({
         termId: selectedTermId,
         academicYearId: selectedYearId,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -130,7 +130,7 @@ export function AwardsClient({
     if (!deleteId) return;
     startTransition(async () => {
       const result = await deleteAwardAction(deleteId);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
@@ -151,11 +151,11 @@ export function AwardsClient({
         selectedTermId,
         selectedYearId
       );
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }
-      setSuggestions(result.data ?? []);
+      setSuggestions("data" in result ? result.data : []);
       setShowSuggestModal(true);
     });
   }
@@ -171,7 +171,7 @@ export function AwardsClient({
         termId: selectedTermId,
         academicYearId: selectedYearId,
       });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
         return;
       }

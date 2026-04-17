@@ -15,8 +15,8 @@ export default async function AssessmentsPage() {
     getTermsAction(),
   ]);
 
-  const assessmentTypes = assessmentTypesResult.data ?? [];
-  const terms = (termsResult.data ?? []).map((t) => ({
+  const assessmentTypes = "data" in assessmentTypesResult ? assessmentTypesResult.data : [];
+  const terms = ("data" in termsResult ? termsResult.data : []).map((t) => ({
     id: t.id,
     name: t.name,
     termNumber: t.termNumber,

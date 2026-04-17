@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
 
 // ─── Enrollment Report ──────────────────────────────────────────────
@@ -10,21 +11,14 @@ export async function getEnrollmentReportAction(filters?: {
   academicYearId?: string;
   classArmId?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   // Determine academic year
   let academicYearId = filters?.academicYearId;
   if (!academicYearId) {
     const current = await db.academicYear.findFirst({
-      where: { schoolId: school.id, isCurrent: true },
+      where: { schoolId: ctx.schoolId, isCurrent: true },
     });
     academicYearId = current?.id;
   }
@@ -116,15 +110,8 @@ export async function getEnrollmentReportAction(filters?: {
 // ─── Academic Performance Report ────────────────────────────────────
 
 export async function getAcademicPerformanceReportAction(termId: string, classArmId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const resultWhere: Record<string, unknown> = { termId };
   if (classArmId) {
@@ -233,15 +220,8 @@ export async function getAcademicPerformanceReportAction(termId: string, classAr
 // ─── Attendance Report ──────────────────────────────────────────────
 
 export async function getAttendanceReportAction(termId: string, classArmId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   // Get term date range
   const term = await db.term.findUnique({ where: { id: termId } });
@@ -333,19 +313,12 @@ export async function getAttendanceReportAction(termId: string, classArmId?: str
 // ─── Comprehensive Report ───────────────────────────────────────────
 
 export async function getComprehensiveReportAction(termId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   // Get current academic year and term
   const currentYear = await db.academicYear.findFirst({
-    where: { schoolId: school.id, isCurrent: true },
+    where: { schoolId: ctx.schoolId, isCurrent: true },
   });
 
   let currentTermId = termId;
@@ -358,26 +331,26 @@ export async function getComprehensiveReportAction(termId?: string) {
 
   // Enrollment summary
   const totalStudents = await db.student.count({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
   });
 
   const maleCount = await db.student.count({
-    where: { schoolId: school.id, status: "ACTIVE", gender: "MALE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE", gender: "MALE" },
   });
 
   const femaleCount = await db.student.count({
-    where: { schoolId: school.id, status: "ACTIVE", gender: "FEMALE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE", gender: "FEMALE" },
   });
 
   const boardingCount = await db.student.count({
-    where: { schoolId: school.id, status: "ACTIVE", boardingStatus: "BOARDING" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE", boardingStatus: "BOARDING" },
   });
 
   const dayCount = totalStudents - boardingCount;
 
   // Staff count
   const totalStaff = await db.staff.count({
-    where: { schoolId: school.id, status: "ACTIVE" },
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
   });
 
   // Academic summary (if term available)
@@ -433,11 +406,11 @@ export async function getComprehensiveReportAction(termId?: string) {
 
   // Discipline summary
   const totalIncidents = await db.disciplinaryIncident.count({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
   });
   const openIncidents = await db.disciplinaryIncident.count({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       status: { in: ["REPORTED", "INVESTIGATING"] },
     },
   });
@@ -465,18 +438,11 @@ export async function getComprehensiveReportAction(termId?: string) {
 // ─── Get dropdown data for filters ──────────────────────────────────
 
 export async function getReportFiltersAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const academicYears = await db.academicYear.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: { startDate: "desc" },
     select: { id: true, name: true, isCurrent: true },
   });
@@ -496,7 +462,7 @@ export async function getReportFiltersAction() {
     where: {
       status: "ACTIVE",
       class: {
-        schoolId: school.id,
+        schoolId: ctx.schoolId,
         ...(currentYear ? { academicYearId: currentYear.id } : {}),
       },
     },

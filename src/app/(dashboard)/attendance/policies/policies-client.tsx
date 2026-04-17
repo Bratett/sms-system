@@ -59,7 +59,7 @@ export function PoliciesClient({ policies }: { policies: PolicyRow[] }) {
 
     startTransition(async () => {
       const result = await createAttendancePolicyAction(form);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Policy created.");
@@ -72,7 +72,7 @@ export function PoliciesClient({ policies }: { policies: PolicyRow[] }) {
   function handleToggle(id: string, isActive: boolean) {
     startTransition(async () => {
       const result = await updateAttendancePolicyAction(id, { isActive: !isActive });
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success(isActive ? "Policy disabled." : "Policy enabled.");
@@ -86,7 +86,7 @@ export function PoliciesClient({ policies }: { policies: PolicyRow[] }) {
 
     startTransition(async () => {
       const result = await deleteAttendancePolicyAction(id);
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
       } else {
         toast.success("Policy deleted.");
@@ -98,9 +98,9 @@ export function PoliciesClient({ policies }: { policies: PolicyRow[] }) {
   function handleEvaluate() {
     startTransition(async () => {
       const result = await evaluateAttendancePoliciesAction();
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error);
-      } else if (result.data) {
+      } else if ("data" in result) {
         toast.success(
           `Evaluated ${result.data.evaluated} policies. ${result.data.alertsCreated} new alerts created.`,
         );

@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import {
   createStudentSchema,
@@ -22,15 +23,10 @@ export async function getStudentsAction(filters: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_READ);
+  if (denied) return denied;
 
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 25;
@@ -39,7 +35,7 @@ export async function getStudentsAction(filters: {
   // Build the where clause
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
   };
 
   if (filters.search) {
@@ -161,10 +157,10 @@ export async function getStudentsAction(filters: {
 // ─── Single Student Profile ─────────────────────────────────────
 
 export async function getStudentAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_READ);
+  if (denied) return denied;
 
   const student = await db.student.findUnique({
     where: { id },
@@ -294,29 +290,24 @@ export async function getStudentAction(id: string) {
 // ─── Create Student ─────────────────────────────────────────────
 
 export async function createStudentAction(data: CreateStudentInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_CREATE);
+  if (denied) return denied;
 
   const parsed = createStudentSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
 
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
-
   // Auto-generate student ID: SCH/YYYY/NNNN
   const year = new Date().getFullYear();
-  const count = await db.student.count({ where: { schoolId: school.id } });
+  const count = await db.student.count({ where: { schoolId: ctx.schoolId } });
   const studentId = `SCH/${year}/${String(count + 1).padStart(4, "0")}`;
 
   const student = await db.student.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       studentId,
       firstName: parsed.data.firstName,
       lastName: parsed.data.lastName,
@@ -345,6 +336,7 @@ export async function createStudentAction(data: CreateStudentInput) {
     if (classArm) {
       await db.enrollment.create({
         data: {
+          schoolId: ctx.schoolId,
           studentId: student.id,
           classArmId: parsed.data.classArmId,
           academicYearId: classArm.class.academicYearId,
@@ -354,7 +346,7 @@ export async function createStudentAction(data: CreateStudentInput) {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "Student",
     entityId: student.id,
@@ -369,10 +361,10 @@ export async function createStudentAction(data: CreateStudentInput) {
 // ─── Update Student ─────────────────────────────────────────────
 
 export async function updateStudentAction(id: string, data: UpdateStudentInput) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_UPDATE);
+  if (denied) return denied;
 
   const parsed = updateStudentSchema.safeParse(data);
   if (!parsed.success) {
@@ -413,7 +405,7 @@ export async function updateStudentAction(id: string, data: UpdateStudentInput) 
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Student",
     entityId: id,
@@ -429,10 +421,10 @@ export async function updateStudentAction(id: string, data: UpdateStudentInput) 
 // ─── Delete (Soft) ──────────────────────────────────────────────
 
 export async function deleteStudentAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_DELETE);
+  if (denied) return denied;
 
   const existing = await db.student.findUnique({ where: { id } });
   if (!existing) {
@@ -453,7 +445,7 @@ export async function deleteStudentAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id!,
     action: "UPDATE",
     entity: "Student",
     entityId: id,
@@ -473,10 +465,10 @@ export async function enrollStudentAction(
   classArmId: string,
   academicYearId: string,
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_UPDATE);
+  if (denied) return denied;
 
   const student = await db.student.findUnique({ where: { id: studentId } });
   if (!student) {
@@ -506,7 +498,7 @@ export async function enrollStudentAction(
     });
 
     await audit({
-      userId: session.user.id!,
+      userId: ctx.session.user.id!,
       action: "UPDATE",
       entity: "Enrollment",
       entityId: updated.id,
@@ -521,6 +513,7 @@ export async function enrollStudentAction(
     // Create new enrollment
     const enrollment = await db.enrollment.create({
       data: {
+        schoolId: ctx.schoolId,
         studentId,
         classArmId,
         academicYearId,
@@ -528,7 +521,7 @@ export async function enrollStudentAction(
     });
 
     await audit({
-      userId: session.user.id!,
+      userId: ctx.session.user.id!,
       action: "CREATE",
       entity: "Enrollment",
       entityId: enrollment.id,
@@ -544,15 +537,8 @@ export async function enrollStudentAction(
 // ─── Student Stats ──────────────────────────────────────────────
 
 export async function getStudentStatsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const [
     total,
@@ -564,15 +550,15 @@ export async function getStudentStatsAction() {
     day,
     boarding,
   ] = await Promise.all([
-    db.student.count({ where: { schoolId: school.id } }),
-    db.student.count({ where: { schoolId: school.id, status: "ACTIVE" } }),
-    db.student.count({ where: { schoolId: school.id, status: "SUSPENDED" } }),
-    db.student.count({ where: { schoolId: school.id, status: "WITHDRAWN" } }),
-    db.student.count({ where: { schoolId: school.id, gender: "MALE", status: "ACTIVE" } }),
-    db.student.count({ where: { schoolId: school.id, gender: "FEMALE", status: "ACTIVE" } }),
-    db.student.count({ where: { schoolId: school.id, boardingStatus: "DAY", status: "ACTIVE" } }),
+    db.student.count({ where: { schoolId: ctx.schoolId } }),
+    db.student.count({ where: { schoolId: ctx.schoolId, status: "ACTIVE" } }),
+    db.student.count({ where: { schoolId: ctx.schoolId, status: "SUSPENDED" } }),
+    db.student.count({ where: { schoolId: ctx.schoolId, status: "WITHDRAWN" } }),
+    db.student.count({ where: { schoolId: ctx.schoolId, gender: "MALE", status: "ACTIVE" } }),
+    db.student.count({ where: { schoolId: ctx.schoolId, gender: "FEMALE", status: "ACTIVE" } }),
+    db.student.count({ where: { schoolId: ctx.schoolId, boardingStatus: "DAY", status: "ACTIVE" } }),
     db.student.count({
-      where: { schoolId: school.id, boardingStatus: "BOARDING", status: "ACTIVE" },
+      where: { schoolId: ctx.schoolId, boardingStatus: "BOARDING", status: "ACTIVE" },
     }),
   ]);
 

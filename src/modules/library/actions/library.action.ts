@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import type { Prisma } from "@prisma/client";
 
@@ -14,22 +15,17 @@ export async function getBooksAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LIBRARY_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
   const where: Prisma.BookWhereInput = {
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
     ...(filters?.category && { category: filters.category }),
     ...(filters?.status && { status: filters.status as any }),
     ...(filters?.search && {
@@ -71,10 +67,10 @@ export async function getBooksAction(filters?: {
 }
 
 export async function getBookAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LIBRARY_READ);
+  if (denied) return denied;
 
   const book = await db.book.findUnique({
     where: { id },
@@ -156,21 +152,16 @@ export async function createBookAction(data: {
   totalCopies?: number;
   coverImageUrl?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LIBRARY_CREATE);
+  if (denied) return denied;
 
   const totalCopies = data.totalCopies ?? 1;
 
   const book = await db.book.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       isbn: data.isbn || null,
       title: data.title,
       author: data.author,
@@ -185,7 +176,7 @@ export async function createBookAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "Book",
     entityId: book.id,
@@ -212,10 +203,10 @@ export async function updateBookAction(
     status?: "AVAILABLE" | "LOW_STOCK" | "OUT_OF_STOCK" | "ARCHIVED";
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LIBRARY_UPDATE);
+  if (denied) return denied;
 
   const existing = await db.book.findUnique({ where: { id } });
   if (!existing) {
@@ -249,7 +240,7 @@ export async function updateBookAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "Book",
     entityId: id,
@@ -263,10 +254,10 @@ export async function updateBookAction(
 }
 
 export async function deleteBookAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LIBRARY_DELETE);
+  if (denied) return denied;
 
   const book = await db.book.findUnique({
     where: { id },
@@ -288,7 +279,7 @@ export async function deleteBookAction(id: string) {
   await db.book.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "Book",
     entityId: id,
@@ -308,10 +299,10 @@ export async function issueBookAction(data: {
   borrowerType: "STUDENT" | "STAFF";
   dueDate: Date;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LIBRARY_CHECKOUT);
+  if (denied) return denied;
 
   const book = await db.book.findUnique({ where: { id: data.bookId } });
   if (!book) {
@@ -333,10 +324,11 @@ export async function issueBookAction(data: {
   const [issue] = await Promise.all([
     db.bookIssue.create({
       data: {
+        schoolId: ctx.schoolId,
         bookId: data.bookId,
         borrowerId: data.borrowerId,
         borrowerType: data.borrowerType,
-        issuedBy: session.user.id!,
+        issuedBy: ctx.session.user.id,
         dueDate: data.dueDate,
       },
     }),
@@ -350,7 +342,7 @@ export async function issueBookAction(data: {
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "BookIssue",
     entityId: issue.id,
@@ -363,10 +355,10 @@ export async function issueBookAction(data: {
 }
 
 export async function returnBookAction(issueId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LIBRARY_RETURN);
+  if (denied) return denied;
 
   const issue = await db.bookIssue.findUnique({
     where: { id: issueId },
@@ -401,7 +393,7 @@ export async function returnBookAction(issueId: string) {
       where: { id: issueId },
       data: {
         returnedAt: now,
-        returnedTo: session.user.id!,
+        returnedTo: ctx.session.user.id,
         status: "RETURNED",
         fineAmount,
       },
@@ -416,7 +408,7 @@ export async function returnBookAction(issueId: string) {
   ]);
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "BookIssue",
     entityId: issueId,
@@ -430,21 +422,16 @@ export async function returnBookAction(issueId: string) {
 }
 
 export async function getOverdueAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LIBRARY_READ);
+  if (denied) return denied;
 
   const now = new Date();
 
   const overdueIssues = await db.bookIssue.findMany({
     where: {
-      book: { schoolId: school.id },
+      book: { schoolId: ctx.schoolId },
       status: "ISSUED",
       dueDate: { lt: now },
     },
@@ -502,22 +489,17 @@ export async function getDigitalResourcesAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LIBRARY_READ);
+  if (denied) return denied;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 25;
   const skip = (page - 1) * pageSize;
 
   const where: Prisma.DigitalResourceWhereInput = {
-    schoolId: school.id,
+    schoolId: ctx.schoolId,
     ...(filters?.category && { category: filters.category }),
     ...(filters?.type && { type: filters.type as any }),
     ...(filters?.search && {
@@ -573,31 +555,26 @@ export async function createDigitalResourceAction(data: {
   category?: string;
   accessLevel?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LIBRARY_CREATE);
+  if (denied) return denied;
 
   const resource = await db.digitalResource.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       title: data.title,
       description: data.description || null,
       type: data.type ?? "DOCUMENT",
       fileUrl: data.fileUrl,
       category: data.category || null,
-      uploadedBy: session.user.id!,
+      uploadedBy: ctx.session.user.id,
       accessLevel: data.accessLevel ?? "ALL",
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "DigitalResource",
     entityId: resource.id,
@@ -610,10 +587,10 @@ export async function createDigitalResourceAction(data: {
 }
 
 export async function deleteDigitalResourceAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LIBRARY_DELETE);
+  if (denied) return denied;
 
   const resource = await db.digitalResource.findUnique({ where: { id } });
   if (!resource) {
@@ -623,7 +600,7 @@ export async function deleteDigitalResourceAction(id: string) {
   await db.digitalResource.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "DigitalResource",
     entityId: id,
@@ -638,33 +615,28 @@ export async function deleteDigitalResourceAction(id: string) {
 // ─── Library Stats ─────────────────────────────────────────────────
 
 export async function getLibraryStatsAction() {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.LIBRARY_READ);
+  if (denied) return denied;
 
   const now = new Date();
 
   const [totalBooks, availableBooks, issuedCount, overdueCount, digitalResourcesCount] =
     await Promise.all([
-      db.book.count({ where: { schoolId: school.id } }),
-      db.book.count({ where: { schoolId: school.id, status: "AVAILABLE" } }),
+      db.book.count({ where: { schoolId: ctx.schoolId } }),
+      db.book.count({ where: { schoolId: ctx.schoolId, status: "AVAILABLE" } }),
       db.bookIssue.count({
-        where: { book: { schoolId: school.id }, status: "ISSUED" },
+        where: { book: { schoolId: ctx.schoolId }, status: "ISSUED" },
       }),
       db.bookIssue.count({
         where: {
-          book: { schoolId: school.id },
+          book: { schoolId: ctx.schoolId },
           status: "ISSUED",
           dueDate: { lt: now },
         },
       }),
-      db.digitalResource.count({ where: { schoolId: school.id } }),
+      db.digitalResource.count({ where: { schoolId: ctx.schoolId } }),
     ]);
 
   return {

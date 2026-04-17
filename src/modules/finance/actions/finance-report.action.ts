@@ -1,14 +1,15 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
 
 export async function getCollectionSummaryAction(termId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCE_REPORTS_READ);
+  if (denied) return denied;
 
   const billWhere: Record<string, unknown> = {};
   const paymentWhere: Record<string, unknown> = {
@@ -94,10 +95,10 @@ export async function getCollectionSummaryAction(termId?: string) {
 }
 
 export async function getRevenueByClassAction(termId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCE_REPORTS_READ);
+  if (denied) return denied;
 
   const billWhere: Record<string, unknown> = {};
   if (termId) {
@@ -183,10 +184,10 @@ export async function getRevenueByClassAction(termId?: string) {
 }
 
 export async function getRevenueByFeeItemAction(termId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCE_REPORTS_READ);
+  if (denied) return denied;
 
   const billItemWhere: Record<string, unknown> = {};
   if (termId) {
@@ -227,10 +228,10 @@ export async function getRevenueByFeeItemAction(termId?: string) {
 }
 
 export async function getDailyCollectionTrendAction(termId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCE_REPORTS_READ);
+  if (denied) return denied;
 
   const paymentWhere: Record<string, unknown> = {
     status: "CONFIRMED",
@@ -268,10 +269,10 @@ export async function getDailyCollectionTrendAction(termId?: string) {
 }
 
 export async function getDebtorListAction(termId?: string, limit?: number) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCE_REPORTS_READ);
+  if (denied) return denied;
 
   const billWhere: Record<string, unknown> = {
     balanceAmount: { gt: 0 },
@@ -352,10 +353,10 @@ export async function getDebtorListAction(termId?: string, limit?: number) {
 }
 
 export async function getFinanceDashboardAction(termId?: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.FINANCE_REPORTS_READ);
+  if (denied) return denied;
 
   // If no termId provided, use current term
   let activeTerm = termId;

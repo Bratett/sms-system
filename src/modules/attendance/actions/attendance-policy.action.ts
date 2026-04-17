@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { dispatch } from "@/lib/notifications/dispatcher";
 import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
@@ -18,15 +19,14 @@ export async function createAttendancePolicyAction(data: {
   severity: "INFO" | "WARNING" | "CRITICAL";
   actions?: string[];
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ATTENDANCE_POLICY_CREATE);
+  if (denied) return denied;
 
   const policy = await db.attendancePolicy.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: data.name,
       scope: data.scope,
       scopeId: data.scopeId || null,
@@ -39,7 +39,7 @@ export async function createAttendancePolicyAction(data: {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "AttendancePolicy",
     entityId: policy.id,
@@ -51,14 +51,13 @@ export async function createAttendancePolicyAction(data: {
 }
 
 export async function getAttendancePoliciesAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ATTENDANCE_POLICY_READ);
+  if (denied) return denied;
 
   const policies = await db.attendancePolicy.findMany({
-    where: { schoolId: school.id },
+    where: { schoolId: ctx.schoolId },
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { alerts: true } },
@@ -93,8 +92,10 @@ export async function updateAttendancePolicyAction(
     actions: string[];
   }>,
 ) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ATTENDANCE_POLICY_UPDATE);
+  if (denied) return denied;
 
   const policy = await db.attendancePolicy.findUnique({ where: { id } });
   if (!policy) return { error: "Policy not found." };
@@ -111,7 +112,7 @@ export async function updateAttendancePolicyAction(
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "AttendancePolicy",
     entityId: id,
@@ -123,8 +124,10 @@ export async function updateAttendancePolicyAction(
 }
 
 export async function deleteAttendancePolicyAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ATTENDANCE_POLICY_DELETE);
+  if (denied) return denied;
 
   const policy = await db.attendancePolicy.findUnique({ where: { id } });
   if (!policy) return { error: "Policy not found." };
@@ -132,7 +135,7 @@ export async function deleteAttendancePolicyAction(id: string) {
   await db.attendancePolicy.delete({ where: { id } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "AttendancePolicy",
     entityId: id,
@@ -152,17 +155,14 @@ export async function getAttendanceAlertsAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
 
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.status) where.status = filters.status;
   if (filters?.severity) where.severity = filters.severity;
   if (filters?.studentId) where.studentId = filters.studentId;
@@ -211,8 +211,8 @@ export async function getAttendanceAlertsAction(filters?: {
 }
 
 export async function acknowledgeAlertAction(id: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   await db.attendanceAlert.update({
     where: { id },
@@ -223,21 +223,21 @@ export async function acknowledgeAlertAction(id: string) {
 }
 
 export async function resolveAlertAction(id: string, notes?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   await db.attendanceAlert.update({
     where: { id },
     data: {
       status: "RESOLVED",
-      resolvedBy: session.user.id,
+      resolvedBy: ctx.session.user.id,
       resolvedAt: new Date(),
       notes: notes || null,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "AttendanceAlert",
     entityId: id,
@@ -251,11 +251,8 @@ export async function resolveAlertAction(id: string, notes?: string) {
 // ─── Evaluate Policies (called by worker or manually) ────────────────
 
 export async function evaluateAttendancePoliciesAction() {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "No school configured" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const currentTerm = await db.term.findFirst({
     where: { isCurrent: true },
@@ -265,7 +262,7 @@ export async function evaluateAttendancePoliciesAction() {
   if (!currentTerm) return { error: "No active term." };
 
   const policies = await db.attendancePolicy.findMany({
-    where: { schoolId: school.id, isActive: true },
+    where: { schoolId: ctx.schoolId, isActive: true },
   });
 
   if (policies.length === 0) return { data: { evaluated: 0, alertsCreated: 0 } };
@@ -283,7 +280,7 @@ export async function evaluateAttendancePoliciesAction() {
   // Get all attendance records for the current term
   const registers = await db.attendanceRegister.findMany({
     where: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       date: { gte: currentTerm.startDate, lte: currentTerm.endDate },
     },
     include: { records: true },
@@ -353,7 +350,7 @@ export async function evaluateAttendancePoliciesAction() {
         if (!existingAlert) {
           await db.attendanceAlert.create({
             data: {
-              schoolId: school.id,
+              schoolId: ctx.schoolId,
               policyId: policy.id,
               studentId,
               classArmId: stats.classArmId,
@@ -400,7 +397,7 @@ export async function evaluateAttendancePoliciesAction() {
                   title: `Attendance ${policy.severity === "CRITICAL" ? "Critical" : "Warning"}`,
                   message: `${student.firstName} ${student.lastName} has triggered the "${policy.name}" attendance policy. Current ${policy.metric.toLowerCase().replace(/_/g, " ")}: ${Math.round(metricValue)}.`,
                   recipients,
-                  schoolId: school.id,
+                  schoolId: ctx.schoolId,
                 }).catch(() => {});
               }
             }
@@ -411,7 +408,7 @@ export async function evaluateAttendancePoliciesAction() {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "AttendancePolicy",
     entityId: "evaluation",

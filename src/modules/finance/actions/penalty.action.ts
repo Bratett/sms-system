@@ -1,10 +1,10 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
-import { PERMISSIONS, requirePermission } from "@/lib/permissions";
+import { PERMISSIONS, requirePermission, assertPermission } from "@/lib/permissions";
 import {
   createLatePenaltyRuleSchema,
   updateLatePenaltyRuleSchema,
@@ -13,15 +13,12 @@ import {
 } from "@/modules/finance/schemas/penalty.schema";
 
 export async function getLatePenaltyRulesAction(filters?: { feeStructureId?: string; isActive?: boolean }) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.PENALTIES_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.PENALTIES_READ);
   if (permErr) return permErr;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const where: Record<string, unknown> = { schoolId: school.id };
+  const where: Record<string, unknown> = { schoolId: ctx.schoolId };
   if (filters?.feeStructureId) where.feeStructureId = filters.feeStructureId;
   if (filters?.isActive !== undefined) where.isActive = filters.isActive;
 
@@ -54,22 +51,18 @@ export async function getLatePenaltyRulesAction(filters?: { feeStructureId?: str
 }
 
 export async function createLatePenaltyRuleAction(data: CreateLatePenaltyRuleInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.PENALTIES_CREATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.PENALTIES_CREATE);
   if (permErr) return permErr;
 
   const parsed = createLatePenaltyRuleSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const rule = await db.latePenaltyRule.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       name: parsed.data.name,
       feeStructureId: parsed.data.feeStructureId,
       type: parsed.data.type,
@@ -80,7 +73,7 @@ export async function createLatePenaltyRuleAction(data: CreateLatePenaltyRuleInp
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "LatePenaltyRule",
     entityId: rule.id,
@@ -92,20 +85,16 @@ export async function createLatePenaltyRuleAction(data: CreateLatePenaltyRuleInp
 }
 
 export async function updateLatePenaltyRuleAction(ruleId: string, data: UpdateLatePenaltyRuleInput) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.PENALTIES_CREATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.PENALTIES_CREATE);
   if (permErr) return permErr;
 
   const parsed = updateLatePenaltyRuleSchema.safeParse(data);
   if (!parsed.success) {
     return { error: "Invalid input", details: parsed.error.flatten().fieldErrors };
   }
-
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
-  const rule = await db.latePenaltyRule.findFirst({ where: { id: ruleId, schoolId: school.id } });
+  const rule = await db.latePenaltyRule.findFirst({ where: { id: ruleId, schoolId: ctx.schoolId } });
   if (!rule) return { error: "Late penalty rule not found" };
 
   const updated = await db.latePenaltyRule.update({
@@ -114,7 +103,7 @@ export async function updateLatePenaltyRuleAction(ruleId: string, data: UpdateLa
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "LatePenaltyRule",
     entityId: ruleId,
@@ -126,16 +115,13 @@ export async function updateLatePenaltyRuleAction(ruleId: string, data: UpdateLa
 }
 
 export async function deleteLatePenaltyRuleAction(ruleId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.PENALTIES_CREATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.PENALTIES_CREATE);
   if (permErr) return permErr;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   const rule = await db.latePenaltyRule.findFirst({
-    where: { id: ruleId, schoolId: school.id },
+    where: { id: ruleId, schoolId: ctx.schoolId },
     include: { _count: { select: { penalties: true } } },
   });
   if (!rule) return { error: "Late penalty rule not found" };
@@ -144,10 +130,10 @@ export async function deleteLatePenaltyRuleAction(ruleId: string) {
     return { error: "Cannot delete a rule that has applied penalties. Deactivate it instead." };
   }
 
-  await db.latePenaltyRule.deleteMany({ where: { id: ruleId, schoolId: school.id } });
+  await db.latePenaltyRule.deleteMany({ where: { id: ruleId, schoolId: ctx.schoolId } });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "DELETE",
     entity: "LatePenaltyRule",
     entityId: ruleId,
@@ -159,16 +145,13 @@ export async function deleteLatePenaltyRuleAction(ruleId: string) {
 }
 
 export async function applyPenaltiesAction(feeStructureId?: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.PENALTIES_APPLY);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.PENALTIES_APPLY);
   if (permErr) return permErr;
 
-  const school = await db.school.findFirst();
-  if (!school) return { error: "School not found" };
-
   // Get active penalty rules
-  const ruleWhere: Record<string, unknown> = { schoolId: school.id, isActive: true };
+  const ruleWhere: Record<string, unknown> = { schoolId: ctx.schoolId, isActive: true };
   if (feeStructureId) ruleWhere.feeStructureId = feeStructureId;
 
   const rules = await db.latePenaltyRule.findMany({ where: ruleWhere });
@@ -180,7 +163,7 @@ export async function applyPenaltiesAction(feeStructureId?: string) {
   const billWhere: Record<string, unknown> = {
     status: { in: ["UNPAID", "PARTIAL"] },
     dueDate: { lt: now },
-    feeStructure: { schoolId: school.id },
+    feeStructure: { schoolId: ctx.schoolId },
   };
   if (feeStructureId) billWhere.feeStructureId = feeStructureId;
 
@@ -265,6 +248,7 @@ export async function applyPenaltiesAction(feeStructureId?: string) {
       await db.$transaction(async (tx) => {
         await tx.appliedPenalty.create({
           data: {
+            schoolId: ctx.schoolId,
             studentBillId: bill.id,
             latePenaltyRuleId: rule.id,
             amount: penaltyAmount,
@@ -286,7 +270,7 @@ export async function applyPenaltiesAction(feeStructureId?: string) {
   }
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "AppliedPenalty",
     entityId: feeStructureId ?? "all",
@@ -299,9 +283,9 @@ export async function applyPenaltiesAction(feeStructureId?: string) {
 }
 
 export async function waivePenaltyAction(penaltyId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
-  const permErr = requirePermission(session, PERMISSIONS.PENALTIES_WAIVE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.PENALTIES_WAIVE);
   if (permErr) return permErr;
 
   const penalty = await db.appliedPenalty.findUnique({
@@ -316,7 +300,7 @@ export async function waivePenaltyAction(penaltyId: string) {
       where: { id: penaltyId },
       data: {
         waived: true,
-        waivedBy: session.user.id!,
+        waivedBy: ctx.session.user.id,
         waivedAt: new Date(),
       },
     });
@@ -332,7 +316,7 @@ export async function waivePenaltyAction(penaltyId: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "AppliedPenalty",
     entityId: penaltyId,
@@ -344,8 +328,8 @@ export async function waivePenaltyAction(penaltyId: string) {
 }
 
 export async function getBillPenaltiesAction(studentBillId: string) {
-  const session = await auth();
-  if (!session?.user) return { error: "Unauthorized" };
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
 
   const penalties = await db.appliedPenalty.findMany({
     where: { studentBillId },

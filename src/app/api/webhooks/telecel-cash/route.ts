@@ -65,6 +65,7 @@ async function handleSuccessfulPayment(data: {
 
     const payment = await tx.payment.create({
       data: {
+        schoolId: bill.schoolId,
         studentBillId: bill.id,
         studentId: onlineTxn.studentId,
         amount,
@@ -78,6 +79,7 @@ async function handleSuccessfulPayment(data: {
     const receiptNumber = await generateOnlineReceiptNumber(tx);
     await tx.receipt.create({
       data: {
+        schoolId: bill.schoolId,
         paymentId: payment.id,
         receiptNumber,
       },

@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import { requestTransferSchema } from "../schemas";
@@ -15,11 +15,9 @@ export async function getTransfersAction(filters?: {
   page?: number;
   pageSize?: number;
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BED_TRANSFERS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BED_TRANSFERS_READ);
   if (permErr) return permErr;
 
   const page = filters?.page ?? 1;
@@ -145,22 +143,15 @@ export async function requestTransferAction(
     effectiveDate?: string;
   },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BED_TRANSFERS_CREATE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BED_TRANSFERS_CREATE);
   if (permErr) return permErr;
 
   const parsed = requestTransferSchema.safeParse(data);
   if (!parsed.success) {
     return { error: parsed.error.issues.map((e: { message: string }) => e.message).join(", ") };
-  }
-
-  const school = await db.school.findFirst();
-  if (!school) {
-    return { error: "No school configured" };
-  }
+  }
 
   // Validate fromBed exists
   const fromBed = await db.bed.findUnique({
@@ -201,7 +192,7 @@ export async function requestTransferAction(
 
   const transfer = await db.bedTransfer.create({
     data: {
-      schoolId: school.id,
+      schoolId: ctx.schoolId,
       transferNumber,
       studentId: parsed.data.studentId,
       fromBedId: parsed.data.fromBedId,
@@ -211,12 +202,12 @@ export async function requestTransferAction(
       effectiveDate: parsed.data.effectiveDate
         ? new Date(parsed.data.effectiveDate)
         : null,
-      requestedBy: session.user.id!,
+      requestedBy: ctx.session.user.id,
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "CREATE",
     entity: "BedTransfer",
     entityId: transfer.id,
@@ -229,11 +220,9 @@ export async function requestTransferAction(
 }
 
 export async function approveTransferAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BED_TRANSFERS_APPROVE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BED_TRANSFERS_APPROVE);
   if (permErr) return permErr;
 
   const transfer = await db.bedTransfer.findUnique({ where: { id } });
@@ -248,13 +237,13 @@ export async function approveTransferAction(id: string) {
     where: { id },
     data: {
       status: "APPROVED",
-      approvedBy: session.user.id!,
+      approvedBy: ctx.session.user.id,
       approvedAt: new Date(),
     },
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "BedTransfer",
     entityId: id,
@@ -268,11 +257,9 @@ export async function approveTransferAction(id: string) {
 }
 
 export async function executeTransferAction(id: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BED_TRANSFERS_APPROVE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BED_TRANSFERS_APPROVE);
   if (permErr) return permErr;
 
   const transfer = await db.bedTransfer.findUnique({ where: { id } });
@@ -315,11 +302,12 @@ export async function executeTransferAction(id: string) {
     // 3. Create new allocation for the toBed
     const newAllocation = await tx.bedAllocation.create({
       data: {
+        schoolId: ctx.schoolId,
         bedId: transfer.toBedId,
         studentId: transfer.studentId,
         termId: currentAllocation.termId,
         academicYearId: currentAllocation.academicYearId,
-        allocatedBy: session.user.id!,
+        allocatedBy: ctx.session.user.id,
       },
     });
 
@@ -342,7 +330,7 @@ export async function executeTransferAction(id: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "BedTransfer",
     entityId: id,
@@ -356,11 +344,9 @@ export async function executeTransferAction(id: string) {
 }
 
 export async function rejectTransferAction(id: string, reason: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BED_TRANSFERS_APPROVE);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BED_TRANSFERS_APPROVE);
   if (permErr) return permErr;
 
   const transfer = await db.bedTransfer.findUnique({ where: { id } });
@@ -380,7 +366,7 @@ export async function rejectTransferAction(id: string, reason: string) {
   });
 
   await audit({
-    userId: session.user.id!,
+    userId: ctx.session.user.id,
     action: "UPDATE",
     entity: "BedTransfer",
     entityId: id,
@@ -394,11 +380,9 @@ export async function rejectTransferAction(id: string, reason: string) {
 }
 
 export async function getStudentTransferHistoryAction(studentId: string) {
-  const session = await auth();
-  if (!session?.user) {
-    return { error: "Unauthorized" };
-  }
-  const permErr = requirePermission(session, PERMISSIONS.BED_TRANSFERS_READ);
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.BED_TRANSFERS_READ);
   if (permErr) return permErr;
 
   const transfers = await db.bedTransfer.findMany({
