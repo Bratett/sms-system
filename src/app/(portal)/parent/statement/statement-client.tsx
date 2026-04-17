@@ -36,11 +36,11 @@ function money(n: number): string {
 }
 
 export function StatementClient({
-  children,
+  students,
   selectedId,
   statement,
 }: {
-  children: Child[];
+  students: Child[];
   selectedId?: string;
   statement: Statement | null;
 }) {
@@ -85,13 +85,13 @@ export function StatementClient({
     <div className="space-y-6">
       <PageHeader title={t("statementTitle")} description={t("statementDesc")} />
 
-      {children.length > 1 && (
+      {students.length > 1 && (
         <select
           value={selectedId ?? ""}
           onChange={(e) => onStudentChange(e.target.value)}
           className="rounded border p-2 text-sm"
         >
-          {children.map((c) => (
+          {students.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name} ({c.studentId})
             </option>

@@ -26,18 +26,26 @@ const marchPeriod: StatutoryReturnPeriod = {
   label: "March 2026",
 };
 
+const DEMO_STAFF = {
+  id: "s1",
+  staffId: "STF/001",
+  firstName: "Kofi",
+  lastName: "Mensah",
+  tinNumber: "C001",
+  ssnitNumber: "SSNIT001",
+};
+
+function mockStaffLookup() {
+  prismaMock.staff.findMany.mockResolvedValue([DEMO_STAFF] as never);
+}
+
 function payrollEntry(overrides: Partial<Record<string, unknown>> = {}) {
+  // Note: generators now fetch Staff via a separate query (PayrollEntry has
+  // no inline staff relation in the Prisma schema), so tests mock
+  // `db.staff.findMany` via `mockStaffLookup()` rather than embedding it here.
   return {
     id: "pe1",
     staffId: "s1",
-    staff: {
-      id: "s1",
-      staffId: "STF/001",
-      firstName: "Kofi",
-      lastName: "Mensah",
-      tinNumber: "C001",
-      ssnitNumber: "SSNIT001",
-    },
     basicSalary: 3000,
     totalAllowances: 500,
     totalDeductions: 600,
@@ -56,7 +64,11 @@ function payrollEntry(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 describe("generatePayeReturn", () => {
-  beforeEach(() => prismaMock.payrollEntry.findMany.mockReset());
+  beforeEach(() => {
+    prismaMock.payrollEntry.findMany.mockReset();
+    prismaMock.staff.findMany.mockReset();
+    mockStaffLookup();
+  });
 
   it("returns one row per payroll entry with PAYE extracted", async () => {
     prismaMock.payrollEntry.findMany.mockResolvedValue([payrollEntry()] as never);
@@ -80,7 +92,11 @@ describe("generatePayeReturn", () => {
 });
 
 describe("generateSsnitTier1Return", () => {
-  beforeEach(() => prismaMock.payrollEntry.findMany.mockReset());
+  beforeEach(() => {
+    prismaMock.payrollEntry.findMany.mockReset();
+    prismaMock.staff.findMany.mockReset();
+    mockStaffLookup();
+  });
 
   it("picks the Tier 1 row and reports employee + employer contributions", async () => {
     prismaMock.payrollEntry.findMany.mockResolvedValue([payrollEntry()] as never);
@@ -93,7 +109,11 @@ describe("generateSsnitTier1Return", () => {
 });
 
 describe("generateSsnitTier2Return", () => {
-  beforeEach(() => prismaMock.payrollEntry.findMany.mockReset());
+  beforeEach(() => {
+    prismaMock.payrollEntry.findMany.mockReset();
+    prismaMock.staff.findMany.mockReset();
+    mockStaffLookup();
+  });
 
   it("does not confuse Tier 2 with Tier 1 (name disambiguation)", async () => {
     prismaMock.payrollEntry.findMany.mockResolvedValue([payrollEntry()] as never);
@@ -110,15 +130,21 @@ describe("generateGetFundReturn", () => {
         id: "g1",
         name: "Free SHS disbursement",
         subsidyType: "FREE_SHS",
-        term: { name: "Term 1" },
+        termId: "term-1",
         expectedAmount: 10000,
         receivedAmount: 8000,
         status: "PARTIALLY_RECEIVED",
       },
     ] as never);
+    // Term is fetched via a separate query (GovernmentSubsidy has no
+    // inline `term` relation in the Prisma schema).
+    prismaMock.term.findMany.mockResolvedValue([
+      { id: "term-1", name: "Term 1" },
+    ] as never);
     const r = await generateGetFundReturn("default-school", employer, marchPeriod);
     expect(r.kind).toBe("GH_GETFUND");
     expect(r.rows[0].variance).toBe(-2000);
+    expect(r.rows[0].termName).toBe("Term 1");
     expect(r.totals.variance).toBe(-2000);
   });
 });
@@ -145,6 +171,12 @@ describe("generateVatReturn", () => {
 });
 
 describe("exportStatutoryReturn", () => {
+  beforeEach(() => {
+    prismaMock.payrollEntry.findMany.mockReset();
+    prismaMock.staff.findMany.mockReset();
+    mockStaffLookup();
+  });
+
   it("produces a CSV buffer with a TOTALS row appended", async () => {
     prismaMock.payrollEntry.findMany.mockResolvedValue([payrollEntry()] as never);
     const ret = await generatePayeReturn("default-school", employer, marchPeriod);

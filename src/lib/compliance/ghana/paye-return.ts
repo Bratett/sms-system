@@ -30,6 +30,10 @@ export interface PayeReturnRow {
   taxableIncome: number;
   paye: number;
   netPay: number;
+  // Index signature makes the row assignable to `Record<string, unknown>` so
+  // the shared exporter + `sum<T extends Record<string, unknown>>` helper
+  // type-check without per-call casts.
+  [key: string]: unknown;
 }
 
 interface PayrollEntryDetails {
@@ -43,6 +47,8 @@ export async function generatePayeReturn(
   employer: EmployerContext,
   period: StatutoryReturnPeriod,
 ): Promise<StatutoryReturn<PayeReturnRow>> {
+  // PayrollEntry carries `staffId` but no inline `staff` relation, so we
+  // fetch the matching Staff rows in a second query and join in memory.
   const entries = await db.payrollEntry.findMany({
     where: {
       schoolId,
@@ -53,19 +59,21 @@ export async function generatePayeReturn(
         ],
       },
     },
-    include: {
-      staff: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          staffId: true,
-          tinNumber: true,
-          ssnitNumber: true,
-        },
-      },
+  });
+
+  const staffIds = [...new Set(entries.map((e) => e.staffId))];
+  const staff = await db.staff.findMany({
+    where: { id: { in: staffIds } },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      staffId: true,
+      tinNumber: true,
+      ssnitNumber: true,
     },
   });
+  const staffById = new Map(staff.map((s) => [s.id, s]));
 
   const rows: PayeReturnRow[] = entries.map((e) => {
     const details = (e.details as PayrollEntryDetails | null) ?? {};
@@ -81,13 +89,14 @@ export async function generatePayeReturn(
     const gross = basic + allowances;
     const reliefs = details.reliefs ?? 0;
     const taxable = Math.max(0, gross - reliefs);
+    const s = staffById.get(e.staffId);
 
     return {
       staffId: e.staffId,
-      staffRef: e.staff.staffId,
-      staffName: `${e.staff.firstName} ${e.staff.lastName}`,
-      tin: e.staff.tinNumber,
-      ssnitNumber: e.staff.ssnitNumber,
+      staffRef: s?.staffId ?? e.staffId,
+      staffName: s ? `${s.firstName} ${s.lastName}` : e.staffId,
+      tin: s?.tinNumber ?? null,
+      ssnitNumber: s?.ssnitNumber ?? null,
       basicSalary: basic,
       allowances,
       grossSalary: gross,

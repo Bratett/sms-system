@@ -24,7 +24,7 @@ export default async function ParentStatementPage({ searchParams }: Props) {
 
   return (
     <StatementClient
-      children={children.map((c: { id: string; studentId: string; firstName: string; lastName: string }) => ({
+      students={children.map((c: { id: string; studentId: string; firstName: string; lastName: string }) => ({
         id: c.id,
         studentId: c.studentId,
         name: `${c.firstName} ${c.lastName}`,

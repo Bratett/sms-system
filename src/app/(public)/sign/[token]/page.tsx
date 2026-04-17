@@ -54,6 +54,11 @@ export default async function PublicSignPage({
       />
     );
   }
+  // Server-component async function runs once per request, so wall-clock
+  // access is deterministic within a single render pass. The react-hooks
+  // purity rule doesn't distinguish server from client components; this
+  // disable is scoped to the single call.
+  // eslint-disable-next-line react-hooks/purity
   if (link.expiresAt.getTime() < Date.now()) {
     return (
       <SignStateCard

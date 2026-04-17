@@ -25,6 +25,7 @@ export interface VatReturnRow {
   paidDate: Date | null;
   referenceNumber: string | null;
   status: string;
+  [key: string]: unknown;
 }
 
 export async function generateVatReturn(

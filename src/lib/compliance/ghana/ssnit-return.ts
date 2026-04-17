@@ -27,6 +27,7 @@ export interface SsnitReturnRow {
   employeeContribution: number;
   employerContribution: number;
   totalContribution: number;
+  [key: string]: unknown;
 }
 
 interface PayrollEntryDetails {
@@ -60,29 +61,34 @@ async function generate(
         ],
       },
     },
-    include: {
-      staff: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          staffId: true,
-          ssnitNumber: true,
-        },
-      },
+  });
+
+  // PayrollEntry has no inline `staff` relation; resolve staff in a second
+  // query and merge in memory. See paye-return.ts for the same pattern.
+  const staffIds = [...new Set(entries.map((e) => e.staffId))];
+  const staff = await db.staff.findMany({
+    where: { id: { in: staffIds } },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      staffId: true,
+      ssnitNumber: true,
     },
   });
+  const staffById = new Map(staff.map((s) => [s.id, s]));
 
   const rows: SsnitReturnRow[] = entries.map((e) => {
     const details = (e.details as PayrollEntryDetails | null) ?? {};
     const match = details.deductions?.find((d) => matchesTier(d.name, tier));
     const employee = match ? Number(match.employee) : 0;
     const employer2 = match ? Number(match.employer ?? 0) : 0;
+    const s = staffById.get(e.staffId);
     return {
       staffId: e.staffId,
-      staffRef: e.staff.staffId,
-      staffName: `${e.staff.firstName} ${e.staff.lastName}`,
-      ssnitNumber: e.staff.ssnitNumber,
+      staffRef: s?.staffId ?? e.staffId,
+      staffName: s ? `${s.firstName} ${s.lastName}` : e.staffId,
+      ssnitNumber: s?.ssnitNumber ?? null,
       basicSalary: toNum(e.basicSalary),
       employeeContribution: employee,
       employerContribution: employer2,

@@ -24,6 +24,7 @@ export interface GetFundReturnRow {
   receivedAmount: number;
   variance: number;
   status: string;
+  [key: string]: unknown;
 }
 
 export async function generateGetFundReturn(
@@ -36,9 +37,16 @@ export async function generateGetFundReturn(
       schoolId,
       createdAt: { gte: period.from, lt: period.to },
     },
-    include: { term: { select: { name: true } } },
     orderBy: { createdAt: "asc" },
   });
+
+  // GovernmentSubsidy has no inline `term` relation; resolve term names in
+  // a second query and map by id.
+  const termIds = [...new Set(subsidies.map((s) => s.termId).filter((x): x is string => !!x))];
+  const terms = termIds.length
+    ? await db.term.findMany({ where: { id: { in: termIds } }, select: { id: true, name: true } })
+    : [];
+  const termById = new Map(terms.map((t) => [t.id, t.name]));
 
   const rows: GetFundReturnRow[] = subsidies.map((s) => {
     const expected = toNum(s.expectedAmount);
@@ -47,7 +55,7 @@ export async function generateGetFundReturn(
       subsidyId: s.id,
       name: s.name,
       subsidyType: String(s.subsidyType),
-      termName: s.term?.name ?? null,
+      termName: s.termId ? termById.get(s.termId) ?? null : null,
       expectedAmount: expected,
       receivedAmount: received,
       variance: Math.round((received - expected) * 100) / 100,
