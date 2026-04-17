@@ -1,12 +1,12 @@
 model Hostel {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   schoolId    String
   name        String
   gender      Gender
-  capacity    Int    @default(0)
+  capacity    Int      @default(0)
   wardenId    String? // staffId or userId of hostel warden
   description String?
-  status      Status @default(ACTIVE)
+  status      Status   @default(ACTIVE)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -17,13 +17,13 @@ model Hostel {
 }
 
 model Dormitory {
-  id       String @id @default(cuid())
-  hostelId String
-  schoolId String
-  name     String
-  floor    String?
-  capacity Int    @default(0)
-  status   Status @default(ACTIVE)
+  id        String   @id @default(cuid())
+  hostelId  String
+  schoolId  String
+  name      String
+  floor     String?
+  capacity  Int      @default(0)
+  status    Status   @default(ACTIVE)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -44,8 +44,8 @@ model Bed {
   status      BedStatus @default(AVAILABLE)
   createdAt   DateTime  @default(now())
 
-  dormitory   Dormitory      @relation(fields: [dormitoryId], references: [id], onDelete: Cascade)
-  school      School         @relation("SchoolBed", fields: [schoolId], references: [id])
+  dormitory   Dormitory       @relation(fields: [dormitoryId], references: [id], onDelete: Cascade)
+  school      School          @relation("SchoolBed", fields: [schoolId], references: [id])
   allocations BedAllocation[]
 
   @@unique([dormitoryId, bedNumber])
@@ -62,7 +62,7 @@ model BedAllocation {
   termId         String
   academicYearId String
   allocatedAt    DateTime            @default(now())
-  allocatedBy    String              // userId
+  allocatedBy    String // userId
   status         BedAllocationStatus @default(ACTIVE)
   vacatedAt      DateTime?
 
@@ -79,25 +79,25 @@ model BedAllocation {
 }
 
 model Exeat {
-  id                String      @id @default(cuid())
-  exeatNumber       String      @unique // EXT/YYYY/NNNN
-  studentId         String
-  schoolId          String
-  termId            String
-  reason            String
-  type              ExeatType   @default(NORMAL)
-  departureDate     DateTime
-  departureTime     String?
+  id                 String      @id @default(cuid())
+  exeatNumber        String      @unique // EXT/YYYY/NNNN
+  studentId          String
+  schoolId           String
+  termId             String
+  reason             String
+  type               ExeatType   @default(NORMAL)
+  departureDate      DateTime
+  departureTime      String?
   expectedReturnDate DateTime
-  actualReturnDate  DateTime?
-  actualReturnTime  String?
-  guardianName      String?
-  guardianPhone     String?
-  status            ExeatStatus @default(REQUESTED)
-  requestedAt       DateTime    @default(now())
-  requestedBy       String      // userId
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  actualReturnDate   DateTime?
+  actualReturnTime   String?
+  guardianName       String?
+  guardianPhone      String?
+  status             ExeatStatus @default(REQUESTED)
+  requestedAt        DateTime    @default(now())
+  requestedBy        String // userId
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
   approvals ExeatApproval[]
   otps      ExeatOtp[]
@@ -111,14 +111,14 @@ model Exeat {
 }
 
 model ExeatApproval {
-  id           String @id @default(cuid())
+  id           String              @id @default(cuid())
   exeatId      String
   schoolId     String
   approverRole String // e.g., "housemaster", "headmaster"
   approverId   String // userId
   action       ExeatApprovalAction
   comments     String?
-  actionAt     DateTime @default(now())
+  actionAt     DateTime            @default(now())
 
   exeat  Exeat  @relation(fields: [exeatId], references: [id], onDelete: Cascade)
   school School @relation("SchoolExeatApproval", fields: [schoolId], references: [id])
@@ -128,13 +128,13 @@ model ExeatApproval {
 }
 
 model RollCall {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   hostelId    String
   schoolId    String
   date        DateTime
   type        RollCallType @default(EVENING)
-  conductedBy String   // userId
-  conductedAt DateTime @default(now())
+  conductedBy String // userId
+  conductedAt DateTime     @default(now())
 
   records RollCallRecord[]
   school  School           @relation("SchoolRollCall", fields: [schoolId], references: [id])
@@ -212,9 +212,9 @@ enum RollCallStatus {
 // ─── Phase 1: Boarding Incidents ────────────────────────────────────
 
 model BoardingIncident {
-  id                 String                    @id @default(cuid())
+  id                 String                   @id @default(cuid())
   schoolId           String
-  incidentNumber     String                    @unique // BIN/YYYY/NNNN
+  incidentNumber     String                   @unique // BIN/YYYY/NNNN
   hostelId           String
   dormitoryId        String?
   studentIds         String[]
@@ -222,18 +222,18 @@ model BoardingIncident {
   date               DateTime
   time               String?
   category           BoardingIncidentCategory
-  severity           BoardingIncidentSeverity   @default(MINOR)
+  severity           BoardingIncidentSeverity @default(MINOR)
   title              String
   description        String
   actionTaken        String?
-  status             BoardingIncidentStatus     @default(REPORTED)
+  status             BoardingIncidentStatus   @default(REPORTED)
   resolvedBy         String?
   resolvedAt         DateTime?
   resolution         String?
   linkedDisciplineId String?
-  parentNotified     Boolean                    @default(false)
-  createdAt          DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
+  parentNotified     Boolean                  @default(false)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
 
   @@index([schoolId])
   @@index([hostelId])
@@ -305,14 +305,14 @@ model SickBayAdmission {
 }
 
 model MedicationLog {
-  id                   String   @id @default(cuid())
-  sickBayAdmissionId   String
-  schoolId             String
-  medicationName       String
-  dosage               String
-  administeredBy       String // userId
-  administeredAt       DateTime @default(now())
-  notes                String?
+  id                 String   @id @default(cuid())
+  sickBayAdmissionId String
+  schoolId           String
+  medicationName     String
+  dosage             String
+  administeredBy     String // userId
+  administeredAt     DateTime @default(now())
+  notes              String?
 
   admission SickBayAdmission @relation(fields: [sickBayAdmissionId], references: [id], onDelete: Cascade)
   school    School           @relation("SchoolMedicationLog", fields: [schoolId], references: [id])
@@ -511,19 +511,19 @@ enum MaintenanceStatus {
 // workflow as a required transition.
 
 model ExeatOtp {
-  id          String        @id @default(cuid())
+  id          String          @id @default(cuid())
   exeatId     String
   schoolId    String
   // Hashed 6-digit code (never store the plaintext).
   codeHash    String
   channel     ExeatOtpChannel
-  sentTo      String        // phone number or WhatsApp ID that received it
-  sentAt      DateTime      @default(now())
+  sentTo      String // phone number or WhatsApp ID that received it
+  sentAt      DateTime        @default(now())
   expiresAt   DateTime
   verifiedAt  DateTime?
-  attempts    Int           @default(0)
-  maxAttempts Int           @default(5)
-  status      ExeatOtpStatus @default(SENT)
+  attempts    Int             @default(0)
+  maxAttempts Int             @default(5)
+  status      ExeatOtpStatus  @default(SENT)
 
   exeat Exeat @relation(fields: [exeatId], references: [id], onDelete: Cascade)
 
@@ -541,7 +541,7 @@ enum ExeatOtpStatus {
   SENT
   VERIFIED
   EXPIRED
-  FAILED      // attempts exceeded
+  FAILED // attempts exceeded
 }
 
 // ─── Phase 2: Gate depart/return movements ──────────────────────────
@@ -551,14 +551,14 @@ enum ExeatOtpStatus {
 // but these rows are the audit trail for "did the student actually leave".
 
 model ExeatMovement {
-  id         String               @id @default(cuid())
+  id         String            @id @default(cuid())
   exeatId    String
   schoolId   String
   kind       ExeatMovementKind
-  officerId  String                // userId of gate officer
-  occurredAt DateTime              @default(now())
-  geoLat     Decimal?              @db.Decimal(10, 7)
-  geoLng     Decimal?              @db.Decimal(10, 7)
+  officerId  String // userId of gate officer
+  occurredAt DateTime          @default(now())
+  geoLat     Decimal?          @db.Decimal(10, 7)
+  geoLng     Decimal?          @db.Decimal(10, 7)
   notes      String?
 
   exeat Exeat @relation(fields: [exeatId], references: [id], onDelete: Cascade)

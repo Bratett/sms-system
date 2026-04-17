@@ -1,26 +1,26 @@
 model Student {
-  id              String        @id @default(cuid())
-  schoolId        String
-  studentId       String        @unique // Auto-generated: SCH/YYYY/NNNN
-  userId          String?       @unique // Optional link to User for portal access
-  firstName       String
-  lastName        String
-  otherNames      String?
-  dateOfBirth     DateTime
-  gender          Gender
-  nationality     String?       @default("Ghanaian")
-  hometown        String?
-  region          String?
-  religion        String?
-  bloodGroup      String?
+  id                String         @id @default(cuid())
+  schoolId          String
+  studentId         String         @unique // Auto-generated: SCH/YYYY/NNNN
+  userId            String?        @unique // Optional link to User for portal access
+  firstName         String
+  lastName          String
+  otherNames        String?
+  dateOfBirth       DateTime
+  gender            Gender
+  nationality       String?        @default("Ghanaian")
+  hometown          String?
+  region            String?
+  religion          String?
+  bloodGroup        String?
   medicalConditions String?
-  allergies       String?
-  photoUrl        String?
-  boardingStatus  BoardingStatus @default(DAY)
-  status          StudentStatus @default(ACTIVE)
-  enrollmentDate  DateTime      @default(now())
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  allergies         String?
+  photoUrl          String?
+  boardingStatus    BoardingStatus @default(DAY)
+  status            StudentStatus  @default(ACTIVE)
+  enrollmentDate    DateTime       @default(now())
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   guardians       StudentGuardian[]
   enrollments     Enrollment[]
@@ -47,7 +47,7 @@ model Guardian {
   email        String?
   occupation   String?
   address      String?
-  relationship String?  // e.g., Father, Mother, Uncle, Guardian
+  relationship String? // e.g., Father, Mother, Uncle, Guardian
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -91,40 +91,40 @@ model StudentHouse {
 }
 
 model AdmissionApplication {
-  id                    String          @id @default(cuid())
-  schoolId              String
-  academicYearId        String
-  applicationNumber     String          @unique // APP/YYYY/NNNN
-  firstName             String
-  lastName              String
-  otherNames            String?
-  dateOfBirth           DateTime
-  gender                Gender
-  previousSchool        String?
-  jhsIndexNumber        String?
-  jhsAggregate          Int?
+  id                     String            @id @default(cuid())
+  schoolId               String
+  academicYearId         String
+  applicationNumber      String            @unique // APP/YYYY/NNNN
+  firstName              String
+  lastName               String
+  otherNames             String?
+  dateOfBirth            DateTime
+  gender                 Gender
+  previousSchool         String?
+  jhsIndexNumber         String?
+  jhsAggregate           Int?
   programmePreference1Id String?
   programmePreference2Id String?
-  guardianName          String
-  guardianPhone         String
-  guardianEmail         String?
-  guardianRelationship  String?
-  guardianAddress       String?
-  guardianOccupation    String?
-  boardingStatus        BoardingStatus  @default(DAY)
-  applicationType       ApplicationType @default(STANDARD)
-  applicationSource     ApplicationSource @default(STAFF)
-  beceIndexNumber       String?
-  enrollmentCode        String?
-  placementSchoolCode   String?
-  status                AdmissionStatus @default(SUBMITTED)
-  notes                 String?
-  submittedAt           DateTime        @default(now())
-  reviewedBy            String?
-  reviewedAt            DateTime?
-  enrolledStudentId     String?         // Link to Student record after enrollment
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
+  guardianName           String
+  guardianPhone          String
+  guardianEmail          String?
+  guardianRelationship   String?
+  guardianAddress        String?
+  guardianOccupation     String?
+  boardingStatus         BoardingStatus    @default(DAY)
+  applicationType        ApplicationType   @default(STANDARD)
+  applicationSource      ApplicationSource @default(STAFF)
+  beceIndexNumber        String?
+  enrollmentCode         String?
+  placementSchoolCode    String?
+  status                 AdmissionStatus   @default(SUBMITTED)
+  notes                  String?
+  submittedAt            DateTime          @default(now())
+  reviewedBy             String?
+  reviewedAt             DateTime?
+  enrolledStudentId      String? // Link to Student record after enrollment
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
 
   documents AdmissionDocument[]
 
@@ -142,7 +142,7 @@ model AdmissionDocument {
   id            String   @id @default(cuid())
   applicationId String
   schoolId      String
-  documentType  String   // e.g., "Birth Certificate", "JHS Report", "Passport Photo"
+  documentType  String // e.g., "Birth Certificate", "JHS Report", "Passport Photo"
   fileName      String
   fileUrl       String
   uploadedAt    DateTime @default(now())
@@ -157,20 +157,20 @@ model AdmissionDocument {
 // ─── Medical Records ────────────────────────────────────────────────
 
 model MedicalRecord {
-  id          String   @id @default(cuid())
-  schoolId    String
-  studentId   String
-  recordedBy  String   // User ID (nurse/welfare officer)
-  date        DateTime
-  type        String   // VISIT, CONDITION, ALLERGY, VACCINATION, INJURY, REFERRAL, OTHER
-  title       String
-  description String
-  treatment   String?
-  followUpDate DateTime?
-  isConfidential Boolean @default(true)
-  attachmentKey String? // R2 file key for any medical documents
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String    @id @default(cuid())
+  schoolId       String
+  studentId      String
+  recordedBy     String // User ID (nurse/welfare officer)
+  date           DateTime
+  type           String // VISIT, CONDITION, ALLERGY, VACCINATION, INJURY, REFERRAL, OTHER
+  title          String
+  description    String
+  treatment      String?
+  followUpDate   DateTime?
+  isConfidential Boolean   @default(true)
+  attachmentKey  String? // R2 file key for any medical documents
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 

@@ -409,69 +409,6 @@ export async function getMyFeesAction() {
   };
 }
 
-// ─── Get My Timetable ────────────────────────────────────────────────
-
-export async function getMyTimetableAction() {
-  const ctx = await requireAuth();
-  if ("error" in ctx) return ctx;
-
-  const student = await getStudentByUserId(ctx.session.user.id);
-  if (!student) {
-    return { error: "No student profile linked to your account." };
-  }
-
-  const enrollment = await db.enrollment.findFirst({
-    where: { studentId: student.id, status: "ACTIVE" },
-    orderBy: { academicYearId: "desc" },
-    select: { classArmId: true, academicYearId: true },
-  });
-
-  if (!enrollment) {
-    return { data: { timetable: [], periods: [] } };
-  }
-
-  const currentTerm = await db.term.findFirst({
-    where: { isCurrent: true },
-    select: { id: true },
-  });
-
-  if (!currentTerm) {
-    return { data: { timetable: [], periods: [] } };
-  }
-
-  const [slots, periods] = await Promise.all([
-    db.timetableSlot.findMany({
-      where: {
-        classArmId: enrollment.classArmId,
-        termId: currentTerm.id,
-      },
-      include: {
-        subject: { select: { name: true, code: true } },
-        teacher: { select: { firstName: true, lastName: true } },
-        period: { select: { name: true, startTime: true, endTime: true, order: true, type: true } },
-        room: { select: { name: true } },
-      },
-      orderBy: [{ dayOfWeek: "asc" }, { period: { order: "asc" } }],
-    }),
-    db.period.findMany({
-      where: { schoolId: student.schoolId, isActive: true },
-      orderBy: { order: "asc" },
-      select: { id: true, name: true, startTime: true, endTime: true, order: true, type: true },
-    }),
-  ]);
-
-  const timetable = slots.map((s) => ({
-    id: s.id,
-    dayOfWeek: s.dayOfWeek,
-    period: s.period,
-    subject: s.subject,
-    teacher: s.teacher ? `${s.teacher.firstName} ${s.teacher.lastName}` : null,
-    room: s.room?.name || null,
-  }));
-
-  return { data: { timetable, periods } };
-}
-
 // ─── Get My Announcements ───────────────────────────────────────────
 
 export async function getMyAnnouncementsAction() {

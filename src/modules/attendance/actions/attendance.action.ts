@@ -22,48 +22,11 @@ export async function openAttendanceRegisterAction(data: {
   const dateObj = new Date(data.date);
   dateObj.setHours(0, 0, 0, 0);
 
-  let substituteForId: string | undefined;
+  const substituteForId: string | undefined = undefined;
 
   // For PERIOD attendance, validate periodId exists
   if (type === "PERIOD" && !data.periodId) {
     return { error: "Period is required for period-based attendance." };
-  }
-
-  // If period-based, validate the period exists in the timetable for this class arm + day
-  // Also check if user is the scheduled teacher OR an approved substitute
-  if (type === "PERIOD" && data.periodId) {
-    const dayOfWeek = dateObj.getDay() === 0 ? 7 : dateObj.getDay(); // 1=Mon, 7=Sun
-    const currentTerm = await db.term.findFirst({ where: { isCurrent: true } });
-
-    if (currentTerm) {
-      const slot = await db.timetableSlot.findFirst({
-        where: {
-          classArmId: data.classArmId,
-          periodId: data.periodId,
-          dayOfWeek,
-          termId: currentTerm.id,
-        },
-      });
-
-      if (!slot) {
-        return { error: "No timetable slot found for this class, period, and day." };
-      }
-
-      // Check if there's an approved substitution for this slot on this date
-      const substitution = await db.timetableSubstitution.findFirst({
-        where: {
-          timetableSlotId: slot.id,
-          date: dateObj,
-          status: "APPROVED",
-          substituteTeacherId: ctx.session.user.id,
-        },
-      });
-
-      // If the user is a substitute, track it
-      if (substitution) {
-        substituteForId = slot.teacherId;
-      }
-    }
   }
 
   // Check if register already exists for this class/date/type/period
@@ -674,82 +637,12 @@ export async function getStudentAttendanceAction(studentId: string, termId?: str
 
 // ─── Generate Attendance Registers from Timetable ───────────────────
 
-export async function generateDailyRegistersFromTimetableAction(data: {
+export async function generateDailyRegistersFromTimetableAction(_data: {
   classArmId: string;
   date: string;
 }) {
-  const ctx = await requireSchoolContext();
-  if ("error" in ctx) return ctx;
-
-  const dateObj = new Date(data.date);
-  dateObj.setHours(0, 0, 0, 0);
-  const dayOfWeek = dateObj.getDay() === 0 ? 7 : dateObj.getDay();
-
-  const currentTerm = await db.term.findFirst({ where: { isCurrent: true } });
-  if (!currentTerm) {
-    return { error: "No active term found." };
-  }
-
-  // Get timetable slots for this class arm on this day
-  const slots = await db.timetableSlot.findMany({
-    where: {
-      classArmId: data.classArmId,
-      dayOfWeek,
-      termId: currentTerm.id,
-    },
-    include: {
-      period: { select: { id: true, name: true, type: true } },
-    },
-  });
-
-  // Filter to lesson periods only
-  const lessonSlots = slots.filter((s) => s.period.type === "LESSON");
-
-  if (lessonSlots.length === 0) {
-    return { error: "No lesson periods found in the timetable for this day." };
-  }
-
-  let created = 0;
-  let existing = 0;
-
-  for (const slot of lessonSlots) {
-    // Check if register already exists
-    const existingRegister = await db.attendanceRegister.findFirst({
-      where: {
-        classArmId: data.classArmId,
-        date: dateObj,
-        type: "PERIOD",
-        periodId: slot.period.id,
-      },
-    });
-
-    if (existingRegister) {
-      existing++;
-      continue;
-    }
-
-    await db.attendanceRegister.create({
-      data: {
-        schoolId: ctx.schoolId,
-        classArmId: data.classArmId,
-        date: dateObj,
-        type: "PERIOD",
-        periodId: slot.period.id,
-        takenBy: ctx.session.user.id,
-      },
-    });
-    created++;
-  }
-
-  await audit({
-    userId: ctx.session.user.id,
-    action: "CREATE",
-    entity: "AttendanceRegister",
-    entityId: data.classArmId,
-    module: "attendance",
-    description: `Generated ${created} period-based attendance registers from timetable`,
-    metadata: { classArmId: data.classArmId, date: data.date, created, existing },
-  });
-
-  return { data: { created, existing, total: lessonSlots.length } };
+  return {
+    error:
+      "Timetable module has been removed. Registers can still be created manually from the attendance page.",
+  };
 }

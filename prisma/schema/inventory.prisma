@@ -3,7 +3,7 @@ model Store {
   schoolId    String
   name        String
   description String?
-  managerId   String?  // staffId or userId
+  managerId   String? // staffId or userId
   status      Status   @default(ACTIVE)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -42,12 +42,12 @@ model StoreItem {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  store     Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  category  ItemCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  movements StockMovement[]
+  store              Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category           ItemCategory?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  movements          StockMovement[]
   purchaseOrderItems PurchaseOrderItem[]
-  expiryTracking ItemExpiryTracking[]
-  wastageRecords WastageRecord[]
+  expiryTracking     ItemExpiryTracking[]
+  wastageRecords     WastageRecord[]
 
   @@unique([storeId, name])
   @@index([storeId])
@@ -57,18 +57,18 @@ model StoreItem {
 }
 
 model StockMovement {
-  id               String        @id @default(cuid())
+  id               String       @id @default(cuid())
   storeItemId      String
   type             MovementType
   quantity         Int
   previousQuantity Int
   newQuantity      Int
   reason           String?
-  referenceType    String?       // purchaseOrder, issuance, return, adjustment
+  referenceType    String? // purchaseOrder, issuance, return, adjustment
   referenceId      String?
-  issuedTo         String?       // department, staff, hostel, class
-  conductedBy      String        // userId
-  conductedAt      DateTime      @default(now())
+  issuedTo         String? // department, staff, hostel, class
+  conductedBy      String // userId
+  conductedAt      DateTime     @default(now())
 
   storeItem StoreItem @relation(fields: [storeItemId], references: [id], onDelete: Cascade)
 
@@ -99,12 +99,12 @@ model Supplier {
 }
 
 model PurchaseRequest {
-  id          String              @id @default(cuid())
+  id          String                @id @default(cuid())
   storeId     String
-  requestedBy String              // userId
+  requestedBy String // userId
   reason      String?
   status      PurchaseRequestStatus @default(PENDING)
-  requestedAt DateTime            @default(now())
+  requestedAt DateTime              @default(now())
   approvedBy  String?
   approvedAt  DateTime?
 
@@ -115,10 +115,10 @@ model PurchaseRequest {
 }
 
 model PurchaseRequestItem {
-  id                String @id @default(cuid())
-  purchaseRequestId String
-  storeItemId       String
-  quantityRequested Int
+  id                 String   @id @default(cuid())
+  purchaseRequestId  String
+  storeItemId        String
+  quantityRequested  Int
   estimatedUnitPrice Decimal? @db.Decimal(18, 2)
 
   purchaseRequest PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
@@ -127,18 +127,18 @@ model PurchaseRequestItem {
 }
 
 model PurchaseOrder {
-  id                String            @id @default(cuid())
+  id                String              @id @default(cuid())
   purchaseRequestId String?
   supplierId        String
-  orderNumber       String            @unique // PO/YYYY/NNNN
-  totalAmount       Decimal           @default(0) @db.Decimal(18, 2)
+  orderNumber       String              @unique // PO/YYYY/NNNN
+  totalAmount       Decimal             @default(0) @db.Decimal(18, 2)
   status            PurchaseOrderStatus @default(DRAFT)
-  orderedBy         String            // userId
-  orderedAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  orderedBy         String // userId
+  orderedAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
-  supplier Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  items    PurchaseOrderItem[]
+  supplier      Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  items         PurchaseOrderItem[]
   goodsReceived GoodsReceived[]
 
   @@index([supplierId])
@@ -147,7 +147,7 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id              String @id @default(cuid())
+  id              String  @id @default(cuid())
   purchaseOrderId String
   storeItemId     String
   quantity        Int
@@ -163,18 +163,18 @@ model PurchaseOrderItem {
 model GoodsReceived {
   id              String   @id @default(cuid())
   purchaseOrderId String
-  receivedBy      String   // userId
+  receivedBy      String // userId
   receivedAt      DateTime @default(now())
   notes           String?
 
-  purchaseOrder PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder       @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   items         GoodsReceivedItem[]
 
   @@index([purchaseOrderId])
 }
 
 model GoodsReceivedItem {
-  id               String @id @default(cuid())
+  id               String  @id @default(cuid())
   goodsReceivedId  String
   storeItemId      String
   quantityReceived Int
@@ -215,11 +215,11 @@ enum PurchaseOrderStatus {
 model AssetCategory {
   id                        String              @id @default(cuid())
   schoolId                  String
-  name                      String              // Furniture, ICT Equipment, Vehicles, Buildings, Lab Equipment
+  name                      String // Furniture, ICT Equipment, Vehicles, Buildings, Lab Equipment
   code                      String?
-  defaultUsefulLife         Int?                // years
+  defaultUsefulLife         Int? // years
   defaultDepreciationMethod DepreciationMethod?
-  accountId                 String?             // default GL account for this category
+  accountId                 String? // default GL account for this category
   createdAt                 DateTime            @default(now())
 
   assets FixedAsset[]
@@ -235,7 +235,7 @@ model FixedAsset {
   name               String
   description        String?
   categoryId         String
-  location           String?            // Building, Room, Department
+  location           String? // Building, Room, Department
   departmentId       String?
   serialNumber       String?
   model              String?
@@ -249,11 +249,11 @@ model FixedAsset {
   condition          AssetCondition     @default(GOOD)
   status             AssetStatus        @default(ACTIVE)
   disposedAt         DateTime?
-  disposalMethod     String?            // SOLD, DONATED, SCRAPPED, WRITTEN_OFF
+  disposalMethod     String? // SOLD, DONATED, SCRAPPED, WRITTEN_OFF
   disposalAmount     Decimal?           @db.Decimal(18, 2)
   disposedBy         String?
-  purchaseOrderId    String?            // link to PurchaseOrder
-  accountId          String?            // link to Chart of Accounts
+  purchaseOrderId    String? // link to PurchaseOrder
+  accountId          String? // link to Chart of Accounts
   photoUrl           String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
@@ -276,7 +276,7 @@ model FixedAsset {
 model AssetDepreciation {
   id                 String   @id @default(cuid())
   fixedAssetId       String
-  period             String   // "2025-Q1", "2024-2025"
+  period             String // "2025-Q1", "2024-2025"
   openingValue       Decimal  @db.Decimal(18, 2)
   depreciationAmount Decimal  @db.Decimal(18, 2)
   closingValue       Decimal  @db.Decimal(18, 2)
@@ -289,16 +289,16 @@ model AssetDepreciation {
 }
 
 model AssetMaintenance {
-  id           String   @id @default(cuid())
+  id           String          @id @default(cuid())
   fixedAssetId String
   date         DateTime
   type         MaintenanceType
   description  String
-  cost         Decimal? @db.Decimal(18, 2)
+  cost         Decimal?        @db.Decimal(18, 2)
   performedBy  String?
   nextDueDate  DateTime?
-  recordedBy   String   // userId
-  createdAt    DateTime @default(now())
+  recordedBy   String // userId
+  createdAt    DateTime        @default(now())
 
   fixedAsset FixedAsset @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
 
@@ -338,18 +338,18 @@ enum MaintenanceType {
 // ─── Phase: Inter-Store Transfers ────────────────────────────────
 
 model StoreTransfer {
-  id              String         @id @default(cuid())
-  schoolId        String
-  transferNumber  String         @unique  // TRF/YYYY/NNNN
-  fromStoreId     String
-  toStoreId       String
-  requestedBy     String
-  approvedBy      String?
-  status          TransferStatus @default(PENDING)
-  reason          String?
-  requestedAt     DateTime       @default(now())
-  approvedAt      DateTime?
-  completedAt     DateTime?
+  id             String         @id @default(cuid())
+  schoolId       String
+  transferNumber String         @unique // TRF/YYYY/NNNN
+  fromStoreId    String
+  toStoreId      String
+  requestedBy    String
+  approvedBy     String?
+  status         TransferStatus @default(PENDING)
+  reason         String?
+  requestedAt    DateTime       @default(now())
+  approvedAt     DateTime?
+  completedAt    DateTime?
 
   items StoreTransferItem[]
 
@@ -360,9 +360,9 @@ model StoreTransfer {
 }
 
 model StoreTransferItem {
-  id              String @id @default(cuid())
+  id              String  @id @default(cuid())
   storeTransferId String
-  storeItemId     String  // source store item
+  storeItemId     String // source store item
   targetItemId    String? // target store item (matched by name or manually mapped)
   quantity        Int
   receivedQty     Int?
@@ -385,7 +385,7 @@ enum TransferStatus {
 model Requisition {
   id                String            @id @default(cuid())
   schoolId          String
-  requisitionNumber String            @unique  // REQ/YYYY/NNNN
+  requisitionNumber String            @unique // REQ/YYYY/NNNN
   storeId           String
   department        String
   requestedBy       String
@@ -432,7 +432,7 @@ model StockTake {
   id            String          @id @default(cuid())
   schoolId      String
   storeId       String
-  reference     String          @unique  // ST/YYYY/NNNN
+  reference     String          @unique // ST/YYYY/NNNN
   status        StockTakeStatus @default(PLANNED)
   scheduledDate DateTime?
   startedAt     DateTime?
@@ -453,7 +453,7 @@ model StockTakeItem {
   id               String  @id @default(cuid())
   stockTakeId      String
   storeItemId      String
-  itemName         String  // snapshot of item name at time of stock take
+  itemName         String // snapshot of item name at time of stock take
   systemQuantity   Int
   physicalQuantity Int?
   variance         Int?
@@ -498,9 +498,9 @@ model SupplierRating {
   id              String   @id @default(cuid())
   supplierId      String
   purchaseOrderId String?
-  deliveryScore   Int      // 1-5
-  qualityScore    Int      // 1-5
-  pricingScore    Int      // 1-5
+  deliveryScore   Int // 1-5
+  qualityScore    Int // 1-5
+  pricingScore    Int // 1-5
   overallScore    Decimal  @db.Decimal(3, 1)
   comments        String?
   ratedBy         String
@@ -555,18 +555,18 @@ enum WastageReason {
 // ─── Phase: Asset Lifecycle Enhancements ────────────────────────
 
 model AssetCheckout {
-  id             String         @id @default(cuid())
+  id             String          @id @default(cuid())
   fixedAssetId   String
-  checkedOutTo   String         // staffId or department name
-  checkedOutBy   String         // userId
+  checkedOutTo   String // staffId or department name
+  checkedOutBy   String // userId
   purpose        String?
-  checkoutDate   DateTime       @default(now())
+  checkoutDate   DateTime        @default(now())
   expectedReturn DateTime?
   returnDate     DateTime?
   returnedBy     String?
   condition      AssetCondition?
   returnNotes    String?
-  status         CheckoutStatus @default(CHECKED_OUT)
+  status         CheckoutStatus  @default(CHECKED_OUT)
 
   fixedAsset FixedAsset @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
 
@@ -585,11 +585,11 @@ enum CheckoutStatus {
 model AssetAudit {
   id            String          @id @default(cuid())
   schoolId      String
-  reference     String          @unique  // AA/YYYY/NNNN
+  reference     String          @unique // AA/YYYY/NNNN
   scheduledDate DateTime?
   completedAt   DateTime?
   conductedBy   String?
-  status        StockTakeStatus @default(PLANNED)  // reuse enum
+  status        StockTakeStatus @default(PLANNED) // reuse enum
   notes         String?
   createdAt     DateTime        @default(now())
 
@@ -616,16 +616,16 @@ model AssetAuditItem {
 }
 
 model AssetInsurance {
-  id              String   @id @default(cuid())
-  fixedAssetId    String
-  provider        String
-  policyNumber    String?
-  coverageAmount  Decimal? @db.Decimal(18, 2)
-  premium         Decimal? @db.Decimal(18, 2)
-  startDate       DateTime
-  endDate         DateTime
-  status          Status   @default(ACTIVE)
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  fixedAssetId   String
+  provider       String
+  policyNumber   String?
+  coverageAmount Decimal? @db.Decimal(18, 2)
+  premium        Decimal? @db.Decimal(18, 2)
+  startDate      DateTime
+  endDate        DateTime
+  status         Status   @default(ACTIVE)
+  createdAt      DateTime @default(now())
 
   fixedAsset FixedAsset @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
 
@@ -637,7 +637,7 @@ model AssetWarranty {
   id           String   @id @default(cuid())
   fixedAssetId String
   provider     String
-  warrantyType String?  // Manufacturer, Extended, Third-Party
+  warrantyType String? // Manufacturer, Extended, Third-Party
   startDate    DateTime
   endDate      DateTime
   terms        String?
@@ -660,8 +660,8 @@ model SupplierInvoice {
   id              String                @id @default(cuid())
   schoolId        String
   supplierId      String
-  purchaseOrderId String?               // nullable for non-PO invoices (rare)
-  invoiceNumber   String                // supplier's invoice #
+  purchaseOrderId String? // nullable for non-PO invoices (rare)
+  invoiceNumber   String // supplier's invoice #
   invoiceDate     DateTime
   dueDate         DateTime?
   subTotal        Decimal               @db.Decimal(18, 2)
@@ -671,7 +671,7 @@ model SupplierInvoice {
   status          SupplierInvoiceStatus @default(RECEIVED)
   notes           String?
   documentUrl     String?
-  receivedBy      String                // userId
+  receivedBy      String // userId
   receivedAt      DateTime              @default(now())
   approvedBy      String?
   approvedAt      DateTime?
@@ -693,16 +693,16 @@ model SupplierInvoice {
 }
 
 model SupplierInvoiceItem {
-  id                    String   @id @default(cuid())
-  supplierInvoiceId     String
-  schoolId              String
-  storeItemId           String?
-  purchaseOrderItemId   String?
-  description           String
-  quantity              Decimal  @db.Decimal(18, 4)
-  unitPrice             Decimal  @db.Decimal(18, 4)
-  lineTotal             Decimal  @db.Decimal(18, 2)
-  taxRate               Decimal? @db.Decimal(5, 2)
+  id                  String   @id @default(cuid())
+  supplierInvoiceId   String
+  schoolId            String
+  storeItemId         String?
+  purchaseOrderItemId String?
+  description         String
+  quantity            Decimal  @db.Decimal(18, 4)
+  unitPrice           Decimal  @db.Decimal(18, 4)
+  lineTotal           Decimal  @db.Decimal(18, 2)
+  taxRate             Decimal? @db.Decimal(5, 2)
 
   supplierInvoice SupplierInvoice @relation(fields: [supplierInvoiceId], references: [id], onDelete: Cascade)
 
@@ -714,7 +714,7 @@ model SupplierInvoiceItem {
 model MatchToleranceSetting {
   id                       String   @id @default(cuid())
   schoolId                 String   @unique
-  priceTolerancePercent    Decimal  @default(0) @db.Decimal(5, 2)  // e.g. 2.00 = ±2%
+  priceTolerancePercent    Decimal  @default(0) @db.Decimal(5, 2) // e.g. 2.00 = ±2%
   priceToleranceAbsolute   Decimal  @default(0) @db.Decimal(18, 2) // absolute GHS variance allowed
   quantityTolerancePercent Decimal  @default(0) @db.Decimal(5, 2)
   autoApproveClean         Boolean  @default(false)
@@ -726,22 +726,22 @@ model MatchToleranceSetting {
 }
 
 model ThreeWayMatch {
-  id                String               @id @default(cuid())
+  id                String              @id @default(cuid())
   schoolId          String
   supplierInvoiceId String
   purchaseOrderId   String
   goodsReceivedId   String?
-  result            ThreeWayMatchResult  @default(PENDING)
-  priceVariance     Decimal              @default(0) @db.Decimal(18, 2)
-  quantityVariance  Decimal              @default(0) @db.Decimal(18, 4)
-  withinTolerance   Boolean              @default(false)
-  autoApproved      Boolean              @default(false)
+  result            ThreeWayMatchResult @default(PENDING)
+  priceVariance     Decimal             @default(0) @db.Decimal(18, 2)
+  quantityVariance  Decimal             @default(0) @db.Decimal(18, 4)
+  withinTolerance   Boolean             @default(false)
+  autoApproved      Boolean             @default(false)
   reviewedBy        String?
   reviewedAt        DateTime?
   reviewNotes       String?
-  summary           Json?                // line-by-line variance breakdown
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  summary           Json? // line-by-line variance breakdown
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   supplierInvoice SupplierInvoice @relation(fields: [supplierInvoiceId], references: [id], onDelete: Cascade)
 
@@ -752,21 +752,21 @@ model ThreeWayMatch {
 }
 
 enum SupplierInvoiceStatus {
-  RECEIVED        // just captured
-  MATCHED         // 3-way match ran and passed (or was within tolerance)
-  VARIANCE        // 3-way match surfaced an exception
-  APPROVED        // matched + approved for payment
-  PAID            // payment recorded
+  RECEIVED // just captured
+  MATCHED // 3-way match ran and passed (or was within tolerance)
+  VARIANCE // 3-way match surfaced an exception
+  APPROVED // matched + approved for payment
+  PAID // payment recorded
   REJECTED
   VOIDED
 }
 
 enum ThreeWayMatchResult {
   PENDING
-  CLEAN          // all three documents agree within tolerance
+  CLEAN // all three documents agree within tolerance
   PRICE_VARIANCE
   QUANTITY_VARIANCE
-  MISSING_GRN    // goods receipt missing for invoiced lines
-  PO_MISMATCH    // items invoiced that are not on the PO
+  MISSING_GRN // goods receipt missing for invoiced lines
+  PO_MISMATCH // items invoiced that are not on the PO
   FAILED
 }

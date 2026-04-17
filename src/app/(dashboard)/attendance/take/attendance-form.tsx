@@ -144,10 +144,6 @@ export function AttendanceForm({
 
       if ("error" in result) {
         toast.error(result.error);
-      } else if ("data" in result) {
-        toast.success(
-          `Generated ${result.data.created} period registers (${result.data.existing} already existed).`,
-        );
       }
     });
   }

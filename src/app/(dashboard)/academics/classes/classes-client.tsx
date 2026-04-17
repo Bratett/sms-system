@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/shared/status-badge";
 import {
@@ -437,7 +438,12 @@ export function ClassesClient({
                                       className="border-b border-border/50 last:border-0"
                                     >
                                       <td className="px-3 py-2 font-medium">
-                                        {cls.name} {arm.name}
+                                        <Link
+                                          href={`/academics/class-arms/${arm.id}`}
+                                          className="hover:text-primary hover:underline"
+                                        >
+                                          {cls.name} {arm.name}
+                                        </Link>
                                       </td>
                                       <td className="px-3 py-2 text-center">
                                         {arm.enrollmentCount}

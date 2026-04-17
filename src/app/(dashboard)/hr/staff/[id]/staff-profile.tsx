@@ -10,6 +10,8 @@ import { requestLeaveAction } from "@/modules/hr/actions/leave.action";
 import { getStaffDocumentsAction, deleteStaffDocumentAction } from "@/modules/hr/actions/staff-documents.action";
 import { getStaffContractsAction, renewContractAction } from "@/modules/hr/actions/contract.action";
 import { getPromotionHistoryAction } from "@/modules/hr/actions/promotion.action";
+import { getClassesTaughtByStaffAction } from "@/modules/academics/actions/class.action";
+import Link from "next/link";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -154,9 +156,12 @@ export function StaffProfile({
   const [contracts, setContracts] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [promotions, setPromotions] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [classesTaught, setClassesTaught] = useState<any[]>([]);
   const [docsLoaded, setDocsLoaded] = useState(false);
   const [contractsLoaded, setContractsLoaded] = useState(false);
   const [promotionsLoaded, setPromotionsLoaded] = useState(false);
+  const [classesLoaded, setClassesLoaded] = useState(false);
 
   const tabs = [
     { title: "Personal Info", index: 0 },
@@ -166,6 +171,7 @@ export function StaffProfile({
     { title: "Documents", index: 4 },
     { title: "Contracts", index: 5 },
     { title: "Promotions", index: 6 },
+    { title: "Classes Taught", index: 7 },
   ];
 
   function loadTabData(tabIndex: number) {
@@ -186,6 +192,12 @@ export function StaffProfile({
       startTransition(async () => {
         const res = await getPromotionHistoryAction(staff.id);
         if ("data" in res && res.data) { setPromotions(res.data); setPromotionsLoaded(true); }
+      });
+    }
+    if (tabIndex === 7 && !classesLoaded) {
+      startTransition(async () => {
+        const res = await getClassesTaughtByStaffAction(staff.id);
+        if ("data" in res && res.data) { setClassesTaught(res.data); setClassesLoaded(true); }
       });
     }
   }
@@ -763,6 +775,65 @@ export function StaffProfile({
                             Renew
                           </button>
                         )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 8: Classes Taught */}
+      {activeTab === 7 && (
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <h3 className="text-sm font-semibold">Classes Taught</h3>
+          </div>
+          {classesTaught.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              {isPending ? "Loading classes..." : "No teaching assignments."}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 py-3 text-left font-medium">Class</th>
+                    <th className="px-4 py-3 text-left font-medium">Subject</th>
+                    <th className="px-4 py-3 text-left font-medium">Academic Year</th>
+                    <th className="px-4 py-3 text-right font-medium">Students</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {classesTaught.map((c: any) => (
+                    <tr key={c.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                      <td className="px-4 py-3 font-medium">
+                        <Link
+                          href={`/academics/class-arms/${c.classArmId}`}
+                          className="hover:text-primary hover:underline"
+                        >
+                          {c.className} {c.classArmName}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        {c.subjectName}
+                        {c.subjectCode && (
+                          <span className="ml-1 text-xs text-muted-foreground">({c.subjectCode})</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {c.academicYearName}
+                        {c.isCurrentYear && (
+                          <span className="ml-2 text-xs text-green-700 bg-green-100 dark:bg-green-500/20 dark:text-green-300 px-1.5 rounded">
+                            Current
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">
+                        {c.enrollmentCount}
                       </td>
                     </tr>
                   ))}

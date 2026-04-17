@@ -4,6 +4,7 @@ import { getStudentAction } from "@/modules/student/actions/student.action";
 import { getGuardiansAction } from "@/modules/student/actions/guardian.action";
 import { getClassesAction } from "@/modules/academics/actions/class.action";
 import { getAcademicYearsAction } from "@/modules/school/actions/academic-year.action";
+import { getTermsAction } from "@/modules/school/actions/term.action";
 import { StudentProfile } from "./student-profile";
 import { notFound } from "next/navigation";
 
@@ -19,12 +20,14 @@ export default async function StudentProfilePage({ params }: Props) {
 
   const { id } = await params;
 
-  const [studentResult, guardiansResult, classesResult, academicYearsResult] = await Promise.all([
-    getStudentAction(id),
-    getGuardiansAction(),
-    getClassesAction(),
-    getAcademicYearsAction(),
-  ]);
+  const [studentResult, guardiansResult, classesResult, academicYearsResult, termsResult] =
+    await Promise.all([
+      getStudentAction(id),
+      getGuardiansAction(),
+      getClassesAction(),
+      getAcademicYearsAction(),
+      getTermsAction(),
+    ]);
 
   if ("error" in studentResult || !("data" in studentResult) || !studentResult.data) {
     notFound();
@@ -57,6 +60,13 @@ export default async function StudentProfilePage({ params }: Props) {
     isCurrent: ay.isCurrent,
   }));
 
+  const currentAcademicYearId = academicYears.find((ay) => ay.isCurrent)?.id;
+  const terms = ("data" in termsResult ? termsResult.data ?? [] : []).map((t) => ({
+    id: t.id,
+    name: `${t.academicYear?.name ?? ""} — ${t.name}`.trim(),
+    isCurrent: t.academicYearId === currentAcademicYearId,
+  }));
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -68,6 +78,7 @@ export default async function StudentProfilePage({ params }: Props) {
         allGuardians={allGuardians}
         classArmOptions={classArmOptions}
         academicYears={academicYears}
+        terms={terms}
       />
     </div>
   );

@@ -37,7 +37,7 @@ model BookIssue {
   returnedAt   DateTime?
   returnedTo   String?
   status       IssueStatus  @default(ISSUED)
-  fineAmount   Decimal? @db.Decimal(18, 2)
+  fineAmount   Decimal?     @db.Decimal(18, 2)
   notes        String?
 
   book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)

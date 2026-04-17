@@ -3,8 +3,8 @@ model Class {
   schoolId       String
   programmeId    String
   academicYearId String
-  yearGroup      Int      // 1, 2, or 3 for SHS
-  name           String   // e.g., "SHS 1 Science"
+  yearGroup      Int // 1, 2, or 3 for SHS
+  name           String // e.g., "SHS 1 Science"
   code           String?
   maxCapacity    Int      @default(50)
   status         Status   @default(ACTIVE)
@@ -22,20 +22,19 @@ model Class {
 }
 
 model ClassArm {
-  id          String   @id @default(cuid())
-  classId     String
-  schoolId    String
-  name        String   // e.g., "A", "B", "1"
-  capacity    Int      @default(50)
+  id             String   @id @default(cuid())
+  classId        String
+  schoolId       String
+  name           String // e.g., "A", "B", "1"
+  capacity       Int      @default(50)
   classTeacherId String? // Staff ID of the class teacher
-  status      Status   @default(ACTIVE)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status         Status   @default(ACTIVE)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  class          Class           @relation(fields: [classId], references: [id], onDelete: Cascade)
-  school         School          @relation("SchoolClassArm", fields: [schoolId], references: [id])
-  enrollments    Enrollment[]
-  timetableSlots TimetableSlot[]
+  class       Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  school      School       @relation("SchoolClassArm", fields: [schoolId], references: [id])
+  enrollments Enrollment[]
 
   @@unique([classId, name])
   @@index([classId])
@@ -43,17 +42,17 @@ model ClassArm {
 }
 
 model Enrollment {
-  id               String           @id @default(cuid())
-  studentId        String
-  classArmId       String
-  schoolId         String
-  academicYearId   String
-  termId           String?
-  enrollmentDate   DateTime         @default(now())
-  status           EnrollmentStatus @default(ACTIVE)
+  id                 String           @id @default(cuid())
+  studentId          String
+  classArmId         String
+  schoolId           String
+  academicYearId     String
+  termId             String?
+  enrollmentDate     DateTime         @default(now())
+  status             EnrollmentStatus @default(ACTIVE)
   previousClassArmId String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   classArm ClassArm @relation(fields: [classArmId], references: [id], onDelete: Cascade)
@@ -93,7 +92,6 @@ model Subject {
   teacherSubjectAssignments TeacherSubjectAssignment[]
   marks                     Mark[]
   subjectResults            SubjectResult[]
-  timetableSlots            TimetableSlot[]
   examSchedules             ExamSchedule[]
   subjectAnnualResults      SubjectAnnualResult[]
   studentSubjectSelections  StudentSubjectSelection[]
@@ -105,12 +103,12 @@ model Subject {
 }
 
 model ProgrammeSubject {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   programmeId String
   subjectId   String
   schoolId    String
   isCore      Boolean @default(true)
-  yearGroup   Int?    // null = all year groups
+  yearGroup   Int? // null = all year groups
 
   subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   school  School  @relation("SchoolProgrammeSubject", fields: [schoolId], references: [id])
@@ -122,7 +120,7 @@ model ProgrammeSubject {
 }
 
 model TeacherSubjectAssignment {
-  id             String @id @default(cuid())
+  id             String   @id @default(cuid())
   staffId        String // references User or Staff id
   subjectId      String
   classArmId     String
@@ -151,13 +149,13 @@ enum SubjectType {
 // ── Assessments & Marks ─────────────────────────────────
 
 model AssessmentType {
-  id        String             @id @default(cuid())
-  schoolId  String
-  name      String             // e.g., "Class Test 1", "Mid-Term", "End of Term Exam"
-  code      String?
-  weight    Float              @default(0) // percentage weight toward term total
-  maxScore  Float              @default(100)
-  termId    String?
+  id                 String             @id @default(cuid())
+  schoolId           String
+  name               String // e.g., "Class Test 1", "Mid-Term", "End of Term Exam"
+  code               String?
+  weight             Float              @default(0) // percentage weight toward term total
+  maxScore           Float              @default(100)
+  termId             String?
   category           AssessmentCategory @default(CLASSWORK)
   entryDeadline      DateTime?
   submissionDeadline DateTime?
@@ -183,7 +181,7 @@ model Mark {
   academicYearId   String
   score            Float
   maxScore         Float      @default(100)
-  enteredBy        String     // userId
+  enteredBy        String // userId
   enteredAt        DateTime   @default(now())
   approvedBy       String?
   approvedAt       DateTime?
@@ -207,21 +205,21 @@ model Mark {
 // ── Results & Report Cards ──────────────────────────────
 
 model TerminalResult {
-  id               String   @id @default(cuid())
-  studentId        String
-  classArmId       String
-  schoolId         String
-  termId           String
-  academicYearId   String
-  totalScore       Float?
-  averageScore     Float?
-  classPosition    Int?
-  overallGrade     String?
-  teacherRemarks   String?
+  id                String           @id @default(cuid())
+  studentId         String
+  classArmId        String
+  schoolId          String
+  termId            String
+  academicYearId    String
+  totalScore        Float?
+  averageScore      Float?
+  classPosition     Int?
+  overallGrade      String?
+  teacherRemarks    String?
   headmasterRemarks String?
-  promotionStatus  PromotionStatus?
-  computedAt       DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  promotionStatus   PromotionStatus?
+  computedAt        DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   subjectResults SubjectResult[]
   school         School          @relation("SchoolTerminalResult", fields: [schoolId], references: [id])
@@ -236,13 +234,13 @@ model TerminalResult {
 }
 
 model SubjectResult {
-  id               String @id @default(cuid())
+  id               String  @id @default(cuid())
   terminalResultId String
   subjectId        String
   schoolId         String
-  classScore       Float?   // weighted CA total
-  examScore        Float?   // exam score
-  totalScore       Float?   // classScore + examScore
+  classScore       Float? // weighted CA total
+  examScore        Float? // exam score
+  totalScore       Float? // classScore + examScore
   grade            String?
   interpretation   String?
   position         Int?
@@ -284,17 +282,17 @@ enum PromotionStatus {
 // ─── Promotion Rules ────────────────────────────────────────────────
 
 model PromotionRule {
-  id             String   @id @default(cuid())
-  schoolId       String
-  academicYearId String?
-  yearGroup      Int?     // null = applies to all year groups
-  passAverage    Float    @default(40)
-  maxFailingSubjects Int  @default(3)
-  requireAttendance Boolean @default(false)
-  minAttendancePercent Float? @default(75)
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  schoolId             String
+  academicYearId       String?
+  yearGroup            Int? // null = applies to all year groups
+  passAverage          Float    @default(40)
+  maxFailingSubjects   Int      @default(3)
+  requireAttendance    Boolean  @default(false)
+  minAttendancePercent Float?   @default(75)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@index([schoolId])
   @@index([academicYearId])
@@ -303,20 +301,20 @@ model PromotionRule {
 // ─── Transcripts ────────────────────────────────────────────────────
 
 model Transcript {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   schoolId         String
   studentId        String
-  transcriptNumber String   @unique // TRN/YYYY/NNNN
-  generatedBy      String   // User ID
-  generatedAt      DateTime @default(now())
-  coveringFrom     String?  // e.g., "2022/2023"
-  coveringTo       String?  // e.g., "2024/2025"
+  transcriptNumber String    @unique // TRN/YYYY/NNNN
+  generatedBy      String // User ID
+  generatedAt      DateTime  @default(now())
+  coveringFrom     String? // e.g., "2022/2023"
+  coveringTo       String? // e.g., "2024/2025"
   cumulativeGPA    Float?
-  status           String   @default("GENERATED") // GENERATED, VERIFIED, ISSUED
+  status           String    @default("GENERATED") // GENERATED, VERIFIED, ISSUED
   verifiedBy       String?
   verifiedAt       DateTime?
   notes            String?
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
 
   @@index([schoolId])
   @@index([studentId])
@@ -325,19 +323,19 @@ model Transcript {
 // ─── Annual Results ────────────────────────────────────────────────
 
 model AnnualResult {
-  id               String   @id @default(cuid())
-  studentId        String
-  classArmId       String
-  schoolId         String
-  academicYearId   String
-  totalScore       Float?
-  averageScore     Float?
-  classPosition    Int?
-  overallGrade     String?
-  subjectCount     Int?
-  promotionStatus  PromotionStatus?
-  computedAt       DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String           @id @default(cuid())
+  studentId       String
+  classArmId      String
+  schoolId        String
+  academicYearId  String
+  totalScore      Float?
+  averageScore    Float?
+  classPosition   Int?
+  overallGrade    String?
+  subjectCount    Int?
+  promotionStatus PromotionStatus?
+  computedAt      DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   subjectAnnualResults SubjectAnnualResult[]
   school               School                @relation("SchoolAnnualResult", fields: [schoolId], references: [id])
@@ -350,17 +348,17 @@ model AnnualResult {
 }
 
 model SubjectAnnualResult {
-  id               String @id @default(cuid())
-  annualResultId   String
-  subjectId        String
-  schoolId         String
-  term1Score       Float?
-  term2Score       Float?
-  term3Score       Float?
-  averageScore     Float?
-  grade            String?
-  interpretation   String?
-  position         Int?
+  id             String  @id @default(cuid())
+  annualResultId String
+  subjectId      String
+  schoolId       String
+  term1Score     Float?
+  term2Score     Float?
+  term3Score     Float?
+  averageScore   Float?
+  grade          String?
+  interpretation String?
+  position       Int?
 
   annualResult AnnualResult @relation(fields: [annualResultId], references: [id], onDelete: Cascade)
   subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)

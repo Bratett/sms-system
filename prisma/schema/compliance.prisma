@@ -19,13 +19,13 @@ model ConsentRecord {
 }
 
 model DataExportRequest {
-  id          String            @id @default(cuid())
+  id          String              @id @default(cuid())
   userId      String
   schoolId    String
   status      ExportRequestStatus @default(PENDING)
-  format      String            @default("json") // json, csv
+  format      String              @default("json") // json, csv
   fileUrl     String?
-  requestedAt DateTime          @default(now())
+  requestedAt DateTime            @default(now())
   completedAt DateTime?
   expiresAt   DateTime?
 
@@ -35,10 +35,10 @@ model DataExportRequest {
 }
 
 model DataDeletionRequest {
-  id           String              @id @default(cuid())
+  id           String                @id @default(cuid())
   userId       String
   schoolId     String
-  entityType   String              // "student", "guardian", "staff"
+  entityType   String // "student", "guardian", "staff"
   entityId     String
   reason       String?
   status       DeletionRequestStatus @default(PENDING)
@@ -46,7 +46,7 @@ model DataDeletionRequest {
   reviewedAt   DateTime?
   scheduledFor DateTime?
   executedAt   DateTime?
-  requestedAt  DateTime            @default(now())
+  requestedAt  DateTime              @default(now())
 
   @@index([userId])
   @@index([schoolId])
@@ -55,24 +55,24 @@ model DataDeletionRequest {
 }
 
 model PrivacyPolicy {
-  id          String   @id @default(cuid())
-  schoolId    String
-  version     String
-  title       String
-  content     String   // Rich text / markdown
+  id            String   @id @default(cuid())
+  schoolId      String
+  version       String
+  title         String
+  content       String // Rich text / markdown
   effectiveDate DateTime
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
 
+  @@unique([schoolId, version])
   @@index([schoolId])
   @@index([isActive])
-  @@unique([schoolId, version])
 }
 
 model DataRetentionPolicy {
   id            String   @id @default(cuid())
   schoolId      String
-  entityType    String   // "audit_log", "sms_log", "attendance_record", etc.
+  entityType    String // "audit_log", "sms_log", "attendance_record", etc.
   retentionDays Int
   description   String?
   isActive      Boolean  @default(true)

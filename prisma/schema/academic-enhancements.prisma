@@ -1,16 +1,16 @@
 // ─── Phase 2: Student Elective Selection ────────────────────────────
 
 model StudentSubjectSelection {
-  id               String          @id @default(cuid())
-  studentId        String
-  subjectId        String
-  academicYearId   String
-  schoolId         String
-  status           SelectionStatus @default(PENDING)
-  selectedAt       DateTime        @default(now())
-  approvedBy       String?
-  approvedAt       DateTime?
-  rejectionReason  String?
+  id              String          @id @default(cuid())
+  studentId       String
+  subjectId       String
+  academicYearId  String
+  schoolId        String
+  status          SelectionStatus @default(PENDING)
+  selectedAt      DateTime        @default(now())
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?
 
   subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   school  School  @relation("SchoolStudentSubjectSelections", fields: [schoolId], references: [id])
@@ -32,29 +32,29 @@ enum SelectionStatus {
 // ─── Phase 2: Conduct / Behaviour Tracking ──────────────────────────
 
 model StudentConduct {
-  id              String        @id @default(cuid())
-  studentId       String
-  classArmId      String
-  termId          String
-  academicYearId  String
-  schoolId        String
-  punctuality     ConductRating @default(GOOD)
-  attendance      ConductRating @default(GOOD)
-  attentiveness   ConductRating @default(GOOD)
-  neatness        ConductRating @default(GOOD)
-  politeness      ConductRating @default(GOOD)
-  honesty         ConductRating @default(GOOD)
-  selfControl     ConductRating @default(GOOD)
-  relationship    ConductRating @default(GOOD)
-  initiative      ConductRating @default(GOOD)
-  sports          ConductRating?
-  handwriting     ConductRating?
-  verbalFluency   ConductRating?
-  otherTraits     Json?
-  remarks         String?
-  ratedBy         String
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             String         @id @default(cuid())
+  studentId      String
+  classArmId     String
+  termId         String
+  academicYearId String
+  schoolId       String
+  punctuality    ConductRating  @default(GOOD)
+  attendance     ConductRating  @default(GOOD)
+  attentiveness  ConductRating  @default(GOOD)
+  neatness       ConductRating  @default(GOOD)
+  politeness     ConductRating  @default(GOOD)
+  honesty        ConductRating  @default(GOOD)
+  selfControl    ConductRating  @default(GOOD)
+  relationship   ConductRating  @default(GOOD)
+  initiative     ConductRating  @default(GOOD)
+  sports         ConductRating?
+  handwriting    ConductRating?
+  verbalFluency  ConductRating?
+  otherTraits    Json?
+  remarks        String?
+  ratedBy        String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   school School @relation("SchoolStudentConducts", fields: [schoolId], references: [id])
 
@@ -209,16 +209,16 @@ model CoCurricularActivity {
 }
 
 model StudentActivity {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   activityId     String
   studentId      String
   academicYearId String
   schoolId       String
   role           String?
-  joinedAt       DateTime @default(now())
+  joinedAt       DateTime  @default(now())
   leftAt         DateTime?
   achievements   String?
-  status         Status   @default(ACTIVE)
+  status         Status    @default(ACTIVE)
 
   activity CoCurricularActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
   school   School               @relation("SchoolStudentActivities", fields: [schoolId], references: [id])
@@ -434,7 +434,7 @@ model HomeworkSubmission {
   feedback    String?
   gradedBy    String?
   gradedAt    DateTime?
-  status      HomeworkSubmissionStatus  @default(SUBMITTED)
+  status      HomeworkSubmissionStatus @default(SUBMITTED)
 
   homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
   school   School   @relation("SchoolHomeworkSubmissions", fields: [schoolId], references: [id])
@@ -465,31 +465,31 @@ enum HomeworkSubmissionStatus {
 // (manual or generator-driven) that can be exported as a printable test.
 
 model ItemBankQuestion {
-  id              String                 @id @default(cuid())
-  schoolId        String
-  subjectId       String
-  topic           String?
-  stem            String                 // markdown allowed
-  type            ItemBankQuestionType
-  difficulty      ItemBankDifficulty     @default(MEDIUM)
-  bloomLevel      BloomLevel             @default(UNDERSTAND)
-  maxScore        Float                  @default(1)
-  explanation     String?                // rationale shown after grading
-  correctText     String?                // for SHORT_ANSWER / FILL_IN / ESSAY rubric
-  metadata        Json?                  // free-form (images, rubric, etc)
-  status          ItemBankQuestionStatus @default(DRAFT)
-  authoredBy      String                 // userId
-  reviewedBy      String?
-  reviewedAt      DateTime?
-  usageCount      Int                    @default(0)
-  lastUsedAt      DateTime?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  id          String                 @id @default(cuid())
+  schoolId    String
+  subjectId   String
+  topic       String?
+  stem        String // markdown allowed
+  type        ItemBankQuestionType
+  difficulty  ItemBankDifficulty     @default(MEDIUM)
+  bloomLevel  BloomLevel             @default(UNDERSTAND)
+  maxScore    Float                  @default(1)
+  explanation String? // rationale shown after grading
+  correctText String? // for SHORT_ANSWER / FILL_IN / ESSAY rubric
+  metadata    Json? // free-form (images, rubric, etc)
+  status      ItemBankQuestionStatus @default(DRAFT)
+  authoredBy  String // userId
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  usageCount  Int                    @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
 
-  choices      ItemBankChoice[]
-  tagLinks     ItemBankQuestionTag[]
-  paperLinks   ItemBankPaperQuestion[]
-  responses    ItemBankResponse[]
+  choices    ItemBankChoice[]
+  tagLinks   ItemBankQuestionTag[]
+  paperLinks ItemBankPaperQuestion[]
+  responses  ItemBankResponse[]
 
   @@index([schoolId])
   @@index([subjectId])
@@ -515,10 +515,10 @@ model ItemBankChoice {
 }
 
 model ItemBankTag {
-  id        String  @id @default(cuid())
-  schoolId  String
-  name      String
-  color     String?
+  id       String  @id @default(cuid())
+  schoolId String
+  name     String
+  color    String?
 
   questions ItemBankQuestionTag[]
 
@@ -551,7 +551,7 @@ model ItemBankPaper {
   durationMins   Int?
   instructions   String?
   status         ItemBankPaperStatus @default(DRAFT)
-  generatorSpec  Json?               // parameters used to auto-generate (difficulty mix, blueprint)
+  generatorSpec  Json? // parameters used to auto-generate (difficulty mix, blueprint)
   createdBy      String
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
@@ -565,12 +565,12 @@ model ItemBankPaper {
 }
 
 model ItemBankPaperQuestion {
-  id         String  @id @default(cuid())
-  paperId    String
-  questionId String
-  schoolId   String
-  order      Int
-  scoreOverride Float?   // optional per-paper score weight
+  id            String @id @default(cuid())
+  paperId       String
+  questionId    String
+  schoolId      String
+  order         Int
+  scoreOverride Float? // optional per-paper score weight
 
   paper    ItemBankPaper    @relation(fields: [paperId], references: [id], onDelete: Cascade)
   question ItemBankQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
@@ -630,22 +630,22 @@ enum ItemBankPaperStatus {
 // NEEDS_REVIEW until a teacher grades them manually.
 
 model ItemBankSubmission {
-  id             String                    @id @default(cuid())
-  schoolId       String
-  paperId        String
-  studentId      String
-  attemptedAt    DateTime                  @default(now())
-  submittedAt    DateTime?
-  timeSpentSecs  Int?
-  status         ItemBankSubmissionStatus  @default(IN_PROGRESS)
-  rawScore       Float                     @default(0)
-  maxScore       Float                     @default(0)
-  autoGraded     Boolean                   @default(false)
-  needsReview    Boolean                   @default(false)
-  gradedBy       String?
-  gradedAt       DateTime?
+  id            String                   @id @default(cuid())
+  schoolId      String
+  paperId       String
+  studentId     String
+  attemptedAt   DateTime                 @default(now())
+  submittedAt   DateTime?
+  timeSpentSecs Int?
+  status        ItemBankSubmissionStatus @default(IN_PROGRESS)
+  rawScore      Float                    @default(0)
+  maxScore      Float                    @default(0)
+  autoGraded    Boolean                  @default(false)
+  needsReview   Boolean                  @default(false)
+  gradedBy      String?
+  gradedAt      DateTime?
 
-  paper     ItemBankPaper        @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  paper     ItemBankPaper      @relation(fields: [paperId], references: [id], onDelete: Cascade)
   responses ItemBankResponse[]
 
   @@unique([paperId, studentId, attemptedAt])
@@ -656,21 +656,21 @@ model ItemBankSubmission {
 }
 
 model ItemBankResponse {
-  id             String                 @id @default(cuid())
-  submissionId   String
-  questionId     String
-  schoolId       String
+  id           String                  @id @default(cuid())
+  submissionId String
+  questionId   String
+  schoolId     String
   // Raw answer — shape depends on question type. For MC, selected choice id.
   // For MULTI_SELECT, array of choice ids. For SHORT_ANSWER / NUMERIC /
   // FILL_IN_BLANK, a string.
-  rawAnswer      Json
-  correct        Boolean?               // null = not-yet-graded
-  awardedScore   Float                  @default(0)
-  maxScore       Float                  @default(1)
-  feedback       String?
-  verdict        ItemBankResponseVerdict @default(NEEDS_REVIEW)
-  gradedAt       DateTime?
-  gradedBy       String?
+  rawAnswer    Json
+  correct      Boolean? // null = not-yet-graded
+  awardedScore Float                   @default(0)
+  maxScore     Float                   @default(1)
+  feedback     String?
+  verdict      ItemBankResponseVerdict @default(NEEDS_REVIEW)
+  gradedAt     DateTime?
+  gradedBy     String?
 
   submission ItemBankSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   question   ItemBankQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)

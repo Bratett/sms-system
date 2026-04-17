@@ -38,7 +38,7 @@ const LABEL_MAP: Record<string, string> = {
   broadsheet: "Broadsheet",
   attendance: "Attendance",
   take: "Take Attendance",
-  timetable: "Timetable",
+  exams: "Exams",
   rooms: "Rooms",
   "exam-schedule": "Exam Schedule",
   finance: "Finance",

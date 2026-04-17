@@ -1,7 +1,7 @@
 model AuditLog {
-  id           String   @id @default(cuid())
+  id           String      @id @default(cuid())
   schoolId     String?
-  timestamp    DateTime @default(now())
+  timestamp    DateTime    @default(now())
   userId       String
   userRole     String?
   action       AuditAction

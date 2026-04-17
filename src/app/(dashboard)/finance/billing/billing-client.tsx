@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useMemo, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -68,10 +69,27 @@ export function BillingClient({
   terms: Term[];
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlStudentId = searchParams.get("studentId");
   const [isPending, startTransition] = useTransition();
 
   const [bills, setBills] = useState<Bill[]>(initialBills);
   const [pagination, setPagination] = useState<Pagination>(initialPagination);
+
+  // If launched with ?studentId=, re-fetch filtered by that student.
+  useEffect(() => {
+    if (!urlStudentId) return;
+    let cancelled = false;
+    (async () => {
+      const result = await getBillsAction({ studentId: urlStudentId, page: 1, pageSize: 25 });
+      if (cancelled || "error" in result) return;
+      setBills(result.data ?? []);
+      setPagination(result.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [urlStudentId]);
 
   // Generate bills form
   const [selectedFeeStructureId, setSelectedFeeStructureId] = useState("");
@@ -315,7 +333,14 @@ export function BillingClient({
                     className="border-b border-border last:border-0 hover:bg-muted/30"
                   >
                     <td className="px-4 py-3 text-muted-foreground">{bill.studentIdNumber}</td>
-                    <td className="px-4 py-3 font-medium">{bill.studentName}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <Link
+                        href={`/students/${bill.studentId}`}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {bill.studentName}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{bill.className}</td>
                     <td className="px-4 py-3 text-right font-medium">
                       {formatCurrency(bill.totalAmount)}

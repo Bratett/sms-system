@@ -1,17 +1,17 @@
 model StudentRiskProfile {
-  id              String   @id @default(cuid())
-  studentId       String
-  schoolId        String
-  academicYearId  String
-  termId          String
-  riskScore       Float    // 0-100, higher = more at risk
-  riskLevel       RiskLevel
-  factors         Json     // Array of contributing factors
-  recommendations Json     // Array of recommended interventions
+  id               String    @id @default(cuid())
+  studentId        String
+  schoolId         String
+  academicYearId   String
+  termId           String
+  riskScore        Float // 0-100, higher = more at risk
+  riskLevel        RiskLevel
+  factors          Json // Array of contributing factors
+  recommendations  Json // Array of recommended interventions
   performanceTrend String? // IMPROVING, STABLE, DECLINING
-  predictedAverage Float?  // Predicted next-term average
-  computedAt      DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  predictedAverage Float? // Predicted next-term average
+  computedAt       DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@unique([studentId, academicYearId, termId])
   @@index([schoolId])
@@ -21,13 +21,13 @@ model StudentRiskProfile {
 }
 
 model AnalyticsSnapshot {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   schoolId       String
   academicYearId String
   termId         String
   type           SnapshotType
   data           Json
-  computedAt     DateTime @default(now())
+  computedAt     DateTime     @default(now())
 
   @@unique([schoolId, academicYearId, termId, type])
   @@index([schoolId])

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
@@ -100,10 +101,27 @@ export function PaymentsClient({
   terms: Term[];
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlStudentId = searchParams.get("studentId");
   const [isPending, startTransition] = useTransition();
 
   const [payments, setPayments] = useState<PaymentRecord[]>(initialPayments);
   const [pagination, setPagination] = useState<Pagination>(initialPagination);
+
+  // If launched with ?studentId=, pre-filter the payments list by that student.
+  useEffect(() => {
+    if (!urlStudentId) return;
+    let cancelled = false;
+    (async () => {
+      const result = await getPaymentsAction({ studentId: urlStudentId, page: 1, pageSize: 25 });
+      if (cancelled || "error" in result) return;
+      setPayments((result.data ?? []) as unknown as PaymentRecord[]);
+      setPagination(result.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [urlStudentId]);
 
   // Filters
   const [filterTermId, setFilterTermId] = useState("all");
@@ -370,12 +388,14 @@ export function PaymentsClient({
                       {payment.receiptNumber ?? "---"}
                     </td>
                     <td className="px-4 py-3">
-                      <div>
-                        <span className="font-medium">{payment.studentName}</span>
+                      <Link href={`/students/${payment.studentId}`} className="group">
+                        <span className="font-medium group-hover:text-primary group-hover:underline">
+                          {payment.studentName}
+                        </span>
                         <span className="ml-2 text-xs text-muted-foreground">
                           {payment.studentIdNumber}
                         </span>
-                      </div>
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-right font-medium tabular-nums">
                       {formatCurrency(payment.amount)}

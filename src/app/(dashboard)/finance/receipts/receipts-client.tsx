@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
@@ -191,12 +192,17 @@ export function ReceiptsClient({
                           {payment.receiptNumber}
                         </td>
                         <td className="px-4 py-3">
-                          <div>
-                            <span className="font-medium">{payment.studentName}</span>
+                          <Link
+                            href={`/students/${payment.studentId}`}
+                            className="group"
+                          >
+                            <span className="font-medium group-hover:text-primary group-hover:underline">
+                              {payment.studentName}
+                            </span>
                             <span className="text-xs text-muted-foreground ml-2">
                               {payment.studentIdNumber}
                             </span>
-                          </div>
+                          </Link>
                         </td>
                         <td className="px-4 py-3 text-right font-medium">
                           {formatCurrency(payment.amount)}
@@ -332,7 +338,7 @@ export function ReceiptsClient({
                           Total Bill
                         </td>
                         <td className="py-2 text-right font-semibold">
-                          {(selectedReceipt.studentBill?.totalAmount ?? 0).toFixed(2)}
+                          {Number(selectedReceipt.studentBill?.totalAmount ?? 0).toFixed(2)}
                         </td>
                       </tr>
                     </tfoot>
