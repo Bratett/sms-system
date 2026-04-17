@@ -188,6 +188,18 @@ export async function archiveCourseAction(id: string) {
     data: { status: "ARCHIVED" },
   });
 
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "UPDATE",
+    entity: "Course",
+    entityId: id,
+    module: "lms",
+    description: `Archived course ${course.title}`,
+    previousData: { status: course.status },
+    newData: { status: "ARCHIVED" },
+  });
+
   return { data: updated };
 }
 

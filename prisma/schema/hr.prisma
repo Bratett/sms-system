@@ -34,6 +34,7 @@ model Staff {
   contracts StaffContract[]
   loans StaffLoan[]
   promotions StaffPromotion[]
+  teacherLicences TeacherLicence[]
 
   @@index([schoolId])
   @@index([staffId])
@@ -440,4 +441,79 @@ model StaffPromotion {
 
   @@index([schoolId])
   @@index([staffId])
+}
+
+// ─── Statutory tax / deduction tables (country-level, not tenant-scoped) ───
+// These are reference data shared across tenants; no RLS policy. Effective-
+// dated so rate changes land as new rows without losing history.
+// See src/lib/payroll/tax-tables.ts for the cached reader.
+
+model TaxTable {
+  id             String            @id @default(cuid())
+  country        String            // ISO alpha-2: "GH", "NG", "KE"
+  name           String            // "PAYE (Income Tax)", "SSNIT (Tier 1)", …
+  type           TaxDeductionType
+  orderIndex     Int               @default(0)  // rendering/application order
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  // Flat-rate deductions (e.g. SSNIT, Pension, NSSF) — percent values.
+  employeeRate   Decimal?          @db.Decimal(8, 4)
+  employerRate   Decimal?          @db.Decimal(8, 4)
+  // NSSF-style cap on the base amount deductions apply to.
+  ceilingAmount  Decimal?          @db.Decimal(18, 2)
+  // Bracket-based deductions (PAYE). Stored as JSON:
+  // [{ min: number, max: number | null, rate: number }]
+  brackets       Json?
+  // Nigeria PAYE annualises the gross before bracketing; Kenya subtracts a
+  // flat personal relief after computing bracketed tax.
+  annualized     Boolean           @default(false)
+  relief         Decimal?          @db.Decimal(18, 2)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([country, name, effectiveFrom])
+  @@index([country, effectiveFrom])
+}
+
+enum TaxDeductionType {
+  INCOME_TAX
+  SOCIAL_SECURITY
+  PENSION
+  OTHER
+}
+
+// ─── Phase 3: NTC teacher licensure ──────────────────────────────────
+// Teachers in Ghanaian public schools must hold a valid National Teaching
+// Council (NTC) licence. Licences carry a category (e.g. Beginner / Proficient)
+// and a renewal date. Expiry alerts are fired by a daily worker that mirrors
+// the contract-expiry pattern.
+
+model TeacherLicence {
+  id           String              @id @default(cuid())
+  schoolId     String
+  staffId      String
+  ntcNumber    String              @unique
+  category     String              // e.g. "BEGINNER", "PROFICIENT", "EXPERT"
+  issuedAt     DateTime
+  expiresAt    DateTime
+  status       TeacherLicenceStatus @default(ACTIVE)
+  // Optional link to a Document row holding the scanned licence certificate.
+  documentId   String?
+  notes        String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([staffId])
+  @@index([expiresAt])
+  @@index([status])
+}
+
+enum TeacherLicenceStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  REVOKED
 }

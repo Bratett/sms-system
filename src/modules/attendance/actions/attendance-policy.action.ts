@@ -219,6 +219,17 @@ export async function acknowledgeAlertAction(id: string) {
     data: { status: "ACKNOWLEDGED" },
   });
 
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "UPDATE",
+    entity: "AttendanceAlert",
+    entityId: id,
+    module: "attendance",
+    description: "Acknowledged attendance alert",
+    newData: { status: "ACKNOWLEDGED" },
+  });
+
   return { success: true };
 }
 

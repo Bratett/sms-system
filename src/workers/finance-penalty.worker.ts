@@ -1,8 +1,10 @@
 import { createWorker, QUEUE_NAMES, type FinancePenaltyJobData } from "@/lib/queue";
 import { PrismaClient } from "@prisma/client";
 import { toNum } from "@/lib/decimal";
+import { logger } from "@/lib/logger";
 
 const db = new PrismaClient();
+const log = logger.child({ worker: "finance-penalty" });
 
 /**
  * Finance Penalty Worker
@@ -99,17 +101,21 @@ export function startFinancePenaltyWorker() {
         }
       }
 
-      console.log(`[Penalty Worker] ${dryRun ? "Dry run:" : "Applied"} ${applied} penalties across ${overdueBills.length} overdue bills`);
+      log.info("penalty run complete", {
+        dryRun,
+        applied,
+        overdueBills: overdueBills.length,
+      });
     },
     { concurrency: 1 },
   );
 
   worker.on("completed", (job) => {
-    console.log(`[Penalty Worker] Job completed: ${job.id}`);
+    log.info("penalty job completed", { jobId: job.id });
   });
 
   worker.on("failed", (job, err) => {
-    console.error(`[Penalty Worker] Job failed: ${job?.id}`, err.message);
+    log.error("penalty job failed", { jobId: job?.id, error: err });
   });
 
   return worker;

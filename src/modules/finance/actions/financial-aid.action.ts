@@ -231,6 +231,18 @@ export async function markUnderReviewAction(applicationId: string) {
     data: { status: "UNDER_REVIEW" },
   });
 
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "UPDATE",
+    entity: "FinancialAidApplication",
+    entityId: applicationId,
+    module: "finance",
+    description: "Marked financial-aid application under review",
+    previousData: { status: application.status },
+    newData: { status: "UNDER_REVIEW" },
+  });
+
   return { data: { success: true } };
 }
 

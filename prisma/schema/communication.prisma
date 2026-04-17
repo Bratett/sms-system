@@ -172,3 +172,78 @@ model AlumniProfile {
   @@index([schoolId])
   @@index([graduationYear])
 }
+
+// ─── Phase 2: DB-backed notification templates + user preferences ────
+
+model NotificationTemplate {
+  id          String              @id @default(cuid())
+  schoolId    String?             // null = global default; school-scoped override when set
+  key         String              // matches NOTIFICATION_EVENTS keys (e.g. "fee_reminder")
+  channel     NotificationChannel
+  locale      String              @default("en")   // "en", "tw", "ga"
+  subject     String?                              // nullable for SMS/WhatsApp
+  body        String                               // {{var}} placeholders
+  variables   Json?                                // documented variable list for the editor
+  active      Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([schoolId, key, channel, locale])
+  @@index([schoolId])
+  @@index([key, channel])
+}
+
+model NotificationPreference {
+  id        String                @id @default(cuid())
+  userId    String
+  eventKey  String                // NOTIFICATION_EVENTS key; "*" means all
+  channels  NotificationChannel[]
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  @@unique([userId, eventKey])
+  @@index([userId])
+}
+
+enum NotificationChannel {
+  IN_APP
+  SMS
+  EMAIL
+  WHATSAPP
+  PUSH
+}
+
+// ─── Phase 2: Scheduled communication campaigns ─────────────────────
+
+model CommunicationCampaign {
+  id            String                   @id @default(cuid())
+  schoolId      String
+  name          String
+  templateId    String?                  // NotificationTemplate.id (optional for ad-hoc)
+  channel       NotificationChannel
+  subject       String?
+  body          String
+  // JSON description of the recipient audience; resolved at dispatch time.
+  // Example shape: { kind: "CLASS_ARM", classArmId: "..." } or
+  //                { kind: "BOARDING_STUDENTS", hostelId: "..." }.
+  audienceQuery Json
+  scheduledAt   DateTime
+  status        CommunicationCampaignStatus @default(SCHEDULED)
+  dispatchedAt  DateTime?
+  sentCount     Int                      @default(0)
+  failedCount   Int                      @default(0)
+  createdBy     String                   // userId
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  @@index([schoolId])
+  @@index([status, scheduledAt])
+}
+
+enum CommunicationCampaignStatus {
+  SCHEDULED
+  DISPATCHING
+  COMPLETED
+  FAILED
+  CANCELLED
+}

@@ -158,5 +158,16 @@ export async function setDefaultTemplateAction(id: string) {
     data: { isDefault: true },
   });
 
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "UPDATE",
+    entity: "ReportTemplate",
+    entityId: id,
+    module: "academics",
+    description: `Set template ${template.name} as default`,
+    newData: { isDefault: true },
+  });
+
   return { data: { success: true } };
 }

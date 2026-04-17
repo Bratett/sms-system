@@ -7,51 +7,71 @@
  * Workers:
  * - SMS delivery (BullMQ)
  * - Email delivery (BullMQ)
+ * - WhatsApp delivery (BullMQ) — mock when Meta credentials are absent
  * - Finance penalty calculation (BullMQ)
  * - Finance payment reminders (BullMQ)
  * - Contract expiry checks (daily interval)
  * - Inventory alerts (daily interval)
  */
 
+import { logger } from "@/lib/logger";
 import { startSmsWorker } from "./sms.worker";
 import { startEmailWorker } from "./email.worker";
+import { startWhatsAppWorker } from "./whatsapp.worker";
 import { startFinancePenaltyWorker } from "./finance-penalty.worker";
 import { startFinanceReminderWorker } from "./finance-reminder.worker";
 import { startContractExpirySchedule } from "./contract-expiry.worker";
 import { runInventoryAlerts } from "./inventory-alerts.worker";
+import { startCampaignDispatchSchedule } from "./campaign-dispatch.worker";
+import { startLicenceExpirySchedule } from "./licence-expiry.worker";
+import { startDunningSchedule } from "./dunning.worker";
 
-console.log("[workers] Starting all background workers...");
+const log = logger.child({ component: "workers" });
+
+log.info("Starting all background workers");
 
 // ─── BullMQ Queue Workers ────────────────────────────────────────
 
 startSmsWorker();
-console.log("[workers] SMS delivery worker started");
+log.info("SMS delivery worker started");
 
 startEmailWorker();
-console.log("[workers] Email delivery worker started");
+log.info("Email delivery worker started");
+
+startWhatsAppWorker();
+log.info("WhatsApp delivery worker started");
 
 startFinancePenaltyWorker();
-console.log("[workers] Finance penalty worker started");
+log.info("Finance penalty worker started");
 
 startFinanceReminderWorker();
-console.log("[workers] Finance reminder worker started");
+log.info("Finance reminder worker started");
 
 // ─── Scheduled Tasks ─────────────────────────────────────────────
 
 startContractExpirySchedule();
-console.log("[workers] Contract expiry schedule started (daily)");
+log.info("Contract expiry schedule started", { interval: "daily" });
+
+startLicenceExpirySchedule();
+log.info("Teacher licence expiry scheduler started", { interval: "daily" });
+
+startCampaignDispatchSchedule();
+log.info("Campaign dispatch scheduler started", { interval: "1 minute" });
+
+startDunningSchedule();
+log.info("Dunning scheduler started", { interval: "daily" });
 
 // Inventory alerts — run on startup + daily
 runInventoryAlerts().catch((err) =>
-  console.error("[workers] Initial inventory alerts run failed:", err),
+  log.error("Initial inventory alerts run failed", { error: err }),
 );
 
 const DAILY_MS = 24 * 60 * 60 * 1000;
 setInterval(() => {
   runInventoryAlerts().catch((err) =>
-    console.error("[workers] Inventory alerts run failed:", err),
+    log.error("Inventory alerts run failed", { error: err }),
   );
 }, DAILY_MS);
-console.log("[workers] Inventory alerts schedule started (daily)");
+log.info("Inventory alerts schedule started", { interval: "daily" });
 
-console.log("[workers] All workers started successfully.");
+log.info("All workers started successfully");

@@ -32,7 +32,44 @@ export default async function DashboardPage() {
   const result = await getDashboardStatsAction();
 
   if ("error" in result) {
-    return <div>Error loading dashboard</div>;
+    const isSchoolContext = result.error.toLowerCase().includes("school context");
+    return (
+      <div className="space-y-4">
+        <PageHeader
+          title="Dashboard"
+          description="We couldn't load this page's statistics."
+        />
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+          <p className="font-semibold">Dashboard unavailable</p>
+          <p className="mt-1">{result.error}</p>
+          {isSchoolContext ? (
+            <p className="mt-3 text-xs text-amber-800">
+              Your session doesn&apos;t have an active school bound to it. Sign out and sign
+              back in so your new school assignment flows into the session token.
+            </p>
+          ) : (
+            <p className="mt-3 text-xs text-amber-800">
+              If this persists, ask an administrator to confirm your account has the
+              <code> school:settings:read</code> permission.
+            </p>
+          )}
+          <div className="mt-4 flex gap-2">
+            <Link
+              href="/login"
+              className="rounded border border-amber-400 px-3 py-1 text-xs hover:bg-amber-100"
+            >
+              Sign in again
+            </Link>
+            <Link
+              href="/admin/school"
+              className="rounded border border-amber-400 px-3 py-1 text-xs hover:bg-amber-100"
+            >
+              Open school settings
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const { school, currentYear, currentTerm, stats, recentActivity } = result;

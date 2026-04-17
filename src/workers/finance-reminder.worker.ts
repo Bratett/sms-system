@@ -1,8 +1,10 @@
 import { createWorker, getQueue, QUEUE_NAMES, type FinanceReminderJobData, type SmsJobData } from "@/lib/queue";
 import { PrismaClient } from "@prisma/client";
 import { toNum } from "@/lib/decimal";
+import { logger } from "@/lib/logger";
 
 const db = new PrismaClient();
+const log = logger.child({ worker: "finance-reminder" });
 
 /**
  * Finance Reminder Worker
@@ -77,7 +79,7 @@ export function startFinanceReminderWorker() {
       }
 
       if (!bills || bills.length === 0) {
-        console.log(`[Reminder Worker] No ${type} bills found`);
+        log.info("no bills found", { type });
         return;
       }
 
@@ -153,17 +155,21 @@ export function startFinanceReminderWorker() {
         }
       }
 
-      console.log(`[Reminder Worker] Sent ${sentCount} ${type} reminders for ${bills.length} bills`);
+      log.info("reminders dispatched", {
+        type,
+        sent: sentCount,
+        billsConsidered: bills.length,
+      });
     },
     { concurrency: 1 },
   );
 
   worker.on("completed", (job) => {
-    console.log(`[Reminder Worker] Job completed: ${job.id}`);
+    log.info("reminder job completed", { jobId: job.id });
   });
 
   worker.on("failed", (job, err) => {
-    console.error(`[Reminder Worker] Job failed: ${job?.id}`, err.message);
+    log.error("reminder job failed", { jobId: job?.id, error: err });
   });
 
   return worker;

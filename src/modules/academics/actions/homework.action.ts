@@ -87,7 +87,18 @@ export async function deleteHomeworkAction(id: string) {
   const denied = assertPermission(ctx.session, PERMISSIONS.HOMEWORK_CREATE);
   if (denied) return denied;
 
+  const existing = await db.homework.findUnique({ where: { id } });
   await db.homework.delete({ where: { id } });
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "DELETE",
+    entity: "Homework",
+    entityId: id,
+    module: "academics",
+    description: "Deleted homework",
+    previousData: existing,
+  });
   return { data: { deleted: true } };
 }
 
@@ -156,11 +167,31 @@ export async function submitHomeworkAction(
       where: { id: existing.id },
       data: { content, fileUrl, submittedAt: new Date(), status: "SUBMITTED" },
     });
+    await audit({
+      userId: ctx.session.user.id,
+      schoolId: ctx.schoolId,
+      action: "UPDATE",
+      entity: "HomeworkSubmission",
+      entityId: updated.id,
+      module: "academics",
+      description: `Resubmitted homework ${homework.title}`,
+      newData: { status: "SUBMITTED" },
+    });
     return { data: updated };
   }
 
   const submission = await db.homeworkSubmission.create({
     data: { schoolId: ctx.schoolId, homeworkId, studentId, content, fileUrl },
+  });
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "CREATE",
+    entity: "HomeworkSubmission",
+    entityId: submission.id,
+    module: "academics",
+    description: `Submitted homework ${homework.title}`,
+    newData: submission,
   });
 
   return { data: submission };
@@ -188,6 +219,18 @@ export async function gradeHomeworkAction(
       gradedAt: new Date(),
       status: "GRADED",
     },
+  });
+
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "UPDATE",
+    entity: "HomeworkSubmission",
+    entityId: submissionId,
+    module: "academics",
+    description: "Graded homework submission",
+    previousData: { score: submission.score, status: submission.status },
+    newData: { score, status: "GRADED" },
   });
 
   return { data: updated };

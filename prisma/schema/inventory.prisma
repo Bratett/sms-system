@@ -648,3 +648,125 @@ model AssetWarranty {
   @@index([fixedAssetId])
   @@index([endDate])
 }
+
+// ─── Phase 4: Supplier Invoices & 3-Way Match ──────────────────────
+// Best-practice procurement control: pair every supplier invoice with the
+// originating PurchaseOrder and the GoodsReceived record. A match is
+// "clean" only when price ✕ quantity on all three documents agree within
+// the configured tolerances. Clean matches are eligible for payment
+// authorisation; variances block payment until explicitly approved.
+
+model SupplierInvoice {
+  id              String                @id @default(cuid())
+  schoolId        String
+  supplierId      String
+  purchaseOrderId String?               // nullable for non-PO invoices (rare)
+  invoiceNumber   String                // supplier's invoice #
+  invoiceDate     DateTime
+  dueDate         DateTime?
+  subTotal        Decimal               @db.Decimal(18, 2)
+  taxAmount       Decimal               @default(0) @db.Decimal(18, 2)
+  totalAmount     Decimal               @db.Decimal(18, 2)
+  currency        String                @default("GHS")
+  status          SupplierInvoiceStatus @default(RECEIVED)
+  notes           String?
+  documentUrl     String?
+  receivedBy      String                // userId
+  receivedAt      DateTime              @default(now())
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectedReason  String?
+  paidAt          DateTime?
+  paymentRef      String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  items   SupplierInvoiceItem[]
+  matches ThreeWayMatch[]
+
+  @@unique([supplierId, invoiceNumber])
+  @@index([schoolId])
+  @@index([supplierId])
+  @@index([purchaseOrderId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model SupplierInvoiceItem {
+  id                    String   @id @default(cuid())
+  supplierInvoiceId     String
+  schoolId              String
+  storeItemId           String?
+  purchaseOrderItemId   String?
+  description           String
+  quantity              Decimal  @db.Decimal(18, 4)
+  unitPrice             Decimal  @db.Decimal(18, 4)
+  lineTotal             Decimal  @db.Decimal(18, 2)
+  taxRate               Decimal? @db.Decimal(5, 2)
+
+  supplierInvoice SupplierInvoice @relation(fields: [supplierInvoiceId], references: [id], onDelete: Cascade)
+
+  @@index([supplierInvoiceId])
+  @@index([schoolId])
+  @@index([purchaseOrderItemId])
+}
+
+model MatchToleranceSetting {
+  id                       String   @id @default(cuid())
+  schoolId                 String   @unique
+  priceTolerancePercent    Decimal  @default(0) @db.Decimal(5, 2)  // e.g. 2.00 = ±2%
+  priceToleranceAbsolute   Decimal  @default(0) @db.Decimal(18, 2) // absolute GHS variance allowed
+  quantityTolerancePercent Decimal  @default(0) @db.Decimal(5, 2)
+  autoApproveClean         Boolean  @default(false)
+  requireGoodsReceived     Boolean  @default(true)
+  updatedBy                String
+  updatedAt                DateTime @updatedAt
+
+  @@index([schoolId])
+}
+
+model ThreeWayMatch {
+  id                String               @id @default(cuid())
+  schoolId          String
+  supplierInvoiceId String
+  purchaseOrderId   String
+  goodsReceivedId   String?
+  result            ThreeWayMatchResult  @default(PENDING)
+  priceVariance     Decimal              @default(0) @db.Decimal(18, 2)
+  quantityVariance  Decimal              @default(0) @db.Decimal(18, 4)
+  withinTolerance   Boolean              @default(false)
+  autoApproved      Boolean              @default(false)
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  reviewNotes       String?
+  summary           Json?                // line-by-line variance breakdown
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  supplierInvoice SupplierInvoice @relation(fields: [supplierInvoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([supplierInvoiceId, purchaseOrderId])
+  @@index([schoolId])
+  @@index([result])
+  @@index([purchaseOrderId])
+}
+
+enum SupplierInvoiceStatus {
+  RECEIVED        // just captured
+  MATCHED         // 3-way match ran and passed (or was within tolerance)
+  VARIANCE        // 3-way match surfaced an exception
+  APPROVED        // matched + approved for payment
+  PAID            // payment recorded
+  REJECTED
+  VOIDED
+}
+
+enum ThreeWayMatchResult {
+  PENDING
+  CLEAN          // all three documents agree within tolerance
+  PRICE_VARIANCE
+  QUANTITY_VARIANCE
+  MISSING_GRN    // goods receipt missing for invoiced lines
+  PO_MISMATCH    // items invoiced that are not on the PO
+  FAILED
+}

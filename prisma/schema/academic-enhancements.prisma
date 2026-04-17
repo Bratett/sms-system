@@ -457,3 +457,241 @@ enum HomeworkSubmissionStatus {
   GRADED
   RETURNED
 }
+
+// ─── Phase 4: Item Bank (reusable question repository) ──────────────
+// Teachers author questions once, tag them by subject, topic, difficulty and
+// Bloom taxonomy level, and reuse them across Assessments, Homework, LMS
+// quizzes, and practice papers. A Paper is a concrete selection of items
+// (manual or generator-driven) that can be exported as a printable test.
+
+model ItemBankQuestion {
+  id              String                 @id @default(cuid())
+  schoolId        String
+  subjectId       String
+  topic           String?
+  stem            String                 // markdown allowed
+  type            ItemBankQuestionType
+  difficulty      ItemBankDifficulty     @default(MEDIUM)
+  bloomLevel      BloomLevel             @default(UNDERSTAND)
+  maxScore        Float                  @default(1)
+  explanation     String?                // rationale shown after grading
+  correctText     String?                // for SHORT_ANSWER / FILL_IN / ESSAY rubric
+  metadata        Json?                  // free-form (images, rubric, etc)
+  status          ItemBankQuestionStatus @default(DRAFT)
+  authoredBy      String                 // userId
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  usageCount      Int                    @default(0)
+  lastUsedAt      DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  choices      ItemBankChoice[]
+  tagLinks     ItemBankQuestionTag[]
+  paperLinks   ItemBankPaperQuestion[]
+  responses    ItemBankResponse[]
+
+  @@index([schoolId])
+  @@index([subjectId])
+  @@index([difficulty])
+  @@index([status])
+  @@index([bloomLevel])
+  @@index([schoolId, subjectId, status])
+}
+
+model ItemBankChoice {
+  id          String  @id @default(cuid())
+  questionId  String
+  schoolId    String
+  text        String
+  isCorrect   Boolean @default(false)
+  order       Int     @default(0)
+  explanation String?
+
+  question ItemBankQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([schoolId])
+}
+
+model ItemBankTag {
+  id        String  @id @default(cuid())
+  schoolId  String
+  name      String
+  color     String?
+
+  questions ItemBankQuestionTag[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+model ItemBankQuestionTag {
+  questionId String
+  tagId      String
+  schoolId   String
+
+  question ItemBankQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  tag      ItemBankTag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, tagId])
+  @@index([tagId])
+  @@index([schoolId])
+}
+
+model ItemBankPaper {
+  id             String              @id @default(cuid())
+  schoolId       String
+  title          String
+  subjectId      String
+  yearGroup      Int?
+  termId         String?
+  academicYearId String?
+  totalScore     Float               @default(0)
+  durationMins   Int?
+  instructions   String?
+  status         ItemBankPaperStatus @default(DRAFT)
+  generatorSpec  Json?               // parameters used to auto-generate (difficulty mix, blueprint)
+  createdBy      String
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  questions   ItemBankPaperQuestion[]
+  submissions ItemBankSubmission[]
+
+  @@index([schoolId])
+  @@index([subjectId])
+  @@index([status])
+}
+
+model ItemBankPaperQuestion {
+  id         String  @id @default(cuid())
+  paperId    String
+  questionId String
+  schoolId   String
+  order      Int
+  scoreOverride Float?   // optional per-paper score weight
+
+  paper    ItemBankPaper    @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  question ItemBankQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([paperId, questionId])
+  @@unique([paperId, order])
+  @@index([paperId])
+  @@index([questionId])
+  @@index([schoolId])
+}
+
+enum ItemBankQuestionType {
+  MULTIPLE_CHOICE
+  MULTI_SELECT
+  TRUE_FALSE
+  SHORT_ANSWER
+  FILL_IN_BLANK
+  ESSAY
+  MATCHING
+  NUMERIC
+}
+
+enum ItemBankDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum BloomLevel {
+  REMEMBER
+  UNDERSTAND
+  APPLY
+  ANALYZE
+  EVALUATE
+  CREATE
+}
+
+enum ItemBankQuestionStatus {
+  DRAFT
+  UNDER_REVIEW
+  PUBLISHED
+  RETIRED
+}
+
+enum ItemBankPaperStatus {
+  DRAFT
+  READY
+  PUBLISHED
+  ARCHIVED
+}
+
+// ─── Phase 4 follow-through: Grader ─────────────────────────────────
+// A submission is one student's attempt at a paper. Responses are per
+// question and carry both the raw answer and the grader's verdict. Auto-
+// gradable types (MC, MS, TF, NUMERIC, FILL_IN_BLANK, SHORT_ANSWER with
+// exact-match) get scored on submit; ESSAY/MATCHING responses stay in
+// NEEDS_REVIEW until a teacher grades them manually.
+
+model ItemBankSubmission {
+  id             String                    @id @default(cuid())
+  schoolId       String
+  paperId        String
+  studentId      String
+  attemptedAt    DateTime                  @default(now())
+  submittedAt    DateTime?
+  timeSpentSecs  Int?
+  status         ItemBankSubmissionStatus  @default(IN_PROGRESS)
+  rawScore       Float                     @default(0)
+  maxScore       Float                     @default(0)
+  autoGraded     Boolean                   @default(false)
+  needsReview    Boolean                   @default(false)
+  gradedBy       String?
+  gradedAt       DateTime?
+
+  paper     ItemBankPaper        @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  responses ItemBankResponse[]
+
+  @@unique([paperId, studentId, attemptedAt])
+  @@index([schoolId])
+  @@index([paperId])
+  @@index([studentId])
+  @@index([status])
+}
+
+model ItemBankResponse {
+  id             String                 @id @default(cuid())
+  submissionId   String
+  questionId     String
+  schoolId       String
+  // Raw answer — shape depends on question type. For MC, selected choice id.
+  // For MULTI_SELECT, array of choice ids. For SHORT_ANSWER / NUMERIC /
+  // FILL_IN_BLANK, a string.
+  rawAnswer      Json
+  correct        Boolean?               // null = not-yet-graded
+  awardedScore   Float                  @default(0)
+  maxScore       Float                  @default(1)
+  feedback       String?
+  verdict        ItemBankResponseVerdict @default(NEEDS_REVIEW)
+  gradedAt       DateTime?
+  gradedBy       String?
+
+  submission ItemBankSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  question   ItemBankQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, questionId])
+  @@index([submissionId])
+  @@index([questionId])
+  @@index([schoolId])
+}
+
+enum ItemBankSubmissionStatus {
+  IN_PROGRESS
+  SUBMITTED
+  GRADED
+  PARTIALLY_GRADED
+  VOIDED
+}
+
+enum ItemBankResponseVerdict {
+  CORRECT
+  INCORRECT
+  PARTIAL
+  NEEDS_REVIEW
+}

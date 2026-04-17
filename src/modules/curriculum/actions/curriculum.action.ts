@@ -301,8 +301,18 @@ export async function removeCurriculumAction(frameworkId: string) {
   const denied = assertPermission(ctx.session, PERMISSIONS.SCHOOL_SETTINGS_UPDATE);
   if (denied) return denied;
 
-  await db.schoolCurriculum.deleteMany({
+  const result = await db.schoolCurriculum.deleteMany({
     where: { schoolId: ctx.schoolId, frameworkId },
+  });
+
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "DELETE",
+    entity: "SchoolCurriculum",
+    module: "curriculum",
+    description: `Removed curriculum framework ${frameworkId}`,
+    metadata: { frameworkId, deleted: result.count },
   });
 
   return { success: true };

@@ -6,6 +6,9 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
+    // RLS integration tests need a real Postgres via testcontainers; they run
+    // under a dedicated config: `npm run test:rls` / `vitest.rls.config.ts`.
+    exclude: ["tests/integration/rls/**", "node_modules/**"],
     setupFiles: ["tests/unit/setup.ts"],
     coverage: {
       provider: "v8",

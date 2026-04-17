@@ -255,5 +255,16 @@ export async function manualMatchEntryAction(entryId: string, paymentId: string)
     },
   });
 
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "UPDATE",
+    entity: "BankStatementEntry",
+    entityId: entryId,
+    module: "finance",
+    description: "Manually matched bank statement entry to payment",
+    newData: { matchedPaymentId: paymentId, matchStatus: "MANUALLY_MATCHED" },
+  });
+
   return { data: { success: true } };
 }

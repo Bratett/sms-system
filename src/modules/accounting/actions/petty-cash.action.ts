@@ -168,5 +168,17 @@ export async function approveReplenishmentAction(replenishmentId: string) {
     });
   });
 
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "APPROVE",
+    entity: "PettyCashReplenishment",
+    entityId: replenishmentId,
+    module: "accounting",
+    description: `Approved petty cash replenishment of ${replenishment.amount}`,
+    previousData: { status: "PENDING" },
+    newData: { status: "DISBURSED" },
+  });
+
   return { data: { success: true } };
 }

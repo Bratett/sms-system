@@ -5,6 +5,7 @@ import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 // ─── Link Marks to Curriculum Standards ──────────────────────────────
 
+/** @no-audit Derived tagging over already-audited marks; not a source-of-truth mutation. */
 export async function linkMarkToStandardsAction(
   markId: string,
   standardIds: string[],
@@ -41,6 +42,7 @@ export async function linkMarkToStandardsAction(
 
 // ─── Compute Student Mastery ─────────────────────────────────────────
 
+/** @no-audit Derived analytics over already-audited marks; computed, not authored. */
 export async function computeStudentMasteryAction(
   studentId: string,
   academicYearId: string,

@@ -35,6 +35,17 @@ export async function createExpenseCategoryAction(data: CreateExpenseCategoryInp
     data: { schoolId: ctx.schoolId, ...parsed.data },
   });
 
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "CREATE",
+    entity: "ExpenseCategory",
+    entityId: category.id,
+    module: "accounting",
+    description: `Created expense category ${category.name}`,
+    newData: category,
+  });
+
   return { data: category };
 }
 

@@ -84,7 +84,18 @@ export async function deleteActivityAction(id: string) {
   const denied = assertPermission(ctx.session, PERMISSIONS.COCURRICULAR_UPDATE);
   if (denied) return denied;
 
+  const existing = await db.coCurricularActivity.findUnique({ where: { id } });
   await db.coCurricularActivity.delete({ where: { id } });
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "DELETE",
+    entity: "CoCurricularActivity",
+    entityId: id,
+    module: "academics",
+    description: "Deleted co-curricular activity",
+    previousData: existing,
+  });
   return { data: { deleted: true } };
 }
 
@@ -156,7 +167,18 @@ export async function removeStudentFromActivityAction(id: string) {
   const denied = assertPermission(ctx.session, PERMISSIONS.COCURRICULAR_UPDATE);
   if (denied) return denied;
 
+  const existing = await db.studentActivity.findUnique({ where: { id } });
   await db.studentActivity.delete({ where: { id } });
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "DELETE",
+    entity: "StudentActivity",
+    entityId: id,
+    module: "academics",
+    description: "Removed student from co-curricular activity",
+    previousData: existing,
+  });
   return { data: { deleted: true } };
 }
 
