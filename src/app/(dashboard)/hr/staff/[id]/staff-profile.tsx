@@ -179,25 +179,33 @@ export function StaffProfile({
     if (tabIndex === 4 && !docsLoaded) {
       startTransition(async () => {
         const res = await getStaffDocumentsAction(staff.id);
-        if ("data" in res && res.data) { setDocuments(res.data); setDocsLoaded(true); }
+        if ("error" in res) toast.error(res.error);
+        else if (res.data) setDocuments(res.data);
+        setDocsLoaded(true);
       });
     }
     if (tabIndex === 5 && !contractsLoaded) {
       startTransition(async () => {
         const res = await getStaffContractsAction(staff.id);
-        if ("data" in res && res.data) { setContracts(res.data); setContractsLoaded(true); }
+        if ("error" in res) toast.error(res.error);
+        else if (res.data) setContracts(res.data);
+        setContractsLoaded(true);
       });
     }
     if (tabIndex === 6 && !promotionsLoaded) {
       startTransition(async () => {
         const res = await getPromotionHistoryAction(staff.id);
-        if ("data" in res && res.data) { setPromotions(res.data); setPromotionsLoaded(true); }
+        if ("error" in res) toast.error(res.error);
+        else if (res.data) setPromotions(res.data);
+        setPromotionsLoaded(true);
       });
     }
     if (tabIndex === 7 && !classesLoaded) {
       startTransition(async () => {
         const res = await getClassesTaughtByStaffAction(staff.id);
-        if ("data" in res && res.data) { setClassesTaught(res.data); setClassesLoaded(true); }
+        if ("error" in res) toast.error(res.error);
+        else if (res.data) setClassesTaught(res.data);
+        setClassesLoaded(true);
       });
     }
   }
@@ -785,7 +793,7 @@ export function StaffProfile({
         </div>
       )}
 
-      {/* Tab 8: Classes Taught */}
+      {/* Tab 7: Classes Taught */}
       {activeTab === 7 && (
         <div className="rounded-lg border border-border bg-card overflow-hidden">
           <div className="p-4 border-b border-border">

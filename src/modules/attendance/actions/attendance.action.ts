@@ -22,8 +22,6 @@ export async function openAttendanceRegisterAction(data: {
   const dateObj = new Date(data.date);
   dateObj.setHours(0, 0, 0, 0);
 
-  const substituteForId: string | undefined = undefined;
-
   // For PERIOD attendance, validate periodId exists
   if (type === "PERIOD" && !data.periodId) {
     return { error: "Period is required for period-based attendance." };
@@ -107,7 +105,7 @@ export async function openAttendanceRegisterAction(data: {
       type,
       periodId: data.periodId ?? null,
       takenBy: ctx.session.user.id,
-      substituteForId: substituteForId ?? null,
+      substituteForId: null,
     },
   });
 
@@ -635,14 +633,3 @@ export async function getStudentAttendanceAction(studentId: string, termId?: str
   return { data };
 }
 
-// ─── Generate Attendance Registers from Timetable ───────────────────
-
-export async function generateDailyRegistersFromTimetableAction(_data: {
-  classArmId: string;
-  date: string;
-}) {
-  return {
-    error:
-      "Timetable module has been removed. Registers can still be created manually from the attendance page.",
-  };
-}

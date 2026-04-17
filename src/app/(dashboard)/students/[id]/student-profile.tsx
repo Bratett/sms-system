@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { updateStudentAction, enrollStudentAction } from "@/modules/student/actions/student.action";
@@ -445,12 +446,12 @@ export function StudentProfile({
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <a
+                        <Link
                           href={`/students/guardians/${g.id}`}
                           className="font-medium hover:text-primary hover:underline"
                         >
                           {g.firstName} {g.lastName}
-                        </a>
+                        </Link>
                         {g.isPrimary && (
                           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                             Primary

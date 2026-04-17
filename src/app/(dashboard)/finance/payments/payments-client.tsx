@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import type { Monetary } from "@/lib/monetary";
+import { formatCurrency } from "@/lib/format-currency";
 interface Term {
   id: string;
   name: string;
@@ -58,10 +59,6 @@ interface Pagination {
   pageSize: number;
   total: number;
   totalPages: number;
-}
-
-function formatCurrency(amount: Monetary): string {
-  return `GHS ${Number(amount).toFixed(2)}`;
 }
 
 const methodColors: Record<string, string> = {
@@ -115,7 +112,7 @@ export function PaymentsClient({
     (async () => {
       const result = await getPaymentsAction({ studentId: urlStudentId, page: 1, pageSize: 25 });
       if (cancelled || "error" in result) return;
-      setPayments((result.data ?? []) as unknown as PaymentRecord[]);
+      setPayments(result.data ?? []);
       setPagination(result.pagination ?? { page: 1, pageSize: 25, total: 0, totalPages: 0 });
     })();
     return () => {
@@ -254,6 +251,7 @@ export function PaymentsClient({
       const filters: Record<string, unknown> = { page: 1, pageSize: 25 };
       if (termId !== "all") filters.termId = termId;
       if (method !== "all") filters.paymentMethod = method;
+      if (urlStudentId) filters.studentId = urlStudentId;
 
       const result = await getPaymentsAction(
         filters as Parameters<typeof getPaymentsAction>[0]
@@ -275,6 +273,7 @@ export function PaymentsClient({
       const filters: Record<string, unknown> = { page, pageSize: 25 };
       if (filterTermId !== "all") filters.termId = filterTermId;
       if (filterMethod !== "all") filters.paymentMethod = filterMethod;
+      if (urlStudentId) filters.studentId = urlStudentId;
 
       const result = await getPaymentsAction(
         filters as Parameters<typeof getPaymentsAction>[0]
@@ -388,14 +387,15 @@ export function PaymentsClient({
                       {payment.receiptNumber ?? "---"}
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/students/${payment.studentId}`} className="group">
-                        <span className="font-medium group-hover:text-primary group-hover:underline">
-                          {payment.studentName}
-                        </span>
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {payment.studentIdNumber}
-                        </span>
+                      <Link
+                        href={`/students/${payment.studentId}`}
+                        className="font-medium hover:text-primary hover:underline"
+                      >
+                        {payment.studentName}
                       </Link>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {payment.studentIdNumber}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-right font-medium tabular-nums">
                       {formatCurrency(payment.amount)}

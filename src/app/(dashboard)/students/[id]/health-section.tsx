@@ -5,12 +5,12 @@ import { getMedicalRecordsAction } from "@/modules/student/actions/medical.actio
 
 interface MedicalRecord {
   id: string;
-  date: Date;
+  date: Date | string;
   type: string;
   title: string;
   description: string;
   treatment: string | null;
-  followUpDate: Date | null;
+  followUpDate: Date | string | null;
   isConfidential: boolean;
 }
 
@@ -37,7 +37,7 @@ export function StudentHealthSection({ studentId }: { studentId: string }) {
         setLoading(false);
         return;
       }
-      setRecords((res.data ?? []) as unknown as MedicalRecord[]);
+      setRecords((res.data ?? []) satisfies MedicalRecord[]);
       setLoading(false);
     }
     load();

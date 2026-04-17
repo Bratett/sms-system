@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { generateBillsAction, getBillsAction } from "@/modules/finance/actions/billing.action";
 
 import type { Monetary } from "@/lib/monetary";
+import { formatCurrency } from "@/lib/format-currency";
 interface FeeStructure {
   id: string;
   name: string;
@@ -43,10 +44,6 @@ interface Pagination {
   pageSize: number;
   total: number;
   totalPages: number;
-}
-
-function formatCurrency(amount: Monetary): string {
-  return `GHS ${Number(amount).toFixed(2)}`;
 }
 
 const billStatusColors: Record<string, string> = {
@@ -159,6 +156,7 @@ export function BillingClient({
       const filters: Record<string, unknown> = { page: 1, pageSize: 25 };
       if (termId !== "all") filters.termId = termId;
       if (status !== "all") filters.status = status;
+      if (urlStudentId) filters.studentId = urlStudentId;
 
       const result = await getBillsAction(filters as Parameters<typeof getBillsAction>[0]);
       if ("error" in result) {
@@ -176,6 +174,7 @@ export function BillingClient({
       const filters: Record<string, unknown> = { page, pageSize: 25 };
       if (filterTermId !== "all") filters.termId = filterTermId;
       if (filterStatus !== "all") filters.status = filterStatus;
+      if (urlStudentId) filters.studentId = urlStudentId;
 
       const result = await getBillsAction(filters as Parameters<typeof getBillsAction>[0]);
       if ("error" in result) {

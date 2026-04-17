@@ -501,7 +501,7 @@ export async function getClassArmDetailAction(classArmId: string) {
         subjectName: a.subject.name,
         subjectCode: a.subject.code,
         staffId: a.staffId,
-        staffName: staffMap.get(a.staffId) ?? "Unassigned",
+        staffName: staffMap.get(a.staffId) ?? null,
       })),
     },
   };

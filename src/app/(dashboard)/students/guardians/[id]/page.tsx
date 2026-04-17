@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getGuardianAction } from "@/modules/student/actions/guardian.action";
@@ -10,9 +9,6 @@ interface Props {
 }
 
 export default async function GuardianDetailPage({ params }: Props) {
-  const session = await auth();
-  if (!session?.user) return null;
-
   const { id } = await params;
   const result = await getGuardianAction(id);
 

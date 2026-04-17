@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { getPaymentAction } from "@/modules/finance/actions/payment.action";
 
 import type { Monetary } from "@/lib/monetary";
+import { formatCurrency } from "@/lib/format-currency";
 interface PaymentRecord {
   id: string;
   studentId: string;
@@ -68,10 +69,6 @@ interface ReceiptDetail {
       name: string;
     } | null;
   };
-}
-
-function formatCurrency(amount: Monetary): string {
-  return `GHS ${Number(amount).toFixed(2)}`;
 }
 
 const methodLabels: Record<string, string> = {
@@ -194,15 +191,13 @@ export function ReceiptsClient({
                         <td className="px-4 py-3">
                           <Link
                             href={`/students/${payment.studentId}`}
-                            className="group"
+                            className="font-medium hover:text-primary hover:underline"
                           >
-                            <span className="font-medium group-hover:text-primary group-hover:underline">
-                              {payment.studentName}
-                            </span>
-                            <span className="text-xs text-muted-foreground ml-2">
-                              {payment.studentIdNumber}
-                            </span>
+                            {payment.studentName}
                           </Link>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {payment.studentIdNumber}
+                          </span>
                         </td>
                         <td className="px-4 py-3 text-right font-medium">
                           {formatCurrency(payment.amount)}

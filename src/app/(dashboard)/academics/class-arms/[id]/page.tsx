@@ -112,7 +112,7 @@ export default async function ClassArmDetailPage({ params }: Props) {
                       {a.subjectCode ?? "—"}
                     </td>
                     <td className="px-4 py-3">
-                      {a.staffId ? (
+                      {a.staffName ? (
                         <Link
                           href={`/hr/staff/${a.staffId}`}
                           className="hover:text-primary hover:underline"
