@@ -1,7 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import { getActivePolicies, getCutoffDate, type RetentionPolicy } from "@/lib/retention/policy";
+import { logger } from "@/lib/logger";
 
 const db = new PrismaClient();
+const log = logger.child({ worker: "retention" });
 
 /**
  * Data Retention Worker
@@ -15,20 +17,22 @@ export async function executeRetentionPolicies(): Promise<RetentionResult[]> {
   const policies = getActivePolicies();
   const results: RetentionResult[] = [];
 
-  console.log(`[Retention] Starting retention check for ${policies.length} policies...`);
+  log.info("starting retention check", { policies: policies.length });
 
   for (const policy of policies) {
     try {
       const result = await executePolicy(policy);
       results.push(result);
       if (result.affectedCount > 0) {
-        console.log(
-          `[Retention] ${policy.entity}: ${result.action} ${result.affectedCount} records`,
-        );
+        log.info("policy applied", {
+          entity: policy.entity,
+          action: result.action,
+          affected: result.affectedCount,
+        });
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
-      console.error(`[Retention] Error processing ${policy.entity}:`, msg);
+      log.error("policy failed", { entity: policy.entity, error: msg });
       results.push({
         entity: policy.entity,
         action: policy.action,
@@ -50,7 +54,7 @@ export async function executeRetentionPolicies(): Promise<RetentionResult[]> {
     },
   });
 
-  console.log("[Retention] Retention check complete.");
+  log.info("retention check complete");
   return results;
 }
 
@@ -127,9 +131,11 @@ async function executePolicy(policy: RetentionPolicy): Promise<RetentionResult> 
       // Archive action: for now, log the count. Full archival to cold storage
       // would require exporting to CSV/JSON and uploading to R2 before deletion.
       // This is a placeholder that tracks what would be archived.
-      console.log(
-        `[Retention] ${policy.entity}: ${count} records eligible for archival (older than ${policy.retentionDays} days)`,
-      );
+      log.info("records eligible for archival", {
+        entity: policy.entity,
+        count,
+        olderThanDays: policy.retentionDays,
+      });
       return { entity: policy.entity, action: "archive (logged)", affectedCount: count };
     }
 

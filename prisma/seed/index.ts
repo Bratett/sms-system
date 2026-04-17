@@ -1182,6 +1182,23 @@ async function main() {
   });
   console.log(`  ✓ School "${school.name}" created (id: ${school.id})\n`);
 
+  // ── 5b. Link admin user to the default school ─────────────────────────────
+  // Without a UserSchool row the session's `schoolId` is null and every
+  // action that calls `requireSchoolContext()` returns "No school context".
+  // The dashboard, all finance pages, attendance, etc. all depend on this.
+  await prisma.userSchool.upsert({
+    where: {
+      userId_schoolId: { userId: adminUser.id, schoolId: school.id },
+    },
+    update: { isDefault: true },
+    create: {
+      userId: adminUser.id,
+      schoolId: school.id,
+      isDefault: true,
+    },
+  });
+  console.log(`  ✓ Admin user linked to "${school.name}" as default\n`);
+
   // ── 6. Create default grading scale ────────────────────────────────────────
   console.log("Creating Ghana SHS grading scale...");
 
@@ -1219,6 +1236,81 @@ async function main() {
     });
   }
   console.log(`  ✓ Grading scale with ${GRADE_DEFINITIONS.length} grades created\n`);
+
+  // ── 7. Seed global React-PDF DocumentTemplates ───────────────────────────
+  // These are `schoolId: null` rows — every tenant sees them via the lenient
+  // RLS policy on DocumentTemplate. Component keys match the registrations in
+  // src/lib/documents/react-pdf-registry.ts. Rerun-safe: upserts the template
+  // and only creates v1 the first time.
+  console.log("Seeding global document templates...");
+  const GLOBAL_TEMPLATES = [
+    {
+      key: "payslip",
+      name: "Staff Payslip",
+      description: "Monthly staff payslip (gross, allowances, deductions, net pay).",
+      componentKey: "payslip",
+    },
+    {
+      key: "report-card",
+      name: "Student Report Card",
+      description: "End-of-term student report card with subject breakdown.",
+      componentKey: "report-card",
+    },
+    {
+      key: "broadsheet",
+      name: "Class Broadsheet",
+      description: "Class-level performance broadsheet across all subjects.",
+      componentKey: "broadsheet",
+    },
+    {
+      key: "receipt",
+      name: "Payment Receipt",
+      description: "Fee payment receipt printable for the payer.",
+      componentKey: "receipt",
+    },
+  ];
+
+  let seededTemplates = 0;
+  for (const t of GLOBAL_TEMPLATES) {
+    // Postgres treats NULL as non-equal in unique constraints, so the
+    // composite `(schoolId, key)` unique doesn't help us guarantee
+    // idempotency when schoolId is null. Use findFirst + explicit branch.
+    const existing = await prisma.documentTemplate.findFirst({
+      where: { schoolId: null, key: t.key },
+    });
+    await prisma.$transaction(async (tx) => {
+      const tpl =
+        existing ??
+        (await tx.documentTemplate.create({
+          data: {
+            schoolId: null,
+            key: t.key,
+            name: t.name,
+            description: t.description,
+            engine: "REACT_PDF",
+            componentKey: t.componentKey,
+            status: "PUBLISHED",
+            createdBy: "seed",
+          },
+        }));
+      if (!tpl.activeVersionId) {
+        const version = await tx.documentTemplateVersion.create({
+          data: {
+            templateId: tpl.id,
+            version: 1,
+            componentKey: t.componentKey,
+            createdBy: "seed",
+          },
+        });
+        await tx.documentTemplate.update({
+          where: { id: tpl.id },
+          data: { activeVersionId: version.id },
+        });
+      }
+    });
+    seededTemplates++;
+  }
+  console.log(`  ✓ ${seededTemplates} global React-PDF templates registered\n`);
 
   // ── Done ───────────────────────────────────────────────────────────────────
   console.log("✅ Seed completed successfully!");

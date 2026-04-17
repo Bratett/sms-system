@@ -1,100 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPaymentProvider } from "@/lib/payment/registry";
-import { db } from "@/lib/db";
-import { generateOnlineReceiptNumber } from "@/lib/receipt";
-import { toNum } from "@/lib/decimal";
+import { reconcileWebhookPayment } from "@/lib/payment/reconcile";
+import { logger } from "@/lib/logger";
 
-/**
- * Telecel Cash Webhook Handler
- * Endpoint: POST /api/webhooks/telecel-cash
- */
+const log = logger.child({ webhook: "telecel-cash" });
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.text();
     const signature = request.headers.get("x-webhook-signature") || "";
-    const provider = getPaymentProvider("telecel_cash")!;
+    const provider = getPaymentProvider("telecel_cash");
+    if (!provider) return NextResponse.json({ error: "Provider not configured" }, { status: 500 });
 
     if (!provider.verifyWebhookSignature(body, signature)) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
     const event = JSON.parse(body);
-
-    if (event.status === "SUCCESSFUL" || event.status === "COMPLETED") {
-      await handleSuccessfulPayment(event);
+    if (event.status !== "SUCCESSFUL" && event.status !== "COMPLETED") {
+      return NextResponse.json({ received: true, ignored: event.status });
     }
 
-    return NextResponse.json({ received: true });
-  } catch (error) {
-    console.error("[Telecel Cash Webhook] Error:", error);
+    const data = event as {
+      reference: string;
+      amount: number;
+      transactionId?: string;
+    };
+    const verified = await provider.verifyPayment(data.reference);
+    if (!verified.success) {
+      log.error("re-verification failed", { reference: data.reference });
+      return NextResponse.json({ error: "verification failed" }, { status: 400 });
+    }
+
+    const amount = provider.fromSmallestUnit(verified.amount ?? 0);
+    const result = await reconcileWebhookPayment({
+      reference: data.reference,
+      amount,
+      currency: verified.currency,
+      channel: "mobile_money",
+      providerName: provider.name,
+      providerDisplayName: provider.displayName,
+      providerReference: data.transactionId ?? verified.reference ?? null,
+      paymentMethod: "MOBILE_MONEY",
+      notes: "Telecel Cash payment",
+    });
+    return NextResponse.json({ received: true, outcome: result.outcome });
+  } catch (err) {
+    log.error("webhook error", { err: err instanceof Error ? err.message : err });
     return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
   }
-}
-
-async function handleSuccessfulPayment(data: {
-  reference: string;
-  amount: number;
-  transactionId?: string;
-}) {
-  const provider = getPaymentProvider("telecel_cash")!;
-
-  const onlineTxn = await db.onlinePaymentTransaction.findUnique({
-    where: { reference: data.reference },
-  });
-
-  if (!onlineTxn || onlineTxn.status === "SUCCESSFUL") return;
-
-  const verified = await provider.verifyPayment(data.reference);
-  if (!verified.success) return;
-
-  const amount = provider.fromSmallestUnit(verified.amount ?? 0);
-
-  await db.$transaction(async (tx) => {
-    await tx.onlinePaymentTransaction.update({
-      where: { reference: data.reference },
-      data: {
-        status: "SUCCESSFUL",
-        providerReference: data.transactionId,
-        channel: "mobile_money",
-        completedAt: new Date(),
-      },
-    });
-
-    const bill = await tx.studentBill.findUnique({ where: { id: onlineTxn.studentBillId } });
-    if (!bill) return;
-
-    const payment = await tx.payment.create({
-      data: {
-        schoolId: bill.schoolId,
-        studentBillId: bill.id,
-        studentId: onlineTxn.studentId,
-        amount,
-        paymentMethod: "MOBILE_MONEY",
-        referenceNumber: data.reference,
-        receivedBy: "system",
-        notes: "Telecel Cash payment",
-      },
-    });
-
-    const receiptNumber = await generateOnlineReceiptNumber(tx);
-    await tx.receipt.create({
-      data: {
-        schoolId: bill.schoolId,
-        paymentId: payment.id,
-        receiptNumber,
-      },
-    });
-
-    const newPaidAmount = toNum(bill.paidAmount) + amount;
-    const newBalance = toNum(bill.totalAmount) - newPaidAmount;
-
-    await tx.studentBill.update({
-      where: { id: bill.id },
-      data: {
-        paidAmount: newPaidAmount,
-        balanceAmount: Math.max(0, newBalance),
-        status: newBalance <= 0 ? (newBalance < 0 ? "OVERPAID" : "PAID") : newPaidAmount > 0 ? "PARTIAL" : "UNPAID",
-      },
-    });
-  });
 }

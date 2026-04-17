@@ -63,6 +63,8 @@ export const QUEUE_NAMES = {
   FINANCE_PENALTIES: "finance-penalties",
   FINANCE_REMINDERS: "finance-reminders",
   PAYSLIP_GENERATION: "payslip-generation",
+  WHATSAPP: "whatsapp-delivery",
+  CAMPAIGN_DISPATCH: "campaign-dispatch",
 } as const;
 
 // ─── Job Type Definitions ──────────────────────────────────────────
@@ -114,4 +116,17 @@ export interface FinanceReminderJobData {
   type: "upcoming_due" | "overdue" | "installment_due";
   daysThreshold: number; // days before/after due date
   channels: ("sms" | "email")[];
+}
+
+export interface WhatsAppJobData {
+  smsLogId?: string;        // optional: reuses SmsLog as the delivery record
+  to: string;               // full MSISDN, e.g. +2332412…
+  message: string;
+  templateName?: string;    // Meta approved template name, if using structured messages
+  templateParams?: string[];
+}
+
+export interface CampaignDispatchJobData {
+  campaignId: string;
+  schoolId: string;
 }

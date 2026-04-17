@@ -1,5 +1,8 @@
 import { createWorker, QUEUE_NAMES, type EmailJobData } from "@/lib/queue";
 import { sendEmail } from "@/lib/email/send";
+import { logger } from "@/lib/logger";
+
+const log = logger.child({ worker: "email" });
 
 /**
  * Email Delivery Worker
@@ -15,11 +18,11 @@ export function startEmailWorker() {
   );
 
   worker.on("completed", (job) => {
-    console.log(`[Email Worker] Sent: ${job.id} to ${job.data.to}`);
+    log.info("email sent", { jobId: job.id, to: job.data.to });
   });
 
   worker.on("failed", (job, err) => {
-    console.error(`[Email Worker] Failed: ${job?.id}`, err.message);
+    log.error("email failed", { jobId: job?.id, error: err });
   });
 
   return worker;

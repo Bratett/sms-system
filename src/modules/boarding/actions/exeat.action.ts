@@ -4,6 +4,16 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import {
+  startWorkflow,
+  transitionWorkflowWithAutoStart,
+  WorkflowTransitionError,
+} from "@/lib/workflow/engine";
+import {
+  EXEAT_EVENTS,
+  EXEAT_STATES,
+  EXEAT_WORKFLOW_KEY,
+} from "@/lib/workflow/definitions/exeat";
 
 // ─── Exeats ─────────────────────────────────────────────────────────
 
@@ -226,6 +236,15 @@ export async function requestExeatAction(data: {
     },
   });
 
+  await startWorkflow({
+    definitionKey: EXEAT_WORKFLOW_KEY,
+    entityType: "Exeat",
+    entityId: exeat.id,
+    schoolId: ctx.schoolId,
+    startedBy: ctx.session.user.id,
+    metadata: { exeatNumber, type: exeat.type },
+  });
+
   await audit({
     userId: ctx.session.user.id,
     action: "CREATE",
@@ -249,56 +268,66 @@ export async function approveExeatAction(
   const denied = assertPermission(ctx.session, PERMISSIONS.EXEAT_APPROVE);
   if (denied) return denied;
 
-  const exeat = await db.exeat.findUnique({
-    where: { id },
-    include: { approvals: true },
-  });
+  const exeat = await db.exeat.findUnique({ where: { id } });
+  if (!exeat) return { error: "Exeat not found." };
 
-  if (!exeat) {
-    return { error: "Exeat not found." };
-  }
-
-  // Determine new status based on role and type
+  // Domain-level prechecks preserve user-facing messages. The workflow engine
+  // also enforces these rules as the canonical state machine.
+  let event: string;
   let newStatus: string;
   if (role === "housemaster") {
     if (exeat.status !== "REQUESTED") {
       return { error: "Exeat must be in REQUESTED status for housemaster approval." };
     }
-    newStatus = "HOUSEMASTER_APPROVED";
+    event = EXEAT_EVENTS.HOUSEMASTER_APPROVE;
+    newStatus = EXEAT_STATES.HOUSEMASTER_APPROVED;
   } else {
-    // headmaster
-    if (exeat.type === "EMERGENCY") {
-      // Emergency exeats skip housemaster
+    const emergencyLike = exeat.type === "EMERGENCY" || exeat.type === "MEDICAL";
+    if (emergencyLike) {
       if (exeat.status !== "REQUESTED" && exeat.status !== "HOUSEMASTER_APPROVED") {
         return { error: "Invalid exeat status for headmaster approval." };
       }
-    } else {
-      if (exeat.status !== "HOUSEMASTER_APPROVED") {
-        return { error: "Exeat must be approved by housemaster first." };
-      }
+    } else if (exeat.status !== "HOUSEMASTER_APPROVED") {
+      return { error: "Exeat must be approved by housemaster first." };
     }
-    newStatus = "HEADMASTER_APPROVED";
+    event = EXEAT_EVENTS.HEADMASTER_APPROVE;
+    newStatus = EXEAT_STATES.HEADMASTER_APPROVED;
   }
 
-  await db.$transaction([
-    db.exeatApproval.create({
-      data: {
-        schoolId: ctx.schoolId,
-        exeatId: id,
-        approverRole: role,
-        approverId: ctx.session.user.id,
-        action: "APPROVED",
-        comments: comments || null,
-      },
-    }),
-    db.exeat.update({
-      where: { id },
-      data: { status: newStatus as never },
-    }),
-  ]);
+  try {
+    await transitionWorkflowWithAutoStart({
+      event,
+      entity: exeat,
+      schoolId: ctx.schoolId,
+      actor: { userId: ctx.session.user.id, role },
+      reason: comments,
+      extraMutations: [
+        (tx) =>
+          tx.exeatApproval.create({
+            data: {
+              schoolId: ctx.schoolId,
+              exeatId: id,
+              approverRole: role,
+              approverId: ctx.session.user.id,
+              action: "APPROVED",
+              comments: comments || null,
+            },
+          }),
+        (tx) =>
+          tx.exeat.update({
+            where: { id },
+            data: { status: newStatus as never },
+          }),
+      ],
+    });
+  } catch (err) {
+    if (err instanceof WorkflowTransitionError) return { error: err.message };
+    throw err;
+  }
 
   await audit({
     userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
     action: "UPDATE",
     entity: "Exeat",
     entityId: id,
@@ -322,40 +351,55 @@ export async function rejectExeatAction(
   if (denied) return denied;
 
   const exeat = await db.exeat.findUnique({ where: { id } });
-  if (!exeat) {
-    return { error: "Exeat not found." };
-  }
+  if (!exeat) return { error: "Exeat not found." };
 
   if (exeat.status === "REJECTED" || exeat.status === "CANCELLED") {
     return { error: "Exeat is already rejected or cancelled." };
   }
 
-  await db.$transaction([
-    db.exeatApproval.create({
-      data: {
-        schoolId: ctx.schoolId,
-        exeatId: id,
-        approverRole: role,
-        approverId: ctx.session.user.id,
-        action: "REJECTED",
-        comments: comments || null,
-      },
-    }),
-    db.exeat.update({
-      where: { id },
-      data: { status: "REJECTED" },
-    }),
-  ]);
+  try {
+    await transitionWorkflowWithAutoStart({
+      definitionKey: EXEAT_WORKFLOW_KEY,
+      entityType: "Exeat",
+      event: EXEAT_EVENTS.REJECT,
+      entity: exeat,
+      schoolId: ctx.schoolId,
+      actor: { userId: ctx.session.user.id, role },
+      reason: comments,
+      extraMutations: [
+        (tx) =>
+          tx.exeatApproval.create({
+            data: {
+              schoolId: ctx.schoolId,
+              exeatId: id,
+              approverRole: role,
+              approverId: ctx.session.user.id,
+              action: "REJECTED",
+              comments: comments || null,
+            },
+          }),
+        (tx) =>
+          tx.exeat.update({
+            where: { id },
+            data: { status: EXEAT_STATES.REJECTED },
+          }),
+      ],
+    });
+  } catch (err) {
+    if (err instanceof WorkflowTransitionError) return { error: err.message };
+    throw err;
+  }
 
   await audit({
     userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
     action: "UPDATE",
     entity: "Exeat",
     entityId: id,
     module: "boarding",
     description: `${role} rejected exeat ${exeat.exeatNumber}`,
     previousData: { status: exeat.status },
-    newData: { status: "REJECTED" },
+    newData: { status: EXEAT_STATES.REJECTED },
   });
 
   return { success: true };
@@ -368,28 +412,43 @@ export async function recordDepartureAction(id: string) {
   if (denied) return denied;
 
   const exeat = await db.exeat.findUnique({ where: { id } });
-  if (!exeat) {
-    return { error: "Exeat not found." };
-  }
+  if (!exeat) return { error: "Exeat not found." };
 
   if (exeat.status !== "HEADMASTER_APPROVED") {
     return { error: "Exeat must be approved by headmaster before recording departure." };
   }
 
-  await db.exeat.update({
-    where: { id },
-    data: { status: "DEPARTED" },
-  });
+  try {
+    await transitionWorkflowWithAutoStart({
+      definitionKey: EXEAT_WORKFLOW_KEY,
+      entityType: "Exeat",
+      event: EXEAT_EVENTS.DEPART,
+      entity: exeat,
+      schoolId: ctx.schoolId,
+      actor: { userId: ctx.session.user.id },
+      extraMutations: [
+        (tx) =>
+          tx.exeat.update({
+            where: { id },
+            data: { status: EXEAT_STATES.DEPARTED },
+          }),
+      ],
+    });
+  } catch (err) {
+    if (err instanceof WorkflowTransitionError) return { error: err.message };
+    throw err;
+  }
 
   await audit({
     userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
     action: "UPDATE",
     entity: "Exeat",
     entityId: id,
     module: "boarding",
     description: `Recorded departure for exeat ${exeat.exeatNumber}`,
     previousData: { status: exeat.status },
-    newData: { status: "DEPARTED" },
+    newData: { status: EXEAT_STATES.DEPARTED },
   });
 
   return { success: true };
@@ -402,9 +461,7 @@ export async function recordReturnAction(id: string) {
   if (denied) return denied;
 
   const exeat = await db.exeat.findUnique({ where: { id } });
-  if (!exeat) {
-    return { error: "Exeat not found." };
-  }
+  if (!exeat) return { error: "Exeat not found." };
 
   if (exeat.status !== "DEPARTED" && exeat.status !== "OVERDUE") {
     return { error: "Exeat must be in DEPARTED or OVERDUE status." };
@@ -412,24 +469,44 @@ export async function recordReturnAction(id: string) {
 
   const now = new Date();
 
-  await db.exeat.update({
-    where: { id },
-    data: {
-      status: "RETURNED",
-      actualReturnDate: now,
-      actualReturnTime: now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
-    },
-  });
+  try {
+    await transitionWorkflowWithAutoStart({
+      definitionKey: EXEAT_WORKFLOW_KEY,
+      entityType: "Exeat",
+      event: EXEAT_EVENTS.RETURN,
+      entity: exeat,
+      schoolId: ctx.schoolId,
+      actor: { userId: ctx.session.user.id },
+      extraMutations: [
+        (tx) =>
+          tx.exeat.update({
+            where: { id },
+            data: {
+              status: EXEAT_STATES.RETURNED,
+              actualReturnDate: now,
+              actualReturnTime: now.toLocaleTimeString("en-GB", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            },
+          }),
+      ],
+    });
+  } catch (err) {
+    if (err instanceof WorkflowTransitionError) return { error: err.message };
+    throw err;
+  }
 
   await audit({
     userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
     action: "UPDATE",
     entity: "Exeat",
     entityId: id,
     module: "boarding",
     description: `Recorded return for exeat ${exeat.exeatNumber}`,
     previousData: { status: exeat.status },
-    newData: { status: "RETURNED", actualReturnDate: now },
+    newData: { status: EXEAT_STATES.RETURNED, actualReturnDate: now },
   });
 
   return { success: true };

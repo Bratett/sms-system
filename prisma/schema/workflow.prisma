@@ -1,0 +1,57 @@
+// Workflow engine: tracks instances and transitions for any approval/state-machine
+// process in the system. Definitions live in code under src/lib/workflow/definitions/.
+// Adding a new workflow does NOT require a migration here — only a new definition file.
+
+model WorkflowInstance {
+  id               String   @id @default(cuid())
+  schoolId         String
+  definitionKey    String   // matches a key in src/lib/workflow/definitions/*
+  definitionVersion Int     @default(1)
+  entityType       String   // e.g. "Exeat", "LeaveRequest", "ExpenseClaim"
+  entityId         String
+  currentState     String
+  status           WorkflowInstanceStatus @default(ACTIVE)
+  slaDueAt         DateTime?
+  startedAt        DateTime @default(now())
+  completedAt      DateTime?
+  startedBy        String   // userId
+  metadata         Json?
+
+  school      School                @relation("SchoolWorkflowInstance", fields: [schoolId], references: [id])
+  transitions WorkflowTransition[]
+
+  @@unique([entityType, entityId])
+  @@index([schoolId])
+  @@index([definitionKey])
+  @@index([entityType, entityId])
+  @@index([status])
+  @@index([slaDueAt])
+}
+
+model WorkflowTransition {
+  id         String   @id @default(cuid())
+  instanceId String
+  schoolId   String
+  fromState  String
+  toState    String
+  event      String   // the event name (e.g. "HOUSEMASTER_APPROVE")
+  actorId    String   // userId who triggered the transition
+  actorRole  String?
+  reason     String?
+  payload    Json?
+  occurredAt DateTime @default(now())
+
+  instance WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  school   School           @relation("SchoolWorkflowTransition", fields: [schoolId], references: [id])
+
+  @@index([instanceId])
+  @@index([schoolId])
+  @@index([occurredAt])
+}
+
+enum WorkflowInstanceStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  FAILED
+}

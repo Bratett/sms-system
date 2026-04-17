@@ -10,6 +10,9 @@ import {
   closeAttendanceRegisterAction,
   generateDailyRegistersFromTimetableAction,
 } from "@/modules/attendance/actions/attendance.action";
+import { queueOfflineOperation } from "@/lib/pwa/offline-store";
+
+const ATTENDANCE_REPLAY_URL = "/api/offline/attendance/replay";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -203,14 +206,57 @@ export function AttendanceForm({
     }));
 
     startTransition(async () => {
-      const result = await recordAttendanceAction(registerId, attendanceRecords);
-      if ("error" in result) {
-        toast.error(result.error);
-      } else {
-        toast.success("Attendance saved successfully.");
-        router.refresh();
+      // If we know we're offline, go straight to the queue — don't burn a
+      // failed server-action round-trip first.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        await saveOffline(registerId, attendanceRecords);
+        return;
+      }
+
+      try {
+        const result = await recordAttendanceAction(registerId, attendanceRecords);
+        if ("error" in result) {
+          toast.error(result.error);
+        } else {
+          toast.success("Attendance saved successfully.");
+          router.refresh();
+        }
+      } catch (err) {
+        // Likely a network error — fall back to the offline queue rather
+        // than surfacing a raw exception to the teacher.
+        const isNetworkError =
+          err instanceof TypeError || (err as { name?: string } | undefined)?.name === "TypeError";
+        if (isNetworkError) {
+          await saveOffline(registerId, attendanceRecords);
+        } else {
+          toast.error("Failed to save attendance. Please try again.");
+        }
       }
     });
+  }
+
+  async function saveOffline(
+    registerIdForQueue: string,
+    attendanceRecords: Array<{
+      studentId: string;
+      status: AttendanceStatus;
+      remarks?: string;
+      arrivalTime?: string;
+    }>,
+  ) {
+    try {
+      const idempotencyKey = `${registerIdForQueue}:${Date.now()}`;
+      await queueOfflineOperation("attendance-queue", ATTENDANCE_REPLAY_URL, {
+        registerId: registerIdForQueue,
+        records: attendanceRecords,
+        idempotencyKey,
+      });
+      toast.success(
+        "Saved offline. Will sync automatically when connection returns.",
+      );
+    } catch {
+      toast.error("Could not save offline. Please try again.");
+    }
   }
 
   function handleCloseRegister() {

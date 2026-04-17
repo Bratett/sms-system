@@ -14,6 +14,13 @@ model School {
   category                SchoolCategory @default(PUBLIC)
   ghanaEducationServiceCode String?
   postalAddress           String?
+  // Ghana statutory registration identifiers. Surfaced on payroll returns,
+  // GRA filings and GETFund disbursement reports — nullable so pre-existing
+  // rows don't need a backfill pass.
+  tin                     String?
+  ssnitEmployerNumber     String?
+  getFundCode             String?
+  graVatTin               String?
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
 
@@ -129,6 +136,10 @@ model School {
   // Transport
   routeStops                 RouteStop[]              @relation("SchoolRouteStops")
   studentTransports          StudentTransport[]       @relation("SchoolStudentTransports")
+
+  // Workflow engine
+  workflowInstances          WorkflowInstance[]       @relation("SchoolWorkflowInstance")
+  workflowTransitions        WorkflowTransition[]     @relation("SchoolWorkflowTransition")
 }
 
 model AcademicYear {

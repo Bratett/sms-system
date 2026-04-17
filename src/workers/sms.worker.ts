@@ -1,8 +1,10 @@
 import { createWorker, QUEUE_NAMES, type SmsJobData } from "@/lib/queue";
 import { getSmsProvider } from "@/lib/sms/provider";
+import { logger } from "@/lib/logger";
 import { PrismaClient } from "@prisma/client";
 
 const db = new PrismaClient();
+const log = logger.child({ worker: "sms" });
 
 /**
  * SMS Delivery Worker
@@ -37,11 +39,11 @@ export function startSmsWorker() {
   );
 
   worker.on("completed", (job) => {
-    console.log(`[SMS Worker] Delivered: ${job.id}`);
+    log.info("sms delivered", { jobId: job.id });
   });
 
   worker.on("failed", (job, err) => {
-    console.error(`[SMS Worker] Failed: ${job?.id}`, err.message);
+    log.error("sms failed", { jobId: job?.id, error: err });
   });
 
   return worker;

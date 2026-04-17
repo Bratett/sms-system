@@ -687,3 +687,173 @@ enum MatchStatus {
   MANUALLY_MATCHED
   NO_MATCH
 }
+
+// ─── Phase 4: Dunning Engine ─────────────────────────────────────
+// Multi-stage debt-collection runbook applied to outstanding StudentBills.
+// A DunningPolicy owns an ordered list of DunningStages. Each stage defines
+// when it fires (daysOverdue) and how (channels, template, optional penalty).
+// At runtime a DunningRun walks bills that match the policy scope; per bill
+// a DunningCase tracks which stage the bill is currently at. Each stage
+// execution produces a DunningEvent (immutable audit record) so operators
+// can see exactly which guardian was dunned, through which channel, and the
+// delivery status. Cases auto-resolve when the underlying bill clears.
+
+model DunningPolicy {
+  id                    String              @id @default(cuid())
+  schoolId              String
+  name                  String
+  description           String?
+  scope                 DunningPolicyScope  @default(ALL_OUTSTANDING)
+  programmeId           String?             // when scope=PROGRAMME
+  feeStructureId        String?             // when scope=FEE_STRUCTURE
+  boardingStatus        BoardingStatus?     // null = any
+  minBalance            Decimal             @default(0) @db.Decimal(18, 2)
+  suppressOnInstallment Boolean             @default(true)  // skip bills with active installment plan
+  suppressOnAid         Boolean             @default(true)  // skip bills with approved aid
+  isActive              Boolean             @default(true)
+  createdBy             String              // userId
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  stages DunningStage[]
+  runs   DunningRun[]
+  cases  DunningCase[]
+
+  @@index([schoolId])
+  @@index([isActive])
+}
+
+model DunningStage {
+  id                String         @id @default(cuid())
+  policyId          String
+  schoolId          String
+  order             Int            // 1,2,3,... executed sequentially
+  name              String         // "First reminder", "Final notice"
+  daysOverdue       Int            // minimum days past due before stage fires
+  channels          String[]       // ["sms", "email", "in_app"]
+  templateKey       String?        // NotificationTemplate key; falls back to default copy
+  applyPenaltyId    String?        // optional LatePenaltyRule to auto-apply at this stage
+  escalateToRole    String?        // if set, notifies this role in dashboard
+  blockPortal       Boolean        @default(false)  // portal self-service blocked while at/past this stage
+
+  policy DunningPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([policyId, order])
+  @@index([policyId])
+  @@index([schoolId])
+}
+
+model DunningRun {
+  id             String          @id @default(cuid())
+  schoolId       String
+  policyId       String
+  triggeredBy    String          // userId, or "system:scheduler"
+  triggerType    DunningTrigger  @default(MANUAL)
+  status         DunningRunStatus @default(QUEUED)
+  startedAt      DateTime        @default(now())
+  completedAt    DateTime?
+  totalBills     Int             @default(0)
+  casesCreated   Int             @default(0)
+  casesEscalated Int             @default(0)
+  casesResolved  Int             @default(0)
+  eventsSent     Int             @default(0)
+  errors         Int             @default(0)
+  summary        Json?
+
+  policy DunningPolicy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  events DunningEvent[]
+
+  @@index([schoolId])
+  @@index([policyId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+model DunningCase {
+  id             String             @id @default(cuid())
+  schoolId       String
+  policyId       String
+  studentBillId  String
+  studentId      String
+  currentStageId String?
+  stagesCleared  Int                @default(0)
+  status         DunningCaseStatus  @default(OPEN)
+  openedAt       DateTime           @default(now())
+  lastActionAt   DateTime?
+  resolvedAt     DateTime?
+  resolution     String?            // "PAID", "WAIVED", "WRITTEN_OFF", "MANUAL_CLOSE"
+
+  policy       DunningPolicy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  events       DunningEvent[]
+
+  @@unique([studentBillId, policyId])
+  @@index([schoolId])
+  @@index([policyId])
+  @@index([studentBillId])
+  @@index([status])
+}
+
+model DunningEvent {
+  id             String              @id @default(cuid())
+  schoolId       String
+  runId          String?
+  caseId         String
+  stageId        String?
+  stageOrder     Int
+  studentBillId  String
+  studentId      String
+  channel        String              // "sms" | "email" | "in_app" | "escalation" | "penalty"
+  status         DunningEventStatus  @default(PENDING)
+  templateKey    String?
+  payload        Json?
+  externalRef    String?             // notification id / sms log id / penalty id
+  errorMessage   String?
+  occurredAt     DateTime            @default(now())
+
+  run  DunningRun?  @relation(fields: [runId], references: [id], onDelete: SetNull)
+  case DunningCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([runId])
+  @@index([caseId])
+  @@index([occurredAt])
+  @@index([status])
+}
+
+enum DunningPolicyScope {
+  ALL_OUTSTANDING
+  PROGRAMME
+  FEE_STRUCTURE
+  BOARDING_ONLY
+  DAY_ONLY
+}
+
+enum DunningTrigger {
+  MANUAL
+  SCHEDULED
+  WEBHOOK
+}
+
+enum DunningRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum DunningCaseStatus {
+  OPEN
+  ESCALATED
+  PAUSED
+  RESOLVED
+  CLOSED
+}
+
+enum DunningEventStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  SKIPPED
+}

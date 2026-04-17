@@ -4,7 +4,7 @@
  * - Redis mode: sliding-window counter, shared across instances, survives restarts.
  * - Fallback mode: in-memory Map (per-instance, same as before).
  *
- * The middleware may run in edge runtime where ioredis is unavailable.
+ * The proxy may run in edge runtime where ioredis is unavailable.
  * We dynamically import ioredis and fall back gracefully.
  */
 

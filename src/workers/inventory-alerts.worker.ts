@@ -1,6 +1,8 @@
 import { PrismaClient } from "@prisma/client";
+import { logger } from "@/lib/logger";
 
 const db = new PrismaClient();
+const log = logger.child({ worker: "inventory-alerts" });
 
 /**
  * Inventory Alerts Worker
@@ -15,11 +17,11 @@ const db = new PrismaClient();
  */
 
 export async function runInventoryAlerts() {
-  console.log("[inventory-alerts] Starting daily inventory alerts check...");
+  log.info("starting daily inventory alerts check");
 
   const school = await db.school.findFirst();
   if (!school) {
-    console.log("[inventory-alerts] No school configured, skipping.");
+    log.info("no school configured, skipping");
     return;
   }
 
@@ -47,9 +49,9 @@ export async function runInventoryAlerts() {
   results.lowStockItems = itemsBelowReorder.length;
 
   if (itemsBelowReorder.length > 0) {
-    console.log(`[inventory-alerts] ${itemsBelowReorder.length} item(s) at or below reorder level:`);
+    log.warn("items at or below reorder level", { count: itemsBelowReorder.length });
     for (const item of itemsBelowReorder.slice(0, 10)) {
-      console.log(`  - ${item.name}: ${item.quantity} (reorder at ${item.reorderLevel})`);
+      log.debug("item below reorder", { name: item.name, quantity: item.quantity, reorderLevel: item.reorderLevel });
     }
   }
 
@@ -70,10 +72,10 @@ export async function runInventoryAlerts() {
   results.expiringItems = expiringItems.length;
 
   if (expiringItems.length > 0) {
-    console.log(`[inventory-alerts] ${expiringItems.length} item batch(es) expiring within 30 days:`);
+    log.warn("item batches expiring soon", { count: expiringItems.length, days: 30 });
     for (const item of expiringItems.slice(0, 10)) {
       const daysUntil = Math.ceil((item.expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      console.log(`  - ${item.storeItem.name} (batch: ${item.batchNumber ?? "N/A"}) — expires in ${daysUntil} day(s)`);
+      log.debug("expiring batch", { name: item.storeItem.name, batch: item.batchNumber ?? null, daysUntil });
     }
 
     // Mark alerts as sent
@@ -106,12 +108,12 @@ export async function runInventoryAlerts() {
   results.maintenanceDue = uniqueAssetsDue.size;
 
   if (uniqueAssetsDue.size > 0) {
-    console.log(`[inventory-alerts] ${uniqueAssetsDue.size} asset(s) with maintenance due within 30 days:`);
+    log.warn("assets due for maintenance", { count: uniqueAssetsDue.size, days: 30 });
     for (const [, m] of Array.from(uniqueAssetsDue.entries()).slice(0, 10)) {
       const daysUntil = m.nextDueDate
         ? Math.ceil((m.nextDueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
         : 0;
-      console.log(`  - ${m.fixedAsset.name} (${m.fixedAsset.assetNumber}) — due in ${daysUntil} day(s)`);
+      log.debug("asset maintenance due", { name: m.fixedAsset.name, assetNumber: m.fixedAsset.assetNumber, daysUntil });
     }
   }
 
@@ -132,10 +134,10 @@ export async function runInventoryAlerts() {
   results.expiringContracts = expiringContracts.length;
 
   if (expiringContracts.length > 0) {
-    console.log(`[inventory-alerts] ${expiringContracts.length} supplier contract(s) expiring within 90 days:`);
+    log.warn("supplier contracts expiring soon", { count: expiringContracts.length, days: 90 });
     for (const c of expiringContracts.slice(0, 10)) {
       const daysUntil = Math.ceil((c.endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      console.log(`  - ${c.supplier.name} (${c.contractNumber ?? "N/A"}) — expires in ${daysUntil} day(s)`);
+      log.debug("expiring contract", { supplier: c.supplier.name, contractNumber: c.contractNumber ?? null, daysUntil });
     }
   }
 
@@ -152,12 +154,12 @@ export async function runInventoryAlerts() {
   results.overdueCheckouts = overdueCheckouts.count;
 
   if (overdueCheckouts.count > 0) {
-    console.log(`[inventory-alerts] Marked ${overdueCheckouts.count} checkout(s) as overdue.`);
+    log.info("checkouts marked overdue", { count: overdueCheckouts.count });
   }
 
   // ─── Summary ────────────────────────────────────────────────────
 
-  console.log("[inventory-alerts] Daily check complete:", results);
+  log.info("daily check complete", { results });
   return results;
 }
 
@@ -166,7 +168,7 @@ if (require.main === module) {
   runInventoryAlerts()
     .then(() => process.exit(0))
     .catch((err) => {
-      console.error("[inventory-alerts] Error:", err);
+      log.error("inventory alerts run failed", { error: err });
       process.exit(1);
     });
 }

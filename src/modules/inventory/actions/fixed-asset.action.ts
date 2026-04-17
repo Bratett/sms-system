@@ -56,6 +56,17 @@ export async function createAssetCategoryAction(data: CreateAssetCategoryInput) 
     data: { schoolId: ctx.schoolId, ...parsed.data },
   });
 
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "CREATE",
+    entity: "AssetCategory",
+    entityId: category.id,
+    module: "inventory",
+    description: `Created asset category ${category.name}`,
+    newData: category,
+  });
+
   return { data: category };
 }
 

@@ -20,6 +20,7 @@ export async function getNotificationsAction(limit = 10) {
   return { notifications, unreadCount };
 }
 
+/** @no-audit User-owned UI state; auditing every notification read is high-volume, low-value. */
 export async function markNotificationReadAction(id: string) {
   const ctx = await requireAuth();
   if ("error" in ctx) return ctx;
@@ -32,6 +33,7 @@ export async function markNotificationReadAction(id: string) {
   return { success: true };
 }
 
+/** @no-audit User-owned UI state; auditing every notification read is high-volume, low-value. */
 export async function markAllNotificationsReadAction() {
   const ctx = await requireAuth();
   if ("error" in ctx) return ctx;

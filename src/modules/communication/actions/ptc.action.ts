@@ -83,7 +83,18 @@ export async function deletePTCSessionAction(id: string) {
   const denied = assertPermission(ctx.session, PERMISSIONS.PTC_CREATE);
   if (denied) return denied;
 
+  const existing = await db.pTCSession.findUnique({ where: { id } });
   await db.pTCSession.delete({ where: { id } });
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "DELETE",
+    entity: "PTCSession",
+    entityId: id,
+    module: "communication",
+    description: "Deleted PTC session",
+    previousData: existing,
+  });
   return { data: { deleted: true } };
 }
 
@@ -176,6 +187,18 @@ export async function cancelBookingAction(id: string) {
   await db.pTCBooking.update({
     where: { id },
     data: { status: "CANCELLED" },
+  });
+
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "UPDATE",
+    entity: "PTCBooking",
+    entityId: id,
+    module: "communication",
+    description: "Cancelled PTC booking",
+    previousData: { status: booking.status },
+    newData: { status: "CANCELLED" },
   });
 
   return { data: { cancelled: true } };

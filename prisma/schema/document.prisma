@@ -25,3 +25,160 @@ model Document {
   @@index([category])
   @@index([uploadedBy])
 }
+
+// ─── Phase 3: Document Template Registry + E-Signature ──────────────
+//
+// A DocumentTemplate is the authoring surface (admin picks an engine —
+// Handlebars-over-HTML or a named React-PDF component — and writes copy).
+// Every save creates a new DocumentTemplateVersion so old PDFs are always
+// reproducible from their originating version.
+//
+// A DocumentInstance is a rendered artefact: template + variables at a
+// point in time. The PDF lives in R2 under `pdfKey`. Signatures are a
+// hash-chain over the PDF + signer identity so tampering is detectable.
+
+model DocumentTemplate {
+  id          String                  @id @default(cuid())
+  schoolId    String?                 // null = global default, school rows override
+  key         String                  // stable identifier, e.g. "offer_letter"
+  name        String
+  description String?
+  engine      DocumentTemplateEngine  @default(HANDLEBARS_PDF)
+  // For HANDLEBARS_PDF: raw HTML body with {{var}} placeholders.
+  bodyHtml    String?
+  // For REACT_PDF: the key of a component registered in the code registry.
+  componentKey String?
+  variables   Json?                   // documented variable list for the editor
+  activeVersionId String?             @unique
+  status      DocumentTemplateStatus  @default(DRAFT)
+  createdBy   String                  // userId
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  versions  DocumentTemplateVersion[]
+  instances DocumentInstance[]
+  activeVersion DocumentTemplateVersion? @relation("ActiveVersion", fields: [activeVersionId], references: [id])
+
+  @@unique([schoolId, key])
+  @@index([schoolId])
+  @@index([key])
+  @@index([status])
+}
+
+model DocumentTemplateVersion {
+  id          String   @id @default(cuid())
+  templateId  String
+  version     Int      // monotonic per template
+  bodyHtml    String?
+  componentKey String?
+  variables   Json?
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  activeOn DocumentTemplate? @relation("ActiveVersion")
+  instances DocumentInstance[]
+
+  @@unique([templateId, version])
+  @@index([templateId])
+}
+
+model DocumentInstance {
+  id                String                 @id @default(cuid())
+  schoolId          String
+  templateId        String
+  versionId         String
+  // Payload that was rendered — kept verbatim so the PDF can be rebuilt.
+  rendererPayload   Json
+  // Final PDF location in R2. Null while status == PENDING_RENDER.
+  pdfKey            String?
+  pdfSha256         String?                // hash of the rendered PDF, used for signature chaining
+  status            DocumentInstanceStatus @default(PENDING_RENDER)
+  // Linked Document row once the PDF is ingested into the regular document
+  // store so retention + tagging policies apply uniformly.
+  documentId        String?
+  generatedBy       String                 // userId
+  entityType        String?                // optional link back to the originating entity
+  entityId          String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  template   DocumentTemplate        @relation(fields: [templateId], references: [id])
+  version    DocumentTemplateVersion @relation(fields: [versionId], references: [id])
+  signatures DocumentSignature[]
+
+  @@index([schoolId])
+  @@index([templateId])
+  @@index([status])
+  @@index([entityType, entityId])
+}
+
+model DocumentSignature {
+  id          String                   @id @default(cuid())
+  instanceId  String
+  signerId    String                   // userId
+  signerName  String?
+  signerRole  String?                  // free-text ("Headmaster", "Guardian", …)
+  method      DocumentSignatureMethod
+  // SHA-256(pdfSha256 || previous hash || signerId || signedAt).
+  // Tampering with any signature or the PDF itself breaks the chain.
+  hash        String
+  signedAt    DateTime                 @default(now())
+  ipAddress   String?
+  userAgent   String?
+  // For TYPED: the literal name the signer typed. For DRAWN: the SVG/PNG key.
+  payload     Json?
+
+  instance DocumentInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@index([instanceId])
+  @@index([signerId])
+}
+
+// Tokenised signer link — handed to guardians / counterparties who may not
+// have a user account. Verifying the token grants a scoped ability to sign
+// a specific DocumentInstance.
+model DocumentSignLink {
+  id           String    @id @default(cuid())
+  instanceId   String
+  schoolId     String
+  tokenHash    String    @unique   // SHA-256 of the opaque URL token
+  signerEmail  String?
+  signerPhone  String?
+  signerName   String?
+  signerRole   String?
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  createdBy    String
+  createdAt    DateTime  @default(now())
+
+  @@index([instanceId])
+  @@index([schoolId])
+  @@index([expiresAt])
+}
+
+enum DocumentTemplateEngine {
+  HANDLEBARS_PDF    // bodyHtml rendered with {{var}} subs → wkhtmltopdf/Playwright
+  REACT_PDF         // componentKey resolved to a @react-pdf/renderer component
+}
+
+enum DocumentTemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DocumentInstanceStatus {
+  PENDING_RENDER
+  RENDERED
+  AWAITING_SIGNATURES
+  SIGNED
+  VOIDED
+}
+
+enum DocumentSignatureMethod {
+  TYPED
+  DRAWN
+  UPLOADED_CERT
+  SYSTEM  // e.g. workflow-auto signature from school side
+}

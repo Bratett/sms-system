@@ -1,8 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 import { dispatch } from "@/lib/notifications/dispatcher";
 import { NOTIFICATION_EVENTS } from "@/lib/notifications/events";
+import { logger } from "@/lib/logger";
 
 const db = new PrismaClient();
+const log = logger.child({ worker: "contract-expiry" });
 
 /**
  * Contract Expiry Worker
@@ -27,7 +29,7 @@ export async function processContractExpiry() {
     });
 
     if (expired.count > 0) {
-      console.log(`[Contract Worker] Auto-expired ${expired.count} contracts for school ${school.id}`);
+      log.info("contracts auto-expired", { count: expired.count, schoolId: school.id });
     }
 
     // 2. Send notifications for contracts expiring at key thresholds
@@ -77,9 +79,11 @@ export async function processContractExpiry() {
       }
 
       if (expiring.length > 0) {
-        console.log(
-          `[Contract Worker] Sent ${daysAhead}-day expiry notifications for ${expiring.length} contracts (school: ${school.id})`,
-        );
+        log.info("expiry notifications sent", {
+          daysAhead,
+          count: expiring.length,
+          schoolId: school.id,
+        });
       }
     }
   }
@@ -92,16 +96,16 @@ export async function processContractExpiry() {
 export function startContractExpirySchedule() {
   // Run immediately on startup
   processContractExpiry().catch((err) =>
-    console.error("[Contract Worker] Initial run failed:", err),
+    log.error("initial run failed", { error: err }),
   );
 
   // Then run daily at 6:00 AM
   const DAILY_MS = 24 * 60 * 60 * 1000;
   setInterval(() => {
     processContractExpiry().catch((err) =>
-      console.error("[Contract Worker] Scheduled run failed:", err),
+      log.error("scheduled run failed", { error: err }),
     );
   }, DAILY_MS);
 
-  console.log("[Contract Worker] Scheduled daily contract expiry checks.");
+  log.info("scheduled daily contract expiry checks");
 }

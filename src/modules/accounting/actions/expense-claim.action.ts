@@ -121,6 +121,18 @@ export async function rejectExpenseClaimAction(claimId: string) {
 
   await db.expenseClaim.update({ where: { id: claimId }, data: { status: "REJECTED" } });
 
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "REJECT",
+    entity: "ExpenseClaim",
+    entityId: claimId,
+    module: "accounting",
+    description: "Rejected expense claim",
+    previousData: { status: claim.status },
+    newData: { status: "REJECTED" },
+  });
+
   return { data: { success: true } };
 }
 

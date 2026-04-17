@@ -75,7 +75,7 @@ ALTER TABLE "Exeat" ADD COLUMN "schoolId" TEXT;
 ALTER TABLE "ExeatApproval" ADD COLUMN "schoolId" TEXT;
 ALTER TABLE "RollCall" ADD COLUMN "schoolId" TEXT;
 ALTER TABLE "RollCallRecord" ADD COLUMN "schoolId" TEXT;
-ALTER TABLE "MedicationLog" ADD COLUMN "schoolId" TEXT;
+ALTER TABLE "MedicationLog" ADD COLUMN IF NOT EXISTS "schoolId" TEXT;
 
 -- Attendance
 ALTER TABLE "AttendanceRecord" ADD COLUMN "schoolId" TEXT;
@@ -168,8 +168,8 @@ UPDATE "BankStatementEntry" bse SET "schoolId" = br."schoolId" FROM "BankReconci
 
 -- Accounting
 UPDATE "JournalEntry" je SET "schoolId" = jt."schoolId" FROM "JournalTransaction" jt WHERE je."journalTransactionId" = jt.id AND je."schoolId" IS NULL;
-UPDATE "PettyCashTransaction" pct SET "schoolId" = pcf."schoolId" FROM "PettyCashFund" pcf WHERE pct."fundId" = pcf.id AND pct."schoolId" IS NULL;
-UPDATE "PettyCashReplenishment" pcr SET "schoolId" = pcf."schoolId" FROM "PettyCashFund" pcf WHERE pcr."fundId" = pcf.id AND pcr."schoolId" IS NULL;
+UPDATE "PettyCashTransaction" pct SET "schoolId" = pcf."schoolId" FROM "PettyCashFund" pcf WHERE pct."pettyCashFundId" = pcf.id AND pct."schoolId" IS NULL;
+UPDATE "PettyCashReplenishment" pcr SET "schoolId" = pcf."schoolId" FROM "PettyCashFund" pcf WHERE pcr."pettyCashFundId" = pcf.id AND pcr."schoolId" IS NULL;
 UPDATE "BudgetLine" bl SET "schoolId" = b."schoolId" FROM "Budget" b WHERE bl."budgetId" = b.id AND bl."schoolId" IS NULL;
 UPDATE "ExpenseClaimItem" eci SET "schoolId" = ec."schoolId" FROM "ExpenseClaim" ec WHERE eci."expenseClaimId" = ec.id AND eci."schoolId" IS NULL;
 
@@ -194,7 +194,7 @@ UPDATE "MedicationLog" ml SET "schoolId" = sba."schoolId" FROM "SickBayAdmission
 UPDATE "AttendanceRecord" ar SET "schoolId" = areg."schoolId" FROM "AttendanceRegister" areg WHERE ar."registerId" = areg.id AND ar."schoolId" IS NULL;
 
 -- Communication
-UPDATE "GraduationRecord" gr SET "schoolId" = gb."schoolId" FROM "GraduationBatch" gb WHERE gr."batchId" = gb.id AND gr."schoolId" IS NULL;
+UPDATE "GraduationRecord" gr SET "schoolId" = gb."schoolId" FROM "GraduationBatch" gb WHERE gr."graduationBatchId" = gb.id AND gr."schoolId" IS NULL;
 
 -- LMS
 UPDATE "Lesson" l SET "schoolId" = c."schoolId" FROM "Course" c WHERE l."courseId" = c.id AND l."schoolId" IS NULL;
@@ -205,7 +205,7 @@ UPDATE "CourseEnrollment" ce SET "schoolId" = c."schoolId" FROM "Course" c WHERE
 UPDATE "QuizQuestion" qq SET "schoolId" = la."schoolId" FROM "LmsAssignment" la WHERE qq."assignmentId" = la.id AND qq."schoolId" IS NULL;
 
 -- Library
-UPDATE "BookIssue" bi SET "schoolId" = (SELECT bk."schoolId" FROM "Book" bk JOIN "BookCopy" bc ON bc."bookId" = bk.id WHERE bc.id = bi."bookCopyId" LIMIT 1) WHERE bi."schoolId" IS NULL;
+UPDATE "BookIssue" bi SET "schoolId" = bk."schoolId" FROM "Book" bk WHERE bi."bookId" = bk.id AND bi."schoolId" IS NULL;
 
 -- Transport
 UPDATE "RouteStop" rs SET "schoolId" = r."schoolId" FROM "Route" r WHERE rs."routeId" = r.id AND rs."schoolId" IS NULL;

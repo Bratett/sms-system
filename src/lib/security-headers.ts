@@ -1,6 +1,6 @@
 /**
  * Security headers configuration for Next.js.
- * Apply via next.config.ts headers() or in middleware.
+ * Apply via next.config.ts headers() or in proxy.
  */
 
 interface SecurityHeader {
@@ -59,7 +59,7 @@ const securityHeaders: SecurityHeader[] = [
 ];
 
 /**
- * Returns security headers array suitable for Next.js config or middleware.
+ * Returns security headers array suitable for Next.js config or proxy.
  */
 export function getSecurityHeaders(): SecurityHeader[] {
   return securityHeaders;

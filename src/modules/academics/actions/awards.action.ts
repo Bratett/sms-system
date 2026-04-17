@@ -180,7 +180,18 @@ export async function deleteAwardAction(id: string) {
   const denied = assertPermission(ctx.session, PERMISSIONS.AWARDS_CREATE);
   if (denied) return denied;
 
+  const existing = await db.academicAward.findUnique({ where: { id } });
   await db.academicAward.delete({ where: { id } });
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "DELETE",
+    entity: "AcademicAward",
+    entityId: id,
+    module: "academics",
+    description: "Deleted academic award",
+    previousData: existing,
+  });
   return { data: { deleted: true } };
 }
 

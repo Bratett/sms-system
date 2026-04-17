@@ -11,6 +11,10 @@ import {
 /**
  * Submit an admission application from the public portal.
  * No authentication required — this is a public-facing action.
+ *
+ * @no-audit Applicant is not yet a user; the AdmissionApplication row itself
+ * (with applicationNumber, createdAt, status) is the primary audit artefact.
+ * Internal admission actions (accept/reject) are audited by their own callers.
  */
 export async function submitPublicApplicationAction(input: PublicApplicationInput) {
   const parsed = publicApplicationSchema.safeParse(input);

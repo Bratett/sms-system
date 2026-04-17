@@ -9,6 +9,9 @@ import {
   enterMarksAction,
   submitMarksForApprovalAction,
 } from "@/modules/academics/actions/mark.action";
+import { queueOfflineOperation } from "@/lib/pwa/offline-store";
+
+const MARKS_REPLAY_URL = "/api/offline/marks/replay";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -193,23 +196,63 @@ export function MarkEntryClient({ dropdowns }: { dropdowns: Dropdowns }) {
     }
 
     startTransition(async () => {
-      const result = await enterMarksAction({
+      const payload = {
         subjectId: selectedSubjectId,
         classArmId: selectedClassArmId,
         assessmentTypeId: selectedAssessmentTypeId,
         termId: selectedTermId,
         academicYearId,
         marks: marksToSave,
-      });
+      };
 
-      if ("error" in result) {
-        toast.error(result.error);
-      } else {
-        toast.success(`${result.data?.count} mark(s) saved as draft.`);
-        // Reload data to reflect updated statuses
-        handleLoadData();
+      // Known-offline path: queue straight away, don't burn a failed server
+      // action round-trip first.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        await saveMarksOffline(payload);
+        return;
+      }
+
+      try {
+        const result = await enterMarksAction(payload);
+        if ("error" in result) {
+          toast.error(result.error);
+        } else {
+          toast.success(`${result.data?.count} mark(s) saved as draft.`);
+          handleLoadData();
+        }
+      } catch (err) {
+        const isNetworkError =
+          err instanceof TypeError ||
+          (err as { name?: string } | undefined)?.name === "TypeError";
+        if (isNetworkError) {
+          await saveMarksOffline(payload);
+        } else {
+          toast.error("Failed to save marks. Please try again.");
+        }
       }
     });
+  }
+
+  async function saveMarksOffline(payload: {
+    subjectId: string;
+    classArmId: string;
+    assessmentTypeId: string;
+    termId: string;
+    academicYearId: string;
+    marks: Array<{ studentId: string; score: number }>;
+  }) {
+    try {
+      const idempotencyKey = `${payload.subjectId}:${payload.assessmentTypeId}:${Date.now()}`;
+      await queueOfflineOperation("marks-queue", MARKS_REPLAY_URL, {
+        ...payload,
+        idempotencyKey,
+      });
+      toast.success(
+        "Saved offline. Will sync automatically when connection returns.",
+      );
+    } catch {
+      toast.error("Could not save offline. Please try again.");
+    }
   }
 
   // ─── Submit for Approval ──────────────────────────────────────────

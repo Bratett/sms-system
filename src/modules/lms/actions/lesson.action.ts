@@ -95,6 +95,16 @@ export async function deleteLessonAction(id: string) {
   if (!lesson) return { error: "Lesson not found" };
 
   await db.lesson.delete({ where: { id } });
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "DELETE",
+    entity: "Lesson",
+    entityId: id,
+    module: "lms",
+    description: `Deleted lesson ${lesson.title}`,
+    previousData: lesson,
+  });
   return { success: true };
 }
 
@@ -109,9 +119,20 @@ export async function reorderLessonsAction(courseId: string, lessonIds: string[]
   );
 
   await db.$transaction(updates);
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "UPDATE",
+    entity: "Course",
+    entityId: courseId,
+    module: "lms",
+    description: `Reordered ${lessonIds.length} lessons`,
+    newData: { lessonIds },
+  });
   return { success: true };
 }
 
+/** @no-audit Student self-progress marker; high-volume, low audit value. */
 export async function markLessonCompleteAction(lessonId: string) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;

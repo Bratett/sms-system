@@ -100,6 +100,8 @@ model Exeat {
   updatedAt         DateTime    @updatedAt
 
   approvals ExeatApproval[]
+  otps      ExeatOtp[]
+  movements ExeatMovement[]
   school    School          @relation("SchoolExeat", fields: [schoolId], references: [id])
 
   @@index([studentId])
@@ -501,4 +503,73 @@ enum MaintenanceStatus {
   IN_PROGRESS
   RESOLVED
   CLOSED
+}
+
+// ─── Phase 2: Guardian OTP for exeat release ────────────────────────
+// The guardian must verify a one-time code (sent via SMS/WhatsApp) before
+// the gate officer is allowed to release the student. Ties into the exeat
+// workflow as a required transition.
+
+model ExeatOtp {
+  id          String        @id @default(cuid())
+  exeatId     String
+  schoolId    String
+  // Hashed 6-digit code (never store the plaintext).
+  codeHash    String
+  channel     ExeatOtpChannel
+  sentTo      String        // phone number or WhatsApp ID that received it
+  sentAt      DateTime      @default(now())
+  expiresAt   DateTime
+  verifiedAt  DateTime?
+  attempts    Int           @default(0)
+  maxAttempts Int           @default(5)
+  status      ExeatOtpStatus @default(SENT)
+
+  exeat Exeat @relation(fields: [exeatId], references: [id], onDelete: Cascade)
+
+  @@index([exeatId])
+  @@index([schoolId])
+  @@index([status, expiresAt])
+}
+
+enum ExeatOtpChannel {
+  SMS
+  WHATSAPP
+}
+
+enum ExeatOtpStatus {
+  SENT
+  VERIFIED
+  EXPIRED
+  FAILED      // attempts exceeded
+}
+
+// ─── Phase 2: Gate depart/return movements ──────────────────────────
+// Dedicated log of physical departures and returns so we can trend gate
+// activity, detect overdue returns, and attach geolocation / officer
+// identity to each event. Exeat.status stays authoritative for workflow,
+// but these rows are the audit trail for "did the student actually leave".
+
+model ExeatMovement {
+  id         String               @id @default(cuid())
+  exeatId    String
+  schoolId   String
+  kind       ExeatMovementKind
+  officerId  String                // userId of gate officer
+  occurredAt DateTime              @default(now())
+  geoLat     Decimal?              @db.Decimal(10, 7)
+  geoLng     Decimal?              @db.Decimal(10, 7)
+  notes      String?
+
+  exeat Exeat @relation(fields: [exeatId], references: [id], onDelete: Cascade)
+
+  @@index([exeatId])
+  @@index([schoolId])
+  @@index([occurredAt])
+  @@index([kind])
+}
+
+enum ExeatMovementKind {
+  DEPART
+  RETURN
 }
