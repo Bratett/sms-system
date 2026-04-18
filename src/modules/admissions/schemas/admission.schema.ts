@@ -69,10 +69,11 @@ export const publicApplicationSchema = z
           message: "BECE Index Number is required for placement applications",
           path: ["beceIndexNumber"],
         });
-      } else if (!/^\d{3}\/\d{4}\/\d{3}$/.test(data.beceIndexNumber.trim())) {
+      } else if (!/^(\d{10}|\d{12})$/.test(data.beceIndexNumber.trim())) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "BECE Index Number must be in format ###/####/### (e.g., 012/0045/067)",
+          message:
+            "BECE Index Number must be 10 digits (or 12 digits if the 2-digit year is included). No slashes or spaces.",
           path: ["beceIndexNumber"],
         });
       }
@@ -111,6 +112,101 @@ export const reviewApplicationSchema = z.object({
 });
 
 export type ReviewApplicationInput = z.infer<typeof reviewApplicationSchema>;
+
+// ─── Decision (Phase 3) ───────────────────────────────────────────
+
+export const admissionConditionSchema = z.object({
+  type: z.string().min(1, "Condition type is required"),
+  description: z.string().min(1, "Condition description is required"),
+  deadline: z.string().min(1, "Deadline is required"), // ISO date string
+});
+
+export type AdmissionConditionInput = z.infer<typeof admissionConditionSchema>;
+
+export const decideApplicationSchema = z
+  .object({
+    decision: z.enum(
+      ["ACCEPTED", "CONDITIONAL_ACCEPT", "WAITLISTED", "REJECTED"],
+      { message: "Decision is required" },
+    ),
+    reason: z.string().optional().or(z.literal("")),
+    conditions: z.array(admissionConditionSchema).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.decision === "CONDITIONAL_ACCEPT") {
+      if (!data.conditions || data.conditions.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Conditional acceptance requires at least one condition.",
+          path: ["conditions"],
+        });
+      }
+    }
+    if (data.decision === "REJECTED" && (!data.reason || data.reason.trim() === "")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "A reason is required for rejection.",
+        path: ["reason"],
+      });
+    }
+  });
+
+export type DecideApplicationInput = z.infer<typeof decideApplicationSchema>;
+
+// ─── Interview (Phase 3) ──────────────────────────────────────────
+
+export const scheduleInterviewSchema = z.object({
+  scheduledAt: z.string().min(1, "Scheduled date/time is required"),
+  location: z.string().optional().or(z.literal("")),
+  panelMemberIds: z.array(z.string().min(1)).default([]),
+});
+
+export type ScheduleInterviewInput = z.infer<typeof scheduleInterviewSchema>;
+
+const scoreField = z
+  .number()
+  .min(0, "Score must be between 0 and 10")
+  .max(10, "Score must be between 0 and 10");
+
+export const recordInterviewSchema = z.object({
+  academicScore: scoreField,
+  behavioralScore: scoreField,
+  parentScore: scoreField,
+  outcome: z.enum(["PASSED", "CONDITIONAL", "FAILED", "NO_SHOW", "WAIVED"]),
+  notes: z.string().optional().or(z.literal("")),
+});
+
+export type RecordInterviewInput = z.infer<typeof recordInterviewSchema>;
+
+export const waiveInterviewSchema = z.object({
+  reason: z.string().min(1, "A waiver reason is required"),
+});
+
+export type WaiveInterviewInput = z.infer<typeof waiveInterviewSchema>;
+
+// ─── Placement verification (Phase 3 staff action) ─────────────────
+
+export const verifyPlacementSchema = z.object({
+  programPlaced: z.string().optional().or(z.literal("")),
+  notes: z.string().optional().or(z.literal("")),
+});
+
+export type VerifyPlacementInput = z.infer<typeof verifyPlacementSchema>;
+
+// ─── Appeals (Phase 4) ────────────────────────────────────────────
+
+export const submitAppealSchema = z.object({
+  reason: z.string().min(10, "Appeal reason must be at least 10 characters"),
+});
+
+export type SubmitAppealInput = z.infer<typeof submitAppealSchema>;
+
+export const resolveAppealSchema = z.object({
+  upheld: z.boolean(),
+  resolution: z.string().min(1, "Resolution note is required"),
+});
+
+export type ResolveAppealInput = z.infer<typeof resolveAppealSchema>;
 
 export const applicationFilterSchema = z.object({
   search: z.string().optional(),

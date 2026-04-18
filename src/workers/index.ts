@@ -25,6 +25,7 @@ import { runInventoryAlerts } from "./inventory-alerts.worker";
 import { startCampaignDispatchSchedule } from "./campaign-dispatch.worker";
 import { startLicenceExpirySchedule } from "./licence-expiry.worker";
 import { startDunningSchedule } from "./dunning.worker";
+import { startAdmissionsSchedule } from "./admissions-schedule.worker";
 
 const log = logger.child({ component: "workers" });
 
@@ -60,6 +61,9 @@ log.info("Campaign dispatch scheduler started", { interval: "1 minute" });
 
 startDunningSchedule();
 log.info("Dunning scheduler started", { interval: "daily" });
+
+startAdmissionsSchedule();
+log.info("Admissions schedule sweep started", { interval: "hourly" });
 
 // Inventory alerts — run on startup + daily
 runInventoryAlerts().catch((err) =>

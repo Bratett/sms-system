@@ -117,16 +117,52 @@ model AdmissionApplication {
   beceIndexNumber        String?
   enrollmentCode         String?
   placementSchoolCode    String?
+  programPlaced          String? // Science, Business, General Arts, etc. (from CSSPS)
   status                 AdmissionStatus   @default(SUBMITTED)
+  currentStage           String? // Mirrors WorkflowInstance state for fast filtering
   notes                  String?
   submittedAt            DateTime          @default(now())
   reviewedBy             String?
   reviewedAt             DateTime?
+
+  // Application fee
+  applicationFeeRequired  Boolean  @default(true)
+  applicationFeePaid      Boolean  @default(false)
+  applicationFeeAmount    Decimal? @db.Decimal(18, 2)
+  applicationFeePaymentId String?
+  feeWaivedReason         String?
+
+  // Interview
+  interviewRequired     Boolean @default(false)
+  interviewWaivedReason String?
+
+  // Decision
+  decisionReason String?
+  autoDecision   Boolean @default(false)
+
+  // Offer lifecycle
+  offerAccepted    Boolean?
+  offerAcceptedAt  DateTime?
+  offerExpiryDate  DateTime?
+
+  // Placement verification
+  placementVerified   Boolean   @default(false)
+  placementVerifiedAt DateTime?
+  placementVerifiedBy String?
+
+  // Withdrawal
+  withdrawnAt       DateTime?
+  withdrawalReason  String?
+
   enrolledStudentId      String? // Link to Student record after enrollment
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
 
-  documents AdmissionDocument[]
+  documents   AdmissionDocument[]
+  interviews  AdmissionInterview[]
+  decisions   AdmissionDecision[]
+  appeals     AdmissionAppeal[]
+  offers      AdmissionOffer[]
 
   @@index([schoolId])
   @@index([academicYearId])
@@ -136,22 +172,131 @@ model AdmissionApplication {
   @@index([beceIndexNumber])
   @@index([enrollmentCode])
   @@index([guardianPhone])
+  @@index([currentStage])
+  @@index([offerExpiryDate])
+  @@index([placementVerified])
 }
 
 model AdmissionDocument {
-  id            String   @id @default(cuid())
-  applicationId String
-  schoolId      String
-  documentType  String // e.g., "Birth Certificate", "JHS Report", "Passport Photo"
-  fileName      String
-  fileUrl       String
-  uploadedAt    DateTime @default(now())
+  id                 String                     @id @default(cuid())
+  applicationId      String
+  schoolId           String
+  documentType       String // e.g., "Birth Certificate", "JHS Report", "Passport Photo", "Placement Letter"
+  fileName           String
+  fileKey            String // R2 object key — sign at read time via getSignedDownloadUrl
+  verificationStatus DocumentVerificationStatus @default(PENDING)
+  verifiedBy         String?
+  verifiedAt         DateTime?
+  rejectionReason    String?
+  uploadedAt         DateTime                   @default(now())
 
   application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   school      School               @relation("SchoolAdmissionDocument", fields: [schoolId], references: [id])
 
   @@index([applicationId])
   @@index([schoolId])
+  @@index([verificationStatus])
+}
+
+// ─── Interview, Decision, Conditions, Appeals, Offers ────────────────
+
+model AdmissionInterview {
+  id              String            @id @default(cuid())
+  applicationId   String
+  schoolId        String
+  scheduledAt     DateTime
+  location        String?
+  panelMemberIds  String[] // User IDs of interviewers
+  academicScore   Decimal?          @db.Decimal(5, 2) // 0–10
+  behavioralScore Decimal?          @db.Decimal(5, 2) // 0–10
+  parentScore     Decimal?          @db.Decimal(5, 2) // 0–10
+  totalScore      Decimal?          @db.Decimal(5, 2) // computed 0–10
+  outcome         InterviewOutcome?
+  notes           String?
+  recordedBy      String?
+  recordedAt      DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([schoolId])
+  @@index([scheduledAt])
+  @@index([outcome])
+}
+
+model AdmissionDecision {
+  id            String               @id @default(cuid())
+  applicationId String
+  schoolId      String
+  decision      AdmissionStatus // ACCEPTED | CONDITIONAL_ACCEPT | WAITLISTED | REJECTED
+  decidedBy     String // User ID (or "SYSTEM" for auto-decision)
+  decidedAt     DateTime             @default(now())
+  reason        String?
+  approvedBy    String?
+  autoDecision  Boolean              @default(false)
+
+  application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  conditions  AdmissionCondition[]
+
+  @@index([applicationId])
+  @@index([schoolId])
+  @@index([decidedAt])
+}
+
+model AdmissionCondition {
+  id           String    @id @default(cuid())
+  decisionId   String
+  type         String // e.g., "PLACEMENT_TEST", "MISSING_DOCS", "MEDICAL_CLEARANCE"
+  description  String
+  deadline     DateTime
+  met          Boolean   @default(false)
+  metAt        DateTime?
+  evidenceKey  String? // R2 key
+  verifiedBy   String?
+
+  decision AdmissionDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+
+  @@index([decisionId])
+  @@index([deadline])
+  @@index([met])
+}
+
+model AdmissionAppeal {
+  id            String       @id @default(cuid())
+  applicationId String
+  schoolId      String
+  submittedBy   String // User ID or guardian identifier
+  submittedAt   DateTime     @default(now())
+  reason        String
+  status        AppealStatus @default(PENDING)
+  resolvedBy    String?
+  resolvedAt    DateTime?
+  resolution    String?
+
+  application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([schoolId])
+  @@index([status])
+}
+
+model AdmissionOffer {
+  id            String    @id @default(cuid())
+  applicationId String
+  schoolId      String
+  issuedAt      DateTime  @default(now())
+  expiryDate    DateTime
+  acceptedAt    DateTime?
+  declinedAt    DateTime?
+  declineReason String?
+
+  application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([schoolId])
+  @@index([expiryDate])
 }
 
 // ─── Medical Records ────────────────────────────────────────────────
@@ -201,12 +346,40 @@ enum StudentStatus {
 enum AdmissionStatus {
   DRAFT
   SUBMITTED
+  PAYMENT_PENDING
+  DOCUMENTS_PENDING
   UNDER_REVIEW
   SHORTLISTED
+  INTERVIEW_SCHEDULED
+  AWAITING_DECISION
   ACCEPTED
+  CONDITIONAL_ACCEPT
+  WAITLISTED
   REJECTED
+  OFFER_EXPIRED
+  WITHDRAWN
   ENROLLED
   CANCELLED
+}
+
+enum InterviewOutcome {
+  PASSED
+  CONDITIONAL
+  FAILED
+  NO_SHOW
+  WAIVED
+}
+
+enum DocumentVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum AppealStatus {
+  PENDING
+  UPHELD
+  DENIED
 }
 
 enum ApplicationType {

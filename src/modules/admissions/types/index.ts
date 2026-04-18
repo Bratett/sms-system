@@ -41,7 +41,9 @@ export interface ApplicationDocument {
   id: string;
   documentType: string;
   fileName: string;
-  fileUrl: string;
+  fileKey: string;
+  /** Transient: signed R2 download URL attached by getApplicationAction. */
+  downloadUrl?: string;
   uploadedAt: Date;
 }
 
@@ -63,4 +65,19 @@ export interface AdmissionStats {
   rejected: number;
   enrolled: number;
   draft: number;
+  // Phase 4 funnel extensions
+  paymentPending: number;
+  documentsPending: number;
+  interviewScheduled: number;
+  awaitingDecision: number;
+  conditionalAccept: number;
+  waitlisted: number;
+  offerExpired: number;
+  withdrawn: number;
+  // Placement-specific
+  placementTotal: number;
+  placementVerified: number;
+  placementUnverified: number;
+  // Appeals
+  appealsPending: number;
 }

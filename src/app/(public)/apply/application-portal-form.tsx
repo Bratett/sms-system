@@ -3,7 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { submitPublicApplicationAction } from "@/modules/admissions/actions/public-admission.action";
+import {
+  submitPublicApplicationAction,
+  verifyPlacementAction,
+} from "@/modules/admissions/actions/public-admission.action";
 
 interface Programme {
   id: string;
@@ -45,6 +48,35 @@ export function ApplicationPortalForm({
   const [beceIndexNumber, setBeceIndexNumber] = useState("");
   const [enrollmentCode, setEnrollmentCode] = useState("");
   const [placementSchoolCode, setPlacementSchoolCode] = useState("");
+  const [isVerifyingPlacement, setIsVerifyingPlacement] = useState(false);
+  const [placementVerifyResult, setPlacementVerifyResult] = useState<
+    { valid: boolean; errors: string[]; warnings: string[] } | null
+  >(null);
+
+  async function handleVerifyPlacement() {
+    if (!beceIndexNumber.trim() || !enrollmentCode.trim()) {
+      toast.error("Enter both BECE index and enrollment code first.");
+      return;
+    }
+    setIsVerifyingPlacement(true);
+    try {
+      const res = await verifyPlacementAction({
+        enrollmentCode: enrollmentCode.trim(),
+        beceIndexNumber: beceIndexNumber.trim(),
+      });
+      if ("error" in res && res.error) {
+        toast.error(res.error);
+        setPlacementVerifyResult({ valid: false, errors: [res.error], warnings: [] });
+      } else if ("data" in res && res.data) {
+        setPlacementVerifyResult(res.data);
+        if (res.data.valid) {
+          toast.success("Placement details look valid.");
+        }
+      }
+    } finally {
+      setIsVerifyingPlacement(false);
+    }
+  }
 
   // Applicant info
   const [firstName, setFirstName] = useState("");
@@ -85,8 +117,10 @@ export function ApplicationPortalForm({
     if (!gender) errs.push("Gender is required");
     if (applicationType === "PLACEMENT") {
       if (!beceIndexNumber.trim()) errs.push("BECE Index Number is required for placement applications");
-      else if (!/^\d{3}\/\d{4}\/\d{3}$/.test(beceIndexNumber.trim()))
-        errs.push("BECE Index Number must be in format ###/####/### (e.g., 012/0045/067)");
+      else if (!/^(\d{10}|\d{12})$/.test(beceIndexNumber.trim()))
+        errs.push(
+          "BECE Index Number must be 10 digits (or 12 digits if the 2-digit year is included). No slashes or spaces.",
+        );
       if (!enrollmentCode.trim()) errs.push("Enrollment Code is required for placement applications");
       else if (!/^[A-Za-z0-9]{6,}$/.test(enrollmentCode.trim()))
         errs.push("Enrollment Code must be at least 6 alphanumeric characters");
@@ -299,12 +333,18 @@ export function ApplicationPortalForm({
                   </label>
                   <input
                     type="text"
+                    inputMode="numeric"
                     value={beceIndexNumber}
-                    onChange={(e) => setBeceIndexNumber(e.target.value)}
+                    onChange={(e) =>
+                      setBeceIndexNumber(e.target.value.replace(/\D/g, ""))
+                    }
                     className={inputClass}
-                    placeholder="e.g., 012/0045/067"
+                    placeholder="e.g., 0120045067"
+                    maxLength={12}
                   />
-                  <p className="text-xs text-muted-foreground mt-1">Format: ###/####/###</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    10 digits, or 12 digits with 2-digit year prefix. No slashes.
+                  </p>
                   {errors.beceIndexNumber && (
                     <p className={errorClass}>{errors.beceIndexNumber[0]}</p>
                   )}
@@ -338,6 +378,55 @@ export function ApplicationPortalForm({
                   />
                 </div>
               </div>
+
+              {/* Verify placement probe */}
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleVerifyPlacement}
+                  disabled={
+                    isVerifyingPlacement || !beceIndexNumber.trim() || !enrollmentCode.trim()
+                  }
+                  className="rounded-md border border-primary bg-background px-4 py-2 text-sm font-medium text-primary hover:bg-primary/5 disabled:opacity-50"
+                >
+                  {isVerifyingPlacement ? "Verifying…" : "Verify placement"}
+                </button>
+                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">
+                  ✓ Application fee: WAIVED (Free SHS)
+                </div>
+              </div>
+
+              {placementVerifyResult && (
+                <div
+                  className={`mt-3 rounded-md border p-3 text-sm ${
+                    placementVerifyResult.valid
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                      : "border-red-200 bg-red-50 text-red-900"
+                  }`}
+                >
+                  {placementVerifyResult.valid ? (
+                    <>
+                      <div className="font-medium">Placement looks valid.</div>
+                      {placementVerifyResult.warnings.length > 0 && (
+                        <ul className="mt-1 list-disc pl-5 text-xs text-amber-800">
+                          {placementVerifyResult.warnings.map((w, i) => (
+                            <li key={i}>{w}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="font-medium">Could not verify placement.</div>
+                      <ul className="mt-1 list-disc pl-5 text-xs">
+                        {placementVerifyResult.errors.map((e, i) => (
+                          <li key={i}>{e}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

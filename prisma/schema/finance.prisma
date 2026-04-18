@@ -22,13 +22,16 @@ model FeeStructure {
 }
 
 model FeeItem {
-  id             String  @id @default(cuid())
+  id             String      @id @default(cuid())
   feeStructureId String
   schoolId       String
   name           String // e.g., Tuition, Boarding, Feeding, PTA, Exam Fee
   code           String?
-  amount         Decimal @db.Decimal(18, 2)
-  isOptional     Boolean @default(false)
+  amount         Decimal     @db.Decimal(18, 2)
+  isOptional     Boolean     @default(false)
+  /// Category taxonomy used by billing to decide Free-SHS waivers.
+  /// Existing rows default to OTHER — admins reclassify TUITION items via the Fee Structure UI.
+  type           FeeItemType @default(OTHER)
   description    String?
 
   feeStructure FeeStructure      @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
@@ -37,6 +40,16 @@ model FeeItem {
 
   @@index([feeStructureId])
   @@index([schoolId])
+  @@index([type])
+}
+
+enum FeeItemType {
+  TUITION
+  BOARDING
+  FEEDING
+  PTA
+  BOOKS
+  OTHER
 }
 
 model StudentBill {

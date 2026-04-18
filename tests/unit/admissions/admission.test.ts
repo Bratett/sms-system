@@ -313,21 +313,22 @@ describe("reviewApplicationAction", () => {
     expect(result).toEqual({ error: "Application not found" });
   });
 
-  it("should update status and set reviewedBy", async () => {
+  it("should update status and set reviewedBy (UNDER_REVIEW path — wrapper handles non-decision states)", async () => {
     prismaMock.admissionApplication.findUnique.mockResolvedValue({
       id: "app-1",
+      schoolId: "default-school",
       status: "SUBMITTED",
       applicationNumber: "APP/2026/0001",
       notes: null,
     } as never);
     prismaMock.admissionApplication.update.mockResolvedValue({
       id: "app-1",
-      status: "ACCEPTED",
+      status: "UNDER_REVIEW",
       reviewedBy: "test-user-id",
     } as never);
 
     const result = await reviewApplicationAction("app-1", {
-      status: "ACCEPTED",
+      status: "UNDER_REVIEW",
       notes: "Good candidate",
     });
     expect(result).toHaveProperty("data");
@@ -335,11 +336,47 @@ describe("reviewApplicationAction", () => {
       expect.objectContaining({
         where: { id: "app-1" },
         data: expect.objectContaining({
-          status: "ACCEPTED",
+          status: "UNDER_REVIEW",
           reviewedBy: "test-user-id",
         }),
       })
     );
+  });
+
+  it("routes ACCEPTED through decideApplicationAction and creates a decision row", async () => {
+    prismaMock.admissionApplication.findUnique.mockResolvedValue({
+      id: "app-1",
+      schoolId: "default-school",
+      status: "AWAITING_DECISION",
+      applicationNumber: "APP/2026/0001",
+      applicationType: "STANDARD",
+      jhsAggregate: null,
+      guardianName: "Kofi Mensah",
+      guardianPhone: "0241234567",
+      guardianEmail: null,
+      notes: null,
+      interviews: [
+        { totalScore: 9.5 }, // auto-accept via score threshold
+      ],
+    } as never);
+    prismaMock.admissionDecision.create.mockResolvedValue({
+      id: "dec-1",
+    } as never);
+    prismaMock.admissionOffer.create.mockResolvedValue({
+      id: "offer-1",
+    } as never);
+    prismaMock.admissionApplication.update.mockResolvedValue({
+      id: "app-1",
+      status: "ACCEPTED",
+    } as never);
+
+    const result = await reviewApplicationAction("app-1", {
+      status: "ACCEPTED",
+      notes: "Strong interview",
+    });
+    expect(result).toHaveProperty("data");
+    expect(prismaMock.admissionDecision.create).toHaveBeenCalled();
+    expect(prismaMock.admissionOffer.create).toHaveBeenCalled(); // offer auto-issued on ACCEPTED
   });
 });
 
@@ -365,6 +402,7 @@ describe("enrollApplicationAction", () => {
   it("should reject non-ACCEPTED applications", async () => {
     prismaMock.admissionApplication.findUnique.mockResolvedValue({
       id: "app-1",
+      schoolId: "default-school",
       status: "SUBMITTED",
     } as never);
     const result = await enrollApplicationAction("app-1", "ca-1");
@@ -374,20 +412,52 @@ describe("enrollApplicationAction", () => {
   });
 
   it("should reject if no school configured", async () => {
-    prismaMock.admissionApplication.findUnique.mockResolvedValue({
-      id: "app-1",
-      status: "ACCEPTED",
-    } as never);
     mockAuthenticatedUser({ schoolId: null });
 
     const result = await enrollApplicationAction("app-1", "ca-1");
     expect(result).toEqual({ error: "No school context. Please select an active school." });
   });
 
+  it("should reject if offer not accepted", async () => {
+    prismaMock.admissionApplication.findUnique.mockResolvedValue({
+      id: "app-1",
+      schoolId: "default-school",
+      status: "ACCEPTED",
+      offerAccepted: false,
+      applicationType: "STANDARD",
+    } as never);
+
+    const result = await enrollApplicationAction("app-1", "ca-1");
+    expect(result).toEqual({
+      error:
+        "The offer has not been accepted. Record offer acceptance before enrolling.",
+    });
+  });
+
+  it("should reject placement application when placement not verified", async () => {
+    prismaMock.admissionApplication.findUnique.mockResolvedValue({
+      id: "app-1",
+      schoolId: "default-school",
+      status: "ACCEPTED",
+      offerAccepted: true,
+      applicationType: "PLACEMENT",
+      placementVerified: false,
+    } as never);
+
+    const result = await enrollApplicationAction("app-1", "ca-1");
+    expect(result).toEqual({
+      error:
+        "Placement has not been verified. Run placement verification before enrolling.",
+    });
+  });
+
   it("should reject if no active academic year", async () => {
     prismaMock.admissionApplication.findUnique.mockResolvedValue({
       id: "app-1",
+      schoolId: "default-school",
       status: "ACCEPTED",
+      offerAccepted: true,
+      applicationType: "STANDARD",
     } as never);
     prismaMock.academicYear.findFirst.mockResolvedValue(null as never);
 
@@ -398,12 +468,20 @@ describe("enrollApplicationAction", () => {
   it("should reject if class arm not found", async () => {
     prismaMock.admissionApplication.findUnique.mockResolvedValue({
       id: "app-1",
+      schoolId: "default-school",
       status: "ACCEPTED",
+      offerAccepted: true,
+      applicationType: "STANDARD",
+      boardingStatus: "DAY",
+      gender: "FEMALE",
     } as never);
     prismaMock.academicYear.findFirst.mockResolvedValue({
       id: "ay-1",
+      name: "2026/2027",
       isCurrent: true,
     } as never);
+    prismaMock.classArm.findMany.mockResolvedValue([{ capacity: 50 }] as never);
+    prismaMock.enrollment.count.mockResolvedValue(10 as never);
     prismaMock.classArm.findUnique.mockResolvedValue(null as never);
 
     const result = await enrollApplicationAction("app-1", "nonexistent-ca");
@@ -413,7 +491,10 @@ describe("enrollApplicationAction", () => {
   it("should create student, guardian, enrollment in a transaction", async () => {
     prismaMock.admissionApplication.findUnique.mockResolvedValue({
       id: "app-1",
+      schoolId: "default-school",
       status: "ACCEPTED",
+      offerAccepted: true,
+      applicationType: "STANDARD",
       firstName: "Ama",
       lastName: "Mensah",
       otherNames: null,
@@ -430,11 +511,17 @@ describe("enrollApplicationAction", () => {
     } as never);
     prismaMock.academicYear.findFirst.mockResolvedValue({
       id: "ay-1",
+      name: "2026/2027",
       isCurrent: true,
     } as never);
+    prismaMock.classArm.findMany.mockResolvedValue([{ capacity: 50 }] as never);
+    prismaMock.enrollment.count.mockResolvedValue(10 as never);
     prismaMock.classArm.findUnique.mockResolvedValue({
       id: "ca-1",
+      name: "A",
+      capacity: 50,
       class: { id: "cls-1" },
+      _count: { enrollments: 10 },
     } as never);
     prismaMock.student.count.mockResolvedValue(10 as never);
 
@@ -502,7 +589,10 @@ describe("enrollApplicationAction", () => {
   it("should split single-word guardian name correctly", async () => {
     prismaMock.admissionApplication.findUnique.mockResolvedValue({
       id: "app-1",
+      schoolId: "default-school",
       status: "ACCEPTED",
+      offerAccepted: true,
+      applicationType: "STANDARD",
       firstName: "Ama",
       lastName: "Mensah",
       otherNames: null,
@@ -519,11 +609,17 @@ describe("enrollApplicationAction", () => {
     } as never);
     prismaMock.academicYear.findFirst.mockResolvedValue({
       id: "ay-1",
+      name: "2026/2027",
       isCurrent: true,
     } as never);
+    prismaMock.classArm.findMany.mockResolvedValue([{ capacity: 50 }] as never);
+    prismaMock.enrollment.count.mockResolvedValue(10 as never);
     prismaMock.classArm.findUnique.mockResolvedValue({
       id: "ca-1",
+      name: "A",
+      capacity: 50,
       class: { id: "cls-1" },
+      _count: { enrollments: 10 },
     } as never);
     prismaMock.student.count.mockResolvedValue(0 as never);
 
@@ -641,14 +737,25 @@ describe("getAdmissionStatsAction", () => {
 
   it("should return counts by all status types", async () => {
     prismaMock.admissionApplication.count
-      .mockResolvedValueOnce(50 as never)  // total
-      .mockResolvedValueOnce(15 as never)  // submitted
-      .mockResolvedValueOnce(5 as never)   // underReview
-      .mockResolvedValueOnce(3 as never)   // shortlisted
-      .mockResolvedValueOnce(10 as never)  // accepted
-      .mockResolvedValueOnce(7 as never)   // rejected
-      .mockResolvedValueOnce(8 as never)   // enrolled
-      .mockResolvedValueOnce(2 as never);  // draft
+      .mockResolvedValueOnce(50 as never) // total
+      .mockResolvedValueOnce(15 as never) // submitted
+      .mockResolvedValueOnce(5 as never) // underReview
+      .mockResolvedValueOnce(3 as never) // shortlisted
+      .mockResolvedValueOnce(10 as never) // accepted
+      .mockResolvedValueOnce(7 as never) // rejected
+      .mockResolvedValueOnce(8 as never) // enrolled
+      .mockResolvedValueOnce(2 as never) // draft
+      .mockResolvedValueOnce(0 as never) // paymentPending
+      .mockResolvedValueOnce(0 as never) // documentsPending
+      .mockResolvedValueOnce(0 as never) // interviewScheduled
+      .mockResolvedValueOnce(0 as never) // awaitingDecision
+      .mockResolvedValueOnce(0 as never) // conditionalAccept
+      .mockResolvedValueOnce(0 as never) // waitlisted
+      .mockResolvedValueOnce(0 as never) // offerExpired
+      .mockResolvedValueOnce(0 as never) // withdrawn
+      .mockResolvedValueOnce(12 as never) // placementTotal
+      .mockResolvedValueOnce(4 as never); // placementVerified
+    prismaMock.admissionAppeal.count.mockResolvedValue(1 as never); // appealsPending
 
     const result = await getAdmissionStatsAction();
     expect(result).toHaveProperty("data");
@@ -662,6 +769,18 @@ describe("getAdmissionStatsAction", () => {
       rejected: 7,
       enrolled: 8,
       draft: 2,
+      paymentPending: 0,
+      documentsPending: 0,
+      interviewScheduled: 0,
+      awaitingDecision: 0,
+      conditionalAccept: 0,
+      waitlisted: 0,
+      offerExpired: 0,
+      withdrawn: 0,
+      placementTotal: 12,
+      placementVerified: 4,
+      placementUnverified: 8,
+      appealsPending: 1,
     });
   });
 

@@ -1,4 +1,5 @@
 import type { WorkflowDefinition } from "../types";
+import { admissionWorkflow } from "./admission";
 import { exeatWorkflow } from "./exeat";
 
 const registry = new Map<string, WorkflowDefinition<unknown>>();
@@ -11,6 +12,7 @@ function register<T>(def: WorkflowDefinition<T>): void {
 }
 
 register(exeatWorkflow);
+register(admissionWorkflow);
 
 export function getDefinition(key: string): WorkflowDefinition<unknown> {
   const def = registry.get(key);

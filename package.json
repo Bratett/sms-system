@@ -19,6 +19,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:rls": "vitest run -c vitest.rls.config.ts",
+    "test:admissions": "vitest run -c vitest.admissions.config.ts",
     "smoke": "tsx tests/smoke/verify.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

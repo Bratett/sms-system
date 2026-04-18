@@ -89,6 +89,12 @@ export const navigationGroups: NavGroup[] = [
             icon: "ClipboardList",
             permission: PERMISSIONS.ADMISSIONS_APPROVE,
           },
+          {
+            title: "Appeals",
+            href: "/admissions/appeals",
+            icon: "AlertCircle",
+            permission: PERMISSIONS.ADMISSIONS_READ,
+          },
         ],
       },
       {

@@ -26,6 +26,18 @@ export default async function ApplicationsPage() {
     rejected: 0,
     enrolled: 0,
     draft: 0,
+    paymentPending: 0,
+    documentsPending: 0,
+    interviewScheduled: 0,
+    awaitingDecision: 0,
+    conditionalAccept: 0,
+    waitlisted: 0,
+    offerExpired: 0,
+    withdrawn: 0,
+    placementTotal: 0,
+    placementVerified: 0,
+    placementUnverified: 0,
+    appealsPending: 0,
   };
 
   return (

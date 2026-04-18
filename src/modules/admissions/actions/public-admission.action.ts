@@ -7,6 +7,8 @@ import {
   type PublicApplicationInput,
   type StatusCheckInput,
 } from "@/modules/admissions/schemas/admission.schema";
+import { FREE_SHS_FEE_WAIVER_REASON } from "@/modules/admissions/constants";
+import { validatePlacement } from "@/modules/admissions/services/placement-validation.service";
 
 /**
  * Submit an admission application from the public portal.
@@ -75,12 +77,33 @@ export async function submitPublicApplicationAction(input: PublicApplicationInpu
     }
   }
 
+  // Placement-specific validation (format, duplicate enrollment code).
+  // Staff verification happens in Phase 3 and flips `placementVerified`.
+  let placementWarnings: string[] = [];
+  const isPlacement = data.applicationType === "PLACEMENT";
+  if (isPlacement) {
+    const result = await validatePlacement({
+      enrollmentCode: data.enrollmentCode,
+      beceIndexNumber: data.beceIndexNumber,
+      schoolId: school.id,
+      academicYearId: academicYear.id,
+    });
+    if (!result.valid) {
+      return { error: result.errors.join(" ") };
+    }
+    placementWarnings = result.warnings;
+  }
+
   // Generate application number
   const year = new Date().getFullYear();
   const count = await db.admissionApplication.count({
     where: { schoolId: school.id },
   });
   const applicationNumber = `APP/${year}/${String(count + 1).padStart(4, "0")}`;
+
+  // Free SHS: placement applications skip the application fee on submit.
+  // Staff may revoke this during verification if the placement turns out invalid.
+  const feeWaived = isPlacement;
 
   const application = await db.admissionApplication.create({
     data: {
@@ -111,6 +134,9 @@ export async function submitPublicApplicationAction(input: PublicApplicationInpu
       placementSchoolCode: data.placementSchoolCode?.trim() || null,
       notes: data.notes || null,
       status: "SUBMITTED",
+      applicationFeeRequired: !feeWaived,
+      applicationFeePaid: feeWaived,
+      feeWaivedReason: feeWaived ? FREE_SHS_FEE_WAIVER_REASON : null,
     },
   });
 
@@ -119,6 +145,39 @@ export async function submitPublicApplicationAction(input: PublicApplicationInpu
       applicationNumber: application.applicationNumber,
       firstName: application.firstName,
       lastName: application.lastName,
+      feeWaived,
+      warnings: placementWarnings,
+    },
+  };
+}
+
+/**
+ * Pre-submit placement verification probe for the public form.
+ * Read-only: runs the same validation the submit action performs but without
+ * creating an application, so the UI can show a green "Placement verified" banner.
+ */
+export async function verifyPlacementAction(input: {
+  enrollmentCode: string;
+  beceIndexNumber: string;
+}) {
+  const school = await db.school.findFirst();
+  if (!school) return { error: "No school configured" };
+
+  const academicYear = await db.academicYear.findFirst({ where: { isCurrent: true } });
+  if (!academicYear) return { error: "Admissions are currently closed." };
+
+  const result = await validatePlacement({
+    enrollmentCode: input.enrollmentCode,
+    beceIndexNumber: input.beceIndexNumber,
+    schoolId: school.id,
+    academicYearId: academicYear.id,
+  });
+
+  return {
+    data: {
+      valid: result.valid,
+      errors: result.errors,
+      warnings: result.warnings,
     },
   };
 }
