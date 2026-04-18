@@ -66,10 +66,14 @@ model School {
   homeworkSubmissions      HomeworkSubmission[]      @relation("SchoolHomeworkSubmissions")
 
   // Student
-  guardians          Guardian[]          @relation("SchoolGuardian")
-  studentGuardians   StudentGuardian[]   @relation("SchoolStudentGuardian")
-  studentHouses      StudentHouse[]      @relation("SchoolStudentHouse")
-  admissionDocuments AdmissionDocument[] @relation("SchoolAdmissionDocument")
+  guardians           Guardian[]           @relation("SchoolGuardian")
+  studentGuardians    StudentGuardian[]    @relation("SchoolStudentGuardian")
+  studentHouses       StudentHouse[]       @relation("SchoolStudentHouse")
+  admissionDocuments  AdmissionDocument[]  @relation("SchoolAdmissionDocument")
+  admissionInterviews AdmissionInterview[] @relation("SchoolAdmissionInterview")
+  admissionDecisions  AdmissionDecision[]  @relation("SchoolAdmissionDecision")
+  admissionAppeals    AdmissionAppeal[]    @relation("SchoolAdmissionAppeal")
+  admissionOffers     AdmissionOffer[]     @relation("SchoolAdmissionOffer")
 
   // Finance
   feeItems             FeeItem[]             @relation("SchoolFeeItem")

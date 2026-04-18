@@ -9,12 +9,32 @@ import {
   enrollApplicationAction,
 } from "@/modules/admissions/actions/admission.action";
 import { formatDate } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
+import { PERMISSIONS } from "@/lib/permissions";
+import {
+  maskBECEIndex,
+  maskEnrollmentCode,
+  maskUnless,
+} from "@/modules/admissions/utils/mask";
+import {
+  PlacementVerifyCard,
+  InterviewPanel,
+  DecisionPanel,
+  OfferCard,
+  ConditionsTracker,
+  WorkflowTimeline,
+  type InterviewRow,
+  type DecisionRow,
+  type OfferRow,
+  type TransitionRow,
+} from "./application-actions";
 
 interface ApplicationDocument {
   id: string;
   documentType: string;
   fileName: string;
-  fileUrl: string;
+  fileKey: string;
+  downloadUrl?: string;
   uploadedAt: Date;
 }
 
@@ -51,6 +71,9 @@ interface Application {
   reviewedBy: string | null;
   reviewedAt: Date | null;
   enrolledStudentId: string | null;
+  placementVerified: boolean;
+  offerAccepted: boolean | null;
+  offerExpiryDate: Date | null;
   documents: ApplicationDocument[];
 }
 
@@ -68,14 +91,24 @@ interface ApplicationDetailProps {
   application: Application;
   classArmOptions: ClassArmOption[];
   programmes: Programme[];
+  interviews: InterviewRow[];
+  decisions: DecisionRow[];
+  offers: OfferRow[];
+  transitions: TransitionRow[];
 }
 
 export function ApplicationDetail({
   application,
   classArmOptions,
+  interviews,
+  decisions,
+  offers,
+  transitions,
 }: ApplicationDetailProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const { hasPermission } = usePermissions();
+  const canSeePlacementRaw = hasPermission(PERMISSIONS.ADMISSIONS_VERIFY_PLACEMENT);
 
   // Review panel state
   const [reviewNotes, setReviewNotes] = useState("");
@@ -86,6 +119,17 @@ export function ApplicationDetail({
   const canReview =
     application.status === "SUBMITTED" || application.status === "UNDER_REVIEW";
   const canEnroll = application.status === "ACCEPTED";
+
+  const latestInterview = interviews[0] ?? null;
+  const latestOffer = offers[0] ?? null;
+  const allConditions = decisions.flatMap((d) => d.conditions);
+  const canDecide =
+    application.status === "UNDER_REVIEW" ||
+    application.status === "AWAITING_DECISION" ||
+    application.status === "INTERVIEW_SCHEDULED";
+  const canScheduleInterview =
+    application.status === "UNDER_REVIEW" || application.status === "INTERVIEW_SCHEDULED";
+  const canRecordInterview = application.status === "INTERVIEW_SCHEDULED";
 
   function handleReview(status: "ACCEPTED" | "REJECTED" | "UNDER_REVIEW" | "SHORTLISTED") {
     startTransition(async () => {
@@ -223,13 +267,21 @@ export function ApplicationDetail({
                 <div>
                   <dt className="text-sm text-amber-700">BECE Index Number</dt>
                   <dd className="mt-0.5 text-sm font-medium font-mono">
-                    {application.beceIndexNumber || "-"}
+                    {maskUnless(
+                      canSeePlacementRaw,
+                      application.beceIndexNumber,
+                      maskBECEIndex,
+                    )}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-sm text-amber-700">Enrollment Code</dt>
                   <dd className="mt-0.5 text-sm font-medium font-mono">
-                    {application.enrollmentCode || "-"}
+                    {maskUnless(
+                      canSeePlacementRaw,
+                      application.enrollmentCode,
+                      maskEnrollmentCode,
+                    )}
                   </dd>
                 </div>
                 {application.placementSchoolCode && (
@@ -326,9 +378,21 @@ export function ApplicationDetail({
                       <p className="text-sm font-medium">{doc.documentType}</p>
                       <p className="text-xs text-muted-foreground">{doc.fileName}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(doc.uploadedAt)}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      {doc.downloadUrl && (
+                        <a
+                          href={doc.downloadUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Download
+                        </a>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(doc.uploadedAt)}
+                      </p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -338,6 +402,38 @@ export function ApplicationDetail({
 
         {/* Right side - Actions */}
         <div className="space-y-6">
+          {/* Placement verification (PLACEMENT type only) */}
+          {application.applicationType === "PLACEMENT" && (
+            <PlacementVerifyCard
+              applicationId={application.id}
+              alreadyVerified={application.placementVerified}
+            />
+          )}
+
+          {/* Interview — schedule or record */}
+          {(canScheduleInterview || canRecordInterview || latestInterview) && (
+            <InterviewPanel
+              applicationId={application.id}
+              interview={latestInterview}
+              canSchedule={canScheduleInterview}
+              canRecord={canRecordInterview}
+            />
+          )}
+
+          {/* Decision */}
+          <DecisionPanel applicationId={application.id} visible={canDecide} />
+
+          {/* Offer */}
+          {latestOffer && (
+            <OfferCard applicationId={application.id} offer={latestOffer} />
+          )}
+
+          {/* Conditions */}
+          <ConditionsTracker conditions={allConditions} />
+
+          {/* Workflow timeline */}
+          <WorkflowTimeline transitions={transitions} decisions={decisions} />
+
           {/* Review History */}
           <div className="rounded-lg border border-border bg-card p-6">
             <h3 className="text-lg font-semibold mb-4">Application Timeline</h3>

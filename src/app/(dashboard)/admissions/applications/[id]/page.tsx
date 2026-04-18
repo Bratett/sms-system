@@ -57,6 +57,86 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
       })
     : [];
 
+  // Phase 4: fetch interview, decision, offer, and workflow history for the
+  // extended right-column panels.
+  const [interviews, decisions, offers, workflowInstance] = await Promise.all([
+    db.admissionInterview.findMany({
+      where: { applicationId: id },
+      orderBy: { scheduledAt: "desc" },
+    }),
+    db.admissionDecision.findMany({
+      where: { applicationId: id },
+      include: { conditions: true },
+      orderBy: { decidedAt: "desc" },
+    }),
+    db.admissionOffer.findMany({
+      where: { applicationId: id },
+      orderBy: { issuedAt: "desc" },
+    }),
+    db.workflowInstance.findUnique({
+      where: {
+        entityType_entityId: { entityType: "AdmissionApplication", entityId: id },
+      },
+    }),
+  ]);
+
+  const transitions = workflowInstance
+    ? await db.workflowTransition.findMany({
+        where: { instanceId: workflowInstance.id },
+        orderBy: { occurredAt: "desc" },
+        take: 50,
+      })
+    : [];
+
+  const interviewRows = interviews.map((i) => ({
+    id: i.id,
+    scheduledAt: i.scheduledAt,
+    location: i.location,
+    academicScore: i.academicScore ? Number(i.academicScore) : null,
+    behavioralScore: i.behavioralScore ? Number(i.behavioralScore) : null,
+    parentScore: i.parentScore ? Number(i.parentScore) : null,
+    totalScore: i.totalScore ? Number(i.totalScore) : null,
+    outcome: i.outcome,
+    notes: i.notes,
+    recordedAt: i.recordedAt,
+  }));
+
+  const decisionRows = decisions.map((d) => ({
+    id: d.id,
+    decision: d.decision,
+    decidedAt: d.decidedAt,
+    reason: d.reason,
+    autoDecision: d.autoDecision,
+    decidedBy: d.decidedBy,
+    conditions: d.conditions.map((c) => ({
+      id: c.id,
+      type: c.type,
+      description: c.description,
+      deadline: c.deadline,
+      met: c.met,
+      metAt: c.metAt,
+    })),
+  }));
+
+  const offerRows = offers.map((o) => ({
+    id: o.id,
+    issuedAt: o.issuedAt,
+    expiryDate: o.expiryDate,
+    acceptedAt: o.acceptedAt,
+    declinedAt: o.declinedAt,
+    declineReason: o.declineReason,
+  }));
+
+  const transitionRows = transitions.map((t) => ({
+    id: t.id,
+    fromState: t.fromState,
+    toState: t.toState,
+    event: t.event,
+    actorId: t.actorId,
+    reason: t.reason,
+    occurredAt: t.occurredAt,
+  }));
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -75,6 +155,10 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
         application={appData}
         classArmOptions={classArmOptions}
         programmes={programmes}
+        interviews={interviewRows}
+        decisions={decisionRows}
+        offers={offerRows}
+        transitions={transitionRows}
       />
     </div>
   );

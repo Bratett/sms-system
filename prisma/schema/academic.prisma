@@ -51,6 +51,10 @@ model Enrollment {
   enrollmentDate     DateTime         @default(now())
   status             EnrollmentStatus @default(ACTIVE)
   previousClassArmId String?
+  /// Set by admissions when enrolling a verified CSSPS placement student.
+  /// Billing logic should skip tuition line items when true; PTA/boarding fees still apply.
+  /// TODO(finance): honour this flag in generateBillsAction once fee-item types are taxonomised.
+  isFreeShsPlacement Boolean          @default(false)
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 

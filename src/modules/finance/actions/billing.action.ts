@@ -90,10 +90,20 @@ export async function generateBillsAction(data: GenerateBillsInput) {
     select: { id: true, studentId: true, firstName: true, lastName: true },
   });
 
-  // Calculate total for non-optional items
-  const nonOptionalTotal = feeStructure.feeItems
-    .filter((item) => !item.isOptional)
-    .reduce((sum, item) => sum + toNum(item.amount), 0);
+  // Map of studentId → isFreeShsPlacement (for the matching academic year).
+  // Free-SHS students have tuition fee items waived; boarding/PTA/feeding still apply.
+  const activeEnrollments = await db.enrollment.findMany({
+    where: {
+      schoolId: ctx.schoolId,
+      studentId: { in: students.map((s) => s.id) },
+      academicYearId: feeStructure.academicYearId,
+      status: "ACTIVE",
+    },
+    select: { studentId: true, isFreeShsPlacement: true },
+  });
+  const freeShsByStudentId = new Map(
+    activeEnrollments.map((e) => [e.studentId, e.isFreeShsPlacement]),
+  );
 
   let generated = 0;
   let skipped = 0;
@@ -101,6 +111,17 @@ export async function generateBillsAction(data: GenerateBillsInput) {
 
   for (const student of students) {
     try {
+      const isFreeShs = freeShsByStudentId.get(student.id) === true;
+
+      // Filter non-optional items, dropping TUITION for Free-SHS enrollments.
+      const studentFeeItems = feeStructure.feeItems.filter(
+        (item) =>
+          !item.isOptional && !(isFreeShs && item.type === "TUITION"),
+      );
+      const nonOptionalTotal = studentFeeItems.reduce(
+        (sum, item) => sum + toNum(item.amount),
+        0,
+      );
       // Check if bill already exists for this student + fee structure
       const existingBill = await db.studentBill.findUnique({
         where: {
@@ -152,8 +173,9 @@ export async function generateBillsAction(data: GenerateBillsInput) {
           },
         });
 
-        // Create bill items for each fee item (non-optional only by default)
-        const nonOptionalItems = feeStructure.feeItems.filter((item) => !item.isOptional);
+        // Create bill items for each fee item. `studentFeeItems` already excludes
+        // optional items and (for Free-SHS placement enrollments) tuition items.
+        const nonOptionalItems = studentFeeItems;
         const billItemsData = nonOptionalItems.map((item) => ({
           schoolId: ctx.schoolId,
           studentBillId: bill.id,
