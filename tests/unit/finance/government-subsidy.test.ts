@@ -61,12 +61,17 @@ describe("Government Subsidy Actions", () => {
 
       prismaMock.$transaction.mockImplementation(async (fn) => {
         const tx = {
-          subsidyDisbursement: { create: async () => ({}) },
+          subsidyDisbursement: { create: async () => ({ id: "disb-1" }), update: async () => ({}) },
           governmentSubsidy: {
             update: async () => ({
               id: "sub-1", receivedAmount: 20000, expectedAmount: 50000, status: "PARTIALLY_RECEIVED",
             }),
           },
+          account: { findFirst: async () => null, findMany: async () => [], update: async () => ({}) },
+          fiscalPeriod: { findFirst: async () => null },
+          fund: { findFirst: async () => null },
+          journalTransaction: { findFirst: async () => null, create: async () => ({ id: "j1", transactionNumber: "JRN/2026/0001" }) },
+          journalEntry: { createMany: async () => ({}) },
         };
         return fn(tx as never);
       });

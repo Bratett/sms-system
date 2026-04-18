@@ -75,7 +75,8 @@ export const TrialBalancePdf: React.FC<{ schoolName: string; data: TrialBalanceD
 /* ─── Balance Sheet ──────────────────────────────────────────────── */
 
 interface BalanceSheetSection { accounts: { code: string; name: string; balance: number }[]; total: number; }
-interface BalanceSheetData { asOf: string | Date; assets: BalanceSheetSection; liabilities: BalanceSheetSection; equity: BalanceSheetSection & { netIncome: number }; totalLiabilitiesAndEquity: number; isBalanced: boolean; }
+interface NetAssetsSection { accounts: { code: string; name: string; balance: number }[]; postedBalance: number; currentPeriodSurplus: number; total: number; }
+interface BalanceSheetData { asOf: string | Date; assets: BalanceSheetSection; liabilities: BalanceSheetSection; netAssets: NetAssetsSection; totalLiabilitiesAndEquity: number; isBalanced: boolean; }
 
 export const BalanceSheetPdf: React.FC<{ schoolName: string; data: BalanceSheetData }> = ({ schoolName, data }) => {
   const renderSection = (title: string, section: BalanceSheetSection) => (
@@ -105,19 +106,19 @@ export const BalanceSheetPdf: React.FC<{ schoolName: string; data: BalanceSheetD
         </View>
         {renderSection("Assets", data.assets)}
         {renderSection("Liabilities", data.liabilities)}
-        {renderSection("Equity", data.equity)}
-        {data.equity.netIncome !== 0 && (
+        {renderSection("Net Assets / Equity", { accounts: data.netAssets.accounts, total: data.netAssets.postedBalance })}
+        {data.netAssets.currentPeriodSurplus !== 0 && (
           <View style={[styles.row, { fontStyle: "italic" }]}>
-            <Text style={[styles.rowLabel, { fontStyle: "italic" }]}>Net Income (Current Period)</Text>
-            <Text style={styles.rowAmount}>{formatCurrency(data.equity.netIncome)}</Text>
+            <Text style={[styles.rowLabel, { fontStyle: "italic" }]}>Current Period Surplus / (Deficit)</Text>
+            <Text style={styles.rowAmount}>{formatCurrency(data.netAssets.currentPeriodSurplus)}</Text>
           </View>
         )}
         <View style={styles.grandTotal}>
-          <Text style={styles.grandLabel}>Total Liabilities & Equity</Text>
+          <Text style={styles.grandLabel}>Total Liabilities & Net Assets</Text>
           <Text style={styles.grandAmount}>{formatCurrency(data.totalLiabilitiesAndEquity)}</Text>
         </View>
         <View style={[styles.badge, data.isBalanced ? styles.balancedBadge : styles.unbalancedBadge]}>
-          <Text>{data.isBalanced ? "A = L + E  BALANCED" : "NOT BALANCED"}</Text>
+          <Text>{data.isBalanced ? "A = L + NA  BALANCED" : "NOT BALANCED"}</Text>
         </View>
         <View style={styles.footer}>
           <Text style={styles.footerText}>Computer-generated report. Generated {new Date().toISOString()}</Text>
@@ -130,7 +131,7 @@ export const BalanceSheetPdf: React.FC<{ schoolName: string; data: BalanceSheetD
 /* ─── Income Statement ───────────────────────────────────────────── */
 
 interface IncomeStatementLine { code: string; name: string; total: number; }
-interface IncomeStatementData { periodStart: string | Date; periodEnd: string | Date; revenue: { lines: IncomeStatementLine[]; total: number }; expenses: { lines: IncomeStatementLine[]; total: number }; netIncome: number; }
+interface IncomeStatementData { periodStart: string | Date; periodEnd: string | Date; revenue: { lines: IncomeStatementLine[]; total: number }; expenses: { lines: IncomeStatementLine[]; total: number }; surplus: number; }
 
 export const IncomeStatementPdf: React.FC<{ schoolName: string; data: IncomeStatementData }> = ({ schoolName, data }) => (
   <Document>
@@ -165,8 +166,8 @@ export const IncomeStatementPdf: React.FC<{ schoolName: string; data: IncomeStat
         <Text style={[styles.totalAmount, { color: "#991b1b" }]}>{formatCurrency(data.expenses.total)}</Text>
       </View>
       <View style={styles.grandTotal}>
-        <Text style={styles.grandLabel}>Net {data.netIncome >= 0 ? "Surplus" : "Deficit"}</Text>
-        <Text style={[styles.grandAmount, { color: data.netIncome >= 0 ? "#166534" : "#991b1b" }]}>{formatCurrency(Math.abs(data.netIncome))}</Text>
+        <Text style={styles.grandLabel}>Net {data.surplus >= 0 ? "Surplus" : "Deficit"}</Text>
+        <Text style={[styles.grandAmount, { color: data.surplus >= 0 ? "#166534" : "#991b1b" }]}>{formatCurrency(Math.abs(data.surplus))}</Text>
       </View>
       <View style={styles.footer}>
         <Text style={styles.footerText}>Computer-generated report. Generated {new Date().toISOString()}</Text>

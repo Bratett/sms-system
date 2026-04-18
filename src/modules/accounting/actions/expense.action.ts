@@ -11,6 +11,13 @@ import {
   type CreateExpenseInput,
   type CreateExpenseCategoryInput,
 } from "@/modules/accounting/schemas/expense.schema";
+import {
+  postJournalTransaction,
+  reverseJournalTransaction,
+  findAccountByCode,
+  LedgerError,
+} from "@/modules/accounting/lib/ledger";
+import { ACCOUNTS, accountCodeForPaymentMethod, type AccountCode } from "@/modules/accounting/lib/account-codes";
 
 export async function getExpenseCategoriesAction() {
   const ctx = await requireSchoolContext();
@@ -117,6 +124,47 @@ export async function createExpenseAction(data: CreateExpenseInput) {
   return { data: expense };
 }
 
+/**
+ * Resolve the Chart-of-Accounts Account to debit for an expense. Priority:
+ *   1) ExpenseCategory.accountId if set
+ *   2) Ghana COA expense code mapped from category name keyword heuristics
+ *   3) Miscellaneous (5990)
+ */
+async function resolveExpenseAccountId(
+  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  schoolId: string,
+  categoryId: string,
+): Promise<string | null> {
+  const cat = await tx.expenseCategory.findUnique({ where: { id: categoryId }, select: { name: true, accountId: true } });
+  if (!cat) return null;
+  if (cat.accountId) {
+    const acc = await tx.account.findUnique({ where: { id: cat.accountId }, select: { id: true } });
+    if (acc) return acc.id;
+  }
+  const n = cat.name.toLowerCase();
+  let code: AccountCode = ACCOUNTS.EXPENSE_MISC;
+  if (n.includes("salary") || n.includes("wage") || n.includes("payroll")) code = ACCOUNTS.EXPENSE_SALARIES;
+  else if (n.includes("ssnit")) code = ACCOUNTS.EXPENSE_SSNIT_EMPLOYER;
+  else if (n.includes("train")) code = ACCOUNTS.EXPENSE_TRAINING;
+  else if (n.includes("electric") || n.includes("power")) code = ACCOUNTS.EXPENSE_UTILITIES_ELECTRICITY;
+  else if (n.includes("water")) code = ACCOUNTS.EXPENSE_UTILITIES_WATER;
+  else if (n.includes("internet") || n.includes("telephone") || n.includes("comms")) code = ACCOUNTS.EXPENSE_UTILITIES_INTERNET;
+  else if (n.includes("suppl") || n.includes("material")) code = ACCOUNTS.EXPENSE_SUPPLIES;
+  else if (n.includes("repair") || n.includes("maintenan")) code = ACCOUNTS.EXPENSE_REPAIRS;
+  else if (n.includes("transport") || n.includes("fuel") || n.includes("vehicle")) code = ACCOUNTS.EXPENSE_TRANSPORT;
+  else if (n.includes("feed") || n.includes("cater")) code = ACCOUNTS.EXPENSE_FEEDING;
+  else if (n.includes("station") || n.includes("print")) code = ACCOUNTS.EXPENSE_STATIONERY;
+  else if (n.includes("insuran")) code = ACCOUNTS.EXPENSE_INSURANCE;
+  else if (n.includes("bank")) code = ACCOUNTS.EXPENSE_BANK_CHARGES;
+  else if (n.includes("depreciat")) code = ACCOUNTS.EXPENSE_DEPRECIATION;
+  const acc = await findAccountByCode(tx, schoolId, code);
+  return acc?.id ?? null;
+}
+
+/**
+ * Approve expense — posts accrual journal: Dr Expense / Cr Accounts Payable.
+ * If the expense liquidates a Budget Commitment, the encumbrance is reversed first.
+ */
 export async function approveExpenseAction(expenseId: string) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
@@ -125,16 +173,145 @@ export async function approveExpenseAction(expenseId: string) {
 
   const expense = await db.expense.findUnique({ where: { id: expenseId } });
   if (!expense) return { error: "Expense not found" };
+  if (expense.schoolId !== ctx.schoolId) return { error: "Access denied" };
   if (expense.status !== "PENDING") return { error: "Only pending expenses can be approved" };
 
-  await db.expense.update({
-    where: { id: expenseId },
-    data: { status: "APPROVED", approvedBy: ctx.session.user.id, approvedAt: new Date() },
-  });
+  try {
+    await db.$transaction(async (tx) => {
+      // If the expense liquidates a budget commitment, reverse the encumbrance journal first
+      if (expense.budgetCommitmentId) {
+        const commitment = await tx.budgetCommitment.findUnique({
+          where: { id: expense.budgetCommitmentId },
+          include: { encumbrances: { where: { status: "ACTIVE" } } },
+        });
+        if (commitment?.encumbrances[0]?.journalTransactionId) {
+          await reverseJournalTransaction(tx, commitment.encumbrances[0].journalTransactionId, {
+            schoolId: ctx.schoolId,
+            reversedBy: ctx.session.user.id,
+            description: `Encumbrance liquidated by expense ${expenseId.slice(-8)}`,
+          });
+          await tx.encumbrance.update({
+            where: { id: commitment.encumbrances[0].id },
+            data: { status: "LIQUIDATED", liquidatedAt: new Date(), liquidationJournalId: null },
+          });
+          const newLiquidated = toNum(commitment.liquidatedAmount) + toNum(expense.amount);
+          const isFull = newLiquidated >= toNum(commitment.totalAmount);
+          await tx.budgetCommitment.update({
+            where: { id: commitment.id },
+            data: {
+              liquidatedAmount: newLiquidated,
+              status: isFull ? "LIQUIDATED" : "PARTIALLY_LIQUIDATED",
+              fulfilledAt: isFull ? new Date() : null,
+            },
+          });
+          if (commitment.budgetLineId) {
+            await tx.budgetLine.update({
+              where: { id: commitment.budgetLineId },
+              data: { committedAmount: { decrement: expense.amount } },
+            });
+          }
+        }
+      }
 
-  await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "Expense", entityId: expenseId, module: "accounting", description: `Approved expense (GHS ${expense.amount})` });
+      const expenseAccountId = await resolveExpenseAccountId(tx, ctx.schoolId, expense.expenseCategoryId);
+      const ap = await findAccountByCode(tx, ctx.schoolId, ACCOUNTS.ACCOUNTS_PAYABLE);
+      let accrualJournalId: string | null = null;
+      if (expenseAccountId && ap) {
+        const posted = await postJournalTransaction(tx, {
+          schoolId: ctx.schoolId,
+          date: expense.date,
+          description: `Expense approved — ${expense.description}`,
+          referenceType: "Expense",
+          referenceId: expense.id,
+          createdBy: ctx.session.user.id,
+          isAutoGenerated: true,
+          lines: [
+            { accountId: expenseAccountId, side: "DEBIT", amount: toNum(expense.amount), narration: expense.description, fundId: expense.fundId ?? undefined },
+            { accountId: ap.id, side: "CREDIT", amount: toNum(expense.amount), narration: expense.payee ?? expense.description, fundId: expense.fundId ?? undefined },
+          ],
+        });
+        accrualJournalId = posted.journalTransactionId;
+      }
 
-  return { data: { success: true } };
+      await tx.expense.update({
+        where: { id: expenseId },
+        data: {
+          status: "APPROVED",
+          approvedBy: ctx.session.user.id,
+          approvedAt: new Date(),
+          accrualJournalId,
+        },
+      });
+
+      // Update BudgetLine.spentAmount for budget-vs-actual reports
+      const line = await tx.budgetLine.findFirst({
+        where: { schoolId: ctx.schoolId, expenseCategoryId: expense.expenseCategoryId, budget: { status: { in: ["APPROVED", "ACTIVE"] } } },
+      });
+      if (line) {
+        await tx.budgetLine.update({
+          where: { id: line.id },
+          data: { spentAmount: { increment: expense.amount } },
+        });
+      }
+    });
+
+    await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "Expense", entityId: expenseId, module: "accounting", description: `Approved expense (GHS ${expense.amount})` });
+    return { data: { success: true } };
+  } catch (err) {
+    if (err instanceof LedgerError) return { error: `Ledger posting failed: ${err.message}` };
+    throw err;
+  }
+}
+
+/**
+ * Mark expense paid — posts: Dr Accounts Payable / Cr Cash/Bank (by payment method).
+ */
+export async function markExpensePaidAction(expenseId: string, paymentMethod: "CASH" | "BANK_TRANSFER" | "MOBILE_MONEY" | "CHEQUE") {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.EXPENSES_APPROVE);
+  if (denied) return denied;
+
+  const expense = await db.expense.findUnique({ where: { id: expenseId } });
+  if (!expense) return { error: "Expense not found" };
+  if (expense.schoolId !== ctx.schoolId) return { error: "Access denied" };
+  if (expense.status !== "APPROVED") return { error: "Only APPROVED expenses can be paid" };
+
+  try {
+    await db.$transaction(async (tx) => {
+      const ap = await findAccountByCode(tx, ctx.schoolId, ACCOUNTS.ACCOUNTS_PAYABLE);
+      const cashCode = accountCodeForPaymentMethod(paymentMethod);
+      const cash = await findAccountByCode(tx, ctx.schoolId, cashCode);
+      let paymentJournalId: string | null = null;
+      if (ap && cash) {
+        const posted = await postJournalTransaction(tx, {
+          schoolId: ctx.schoolId,
+          date: new Date(),
+          description: `Expense paid — ${expense.description}`,
+          referenceType: "ExpensePayment",
+          referenceId: expense.id,
+          createdBy: ctx.session.user.id,
+          isAutoGenerated: true,
+          lines: [
+            { accountId: ap.id, side: "DEBIT", amount: toNum(expense.amount), narration: expense.payee ?? expense.description, fundId: expense.fundId ?? undefined },
+            { accountId: cash.id, side: "CREDIT", amount: toNum(expense.amount), narration: `Payment via ${paymentMethod}`, fundId: expense.fundId ?? undefined },
+          ],
+        });
+        paymentJournalId = posted.journalTransactionId;
+      }
+
+      await tx.expense.update({
+        where: { id: expenseId },
+        data: { status: "PAID", paidAt: new Date(), paymentMethod, paymentJournalId },
+      });
+    });
+
+    await audit({ userId: ctx.session.user.id, action: "UPDATE", entity: "Expense", entityId: expenseId, module: "accounting", description: `Paid expense (GHS ${expense.amount}) via ${paymentMethod}` });
+    return { data: { success: true } };
+  } catch (err) {
+    if (err instanceof LedgerError) return { error: `Ledger posting failed: ${err.message}` };
+    throw err;
+  }
 }
 
 export async function rejectExpenseAction(expenseId: string) {

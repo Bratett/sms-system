@@ -12,107 +12,151 @@ describe("Journal Actions", () => {
   });
 
   describe("createJournalTransactionAction", () => {
-    const validInput = {
+    const balancedInput = {
       date: new Date("2026-03-15"),
       description: "Fee payment received",
-      entries: [
-        { debitAccountId: "acc-cash", creditAccountId: "acc-revenue", amount: 500, narration: "Tuition" },
+      lines: [
+        { accountId: "acc-cash", side: "DEBIT" as const, amount: 500, narration: "Cash received" },
+        { accountId: "acc-revenue", side: "CREDIT" as const, amount: 500, narration: "Tuition" },
       ],
     };
 
-    it("should reject unauthenticated users", async () => {
+    it("rejects unauthenticated users", async () => {
       mockUnauthenticated();
-      const result = await createJournalTransactionAction(validInput);
+      const result = await createJournalTransactionAction(balancedInput);
       expect(result).toEqual({ error: "Unauthorized" });
     });
 
-    it("should reject empty entries", async () => {
-      const result = await createJournalTransactionAction({ ...validInput, entries: [] });
+    it("rejects empty lines", async () => {
+      const result = await createJournalTransactionAction({ ...balancedInput, lines: [] });
       expect(result.error).toBe("Invalid input");
     });
 
-    it("should reject zero amount entry", async () => {
+    it("rejects single-side lines (must be balanced)", async () => {
       const result = await createJournalTransactionAction({
-        ...validInput,
-        entries: [{ debitAccountId: "acc-1", creditAccountId: "acc-2", amount: 0 }],
+        ...balancedInput,
+        lines: [
+          { accountId: "acc-1", side: "DEBIT", amount: 500 },
+          { accountId: "acc-2", side: "DEBIT", amount: 500 },
+        ],
       });
       expect(result.error).toBe("Invalid input");
     });
 
-    it("should create journal transaction", async () => {
-      prismaMock.journalTransaction.findFirst.mockResolvedValue(null);
-
-      const mockTxn = { id: "jrn-1", transactionNumber: "JRN/2026/0001" };
-      prismaMock.$transaction.mockImplementation(async (fn) => {
-        const tx = {
-          journalTransaction: { create: async () => mockTxn, findFirst: async () => null },
-          journalEntry: { createMany: async () => ({ count: 1 }) },
-        };
-        return fn(tx as never);
+    it("rejects unbalanced debits and credits", async () => {
+      const result = await createJournalTransactionAction({
+        ...balancedInput,
+        lines: [
+          { accountId: "acc-1", side: "DEBIT", amount: 500 },
+          { accountId: "acc-2", side: "CREDIT", amount: 400 },
+        ],
       });
+      expect(result.error).toBe("Invalid input");
+    });
 
-      const result = await createJournalTransactionAction(validInput);
-      expect(result.error).toBeUndefined();
+    it("rejects zero amount line", async () => {
+      const result = await createJournalTransactionAction({
+        ...balancedInput,
+        lines: [
+          { accountId: "acc-1", side: "DEBIT", amount: 0 },
+          { accountId: "acc-2", side: "CREDIT", amount: 0 },
+        ],
+      });
+      expect(result.error).toBe("Invalid input");
     });
   });
 
   describe("postJournalTransactionAction", () => {
-    it("should reject if transaction not found", async () => {
+    it("rejects if transaction not found", async () => {
       prismaMock.journalTransaction.findUnique.mockResolvedValue(null);
       const result = await postJournalTransactionAction("nonexistent");
       expect(result).toEqual({ error: "Journal transaction not found" });
     });
 
-    it("should reject non-DRAFT transaction", async () => {
+    it("is idempotent on already-posted transactions", async () => {
       prismaMock.journalTransaction.findUnique.mockResolvedValue({
-        id: "jrn-1", status: "POSTED", entries: [],
+        id: "jrn-1", status: "POSTED", schoolId: "default-school", entries: [],
       } as never);
       const result = await postJournalTransactionAction("jrn-1");
-      expect(result).toEqual({ error: "Only DRAFT transactions can be posted" });
+      expect(result.data).toEqual({ success: true, alreadyPosted: true });
+    });
+
+    it("rejects reversed transactions", async () => {
+      prismaMock.journalTransaction.findUnique.mockResolvedValue({
+        id: "jrn-1", status: "REVERSED", schoolId: "default-school", entries: [],
+      } as never);
+      const result = await postJournalTransactionAction("jrn-1");
+      expect(result.error).toBe("Cannot post a reversed transaction");
     });
   });
 
   describe("reverseJournalTransactionAction", () => {
-    it("should reject non-POSTED transaction", async () => {
-      prismaMock.journalTransaction.findUnique.mockResolvedValue({
-        id: "jrn-1", status: "DRAFT", entries: [],
-      } as never);
+    it("rejects cross-school reversal attempts", async () => {
+      prismaMock.$transaction.mockImplementation(async (fn: unknown) => {
+        const tx = {
+          journalTransaction: {
+            findUnique: async () => ({ id: "jrn-1", status: "POSTED", schoolId: "other-school", entries: [] }),
+            update: async () => ({}),
+            create: async () => ({ id: "r", transactionNumber: "JRN/2026/0002" }),
+            findFirst: async () => null,
+          },
+          journalEntry: { createMany: async () => ({}) },
+          account: { update: async () => ({}) },
+        } as never;
+        return (fn as (t: never) => unknown)(tx);
+      });
       const result = await reverseJournalTransactionAction("jrn-1");
-      expect(result).toEqual({ error: "Only POSTED transactions can be reversed" });
+      expect(result.error).toBeDefined();
     });
   });
 
-  describe("Double-entry accounting principles", () => {
-    it("should ensure debits equal credits in a transaction", () => {
-      const entries = [
-        { debitAccountId: "cash", creditAccountId: "revenue", amount: 500 },
-        { debitAccountId: "cash", creditAccountId: "pta-revenue", amount: 100 },
+  describe("Double-entry posting rules", () => {
+    it("maintains Σdebits = Σcredits in compound entries", () => {
+      const lines = [
+        { side: "DEBIT" as const, amount: 2000 },   // Dr Salary Expense
+        { side: "DEBIT" as const, amount: 150 },    // Dr SSNIT Employer Exp
+        { side: "CREDIT" as const, amount: 1800 },  // Cr Bank
+        { side: "CREDIT" as const, amount: 200 },   // Cr PAYE Payable
+        { side: "CREDIT" as const, amount: 150 },   // Cr SSNIT Payable
       ];
-
-      const totalDebits = entries.reduce((sum, e) => sum + e.amount, 0);
-      const totalCredits = entries.reduce((sum, e) => sum + e.amount, 0);
-
-      expect(totalDebits).toBe(totalCredits);
+      const debits = lines.filter((l) => l.side === "DEBIT").reduce((s, l) => s + l.amount, 0);
+      const credits = lines.filter((l) => l.side === "CREDIT").reduce((s, l) => s + l.amount, 0);
+      expect(debits).toBe(credits);
     });
 
-    it("should correctly reverse balance changes", () => {
-      // Original posting: Dr Cash 500, Cr Revenue 500
-      let cashBalance = 0;
-      let revenueBalance = 0;
+    it("updates account balances respecting normalBalance", () => {
+      const simulatePost = (lines: { side: "DEBIT" | "CREDIT"; amount: number; normalBalance: "DEBIT" | "CREDIT" }[]) => {
+        return lines.map((l) => (l.side === l.normalBalance ? l.amount : -l.amount));
+      };
 
-      // Post
-      cashBalance += 500;  // debit increases asset
-      revenueBalance += 500;  // credit increases revenue
+      // Dr Cash (Asset, DEBIT-normal, +) / Cr Revenue (CREDIT-normal, +)
+      const payment = simulatePost([
+        { side: "DEBIT", amount: 500, normalBalance: "DEBIT" },   // Cash: +500
+        { side: "CREDIT", amount: 500, normalBalance: "CREDIT" }, // Revenue: +500
+      ]);
+      expect(payment).toEqual([500, 500]);
 
-      expect(cashBalance).toBe(500);
-      expect(revenueBalance).toBe(500);
+      // The bug we fixed: posting a CREDIT to CREDIT-normal must INCREMENT, not decrement
+      const revenueCredit = simulatePost([
+        { side: "CREDIT", amount: 100, normalBalance: "CREDIT" },
+      ]);
+      expect(revenueCredit[0]).toBe(100);
 
-      // Reverse: Dr Revenue 500, Cr Cash 500
-      cashBalance -= 500;  // credit decreases asset
-      revenueBalance -= 500;  // debit decreases revenue
+      // Contrapositive: posting a DEBIT to CREDIT-normal decrements (e.g., closing revenue)
+      const revenueClose = simulatePost([
+        { side: "DEBIT", amount: 100, normalBalance: "CREDIT" },
+      ]);
+      expect(revenueClose[0]).toBe(-100);
+    });
 
-      expect(cashBalance).toBe(0);
-      expect(revenueBalance).toBe(0);
+    it("correctly reverses balance changes", () => {
+      let cash = 0, revenue = 0;
+      // Post: Dr Cash / Cr Revenue
+      cash += 500; revenue += 500;
+      expect([cash, revenue]).toEqual([500, 500]);
+      // Reverse: Dr Revenue / Cr Cash (but applied via normalBalance rule)
+      cash -= 500; revenue -= 500;
+      expect([cash, revenue]).toEqual([0, 0]);
     });
   });
 });

@@ -14,6 +14,7 @@ export function usePermissions() {
   function hasPermission(permission: Permission): boolean {
     if (!permissions) return false;
     if (roles?.includes("super_admin")) return true;
+    if (permissions.includes("*")) return true;
     return permissions.includes(permission);
   }
 

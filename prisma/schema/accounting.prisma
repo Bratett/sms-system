@@ -1,9 +1,9 @@
-// ─── Phase 3: Chart of Accounts ──────────────────────────────────
+// ─── Chart of Accounts ────────────────────────────────────────────
 
 model AccountCategory {
   id        String      @id @default(cuid())
   schoolId  String
-  name      String // Assets, Liabilities, Equity, Revenue, Expenses
+  name      String
   type      AccountType
   sortOrder Int         @default(0)
   createdAt DateTime    @default(now())
@@ -18,22 +18,23 @@ model Account {
   id              String      @id @default(cuid())
   schoolId        String
   categoryId      String
-  parentId        String? // for sub-accounts
-  code            String // e.g., "1000", "2100", "4000"
+  parentId        String?
+  code            String
   name            String
   description     String?
-  normalBalance   BalanceSide // DEBIT or CREDIT
+  normalBalance   BalanceSide
   isSystemAccount Boolean     @default(false)
   isActive        Boolean     @default(true)
+  isBudgetary     Boolean     @default(false) // true = encumbrance/budgetary control accounts (off-statement)
+  isContra        Boolean     @default(false) // contra-asset (e.g., Allowance for Doubtful Receivables) or contra-liability
   currentBalance  Decimal     @default(0) @db.Decimal(18, 2)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  category      AccountCategory @relation(fields: [categoryId], references: [id])
-  parent        Account?        @relation("AccountHierarchy", fields: [parentId], references: [id])
-  children      Account[]       @relation("AccountHierarchy")
-  debitEntries  JournalEntry[]  @relation("DebitAccount")
-  creditEntries JournalEntry[]  @relation("CreditAccount")
+  category AccountCategory @relation(fields: [categoryId], references: [id])
+  parent   Account?        @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children Account[]       @relation("AccountHierarchy")
+  entries  JournalEntry[]  @relation("AccountEntries")
 
   @@unique([schoolId, code])
   @@index([schoolId])
@@ -47,6 +48,7 @@ enum AccountType {
   EQUITY
   REVENUE
   EXPENSE
+  BUDGETARY // IPSAS budgetary control — encumbrances/reserves (not part of proprietary statements)
 }
 
 enum BalanceSide {
@@ -54,7 +56,72 @@ enum BalanceSide {
   CREDIT
 }
 
-// ─── Phase 3: General Ledger & Journal Entries ───────────────────
+// ─── Funds (IPSAS Fund Accounting) ────────────────────────────────
+
+model Fund {
+  id           String   @id @default(cuid())
+  schoolId     String
+  code         String // e.g., "GEN", "RF-SCI", "CAP", "END"
+  name         String
+  type         FundType
+  parentFundId String?
+  description  String?
+  isActive     Boolean  @default(true)
+  isDefault    Boolean  @default(false) // one General Fund per school flagged as default
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  parent   Fund?          @relation("FundHierarchy", fields: [parentFundId], references: [id])
+  children Fund[]         @relation("FundHierarchy")
+  entries  JournalEntry[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@index([type])
+}
+
+enum FundType {
+  GENERAL
+  RESTRICTED
+  CAPITAL
+  DONOR
+  ENDOWMENT
+}
+
+// ─── Fiscal Periods ───────────────────────────────────────────────
+
+model FiscalPeriod {
+  id           String             @id @default(cuid())
+  schoolId     String
+  name         String // "FY 2026", "FY 2026 Q1"
+  fiscalYearId String? // null for top-level year, set for sub-periods (quarters/months)
+  startDate    DateTime
+  endDate      DateTime
+  status       FiscalPeriodStatus @default(OPEN)
+  isFiscalYear Boolean            @default(false) // true = top-level year period eligible for year-end close
+  closedBy     String?
+  closedAt     DateTime?
+  closingNotes String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  fiscalYear   FiscalPeriod?        @relation("FiscalYearPeriods", fields: [fiscalYearId], references: [id])
+  subPeriods   FiscalPeriod[]       @relation("FiscalYearPeriods")
+  transactions JournalTransaction[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+enum FiscalPeriodStatus {
+  OPEN
+  SOFT_CLOSED // only adjusting entries allowed (PERIOD_ADJUST permission)
+  CLOSED
+}
+
+// ─── General Ledger & Journal Entries ─────────────────────────────
 
 model JournalTransaction {
   id                String        @id @default(cuid())
@@ -62,41 +129,54 @@ model JournalTransaction {
   transactionNumber String        @unique // JRN/YYYY/NNNN
   date              DateTime
   description       String
-  referenceType     String? // "Payment", "Expense", "PettyCash", "Payroll"
+  referenceType     String? // "Payment", "Expense", "PettyCash", "Payroll", "Billing", "Waiver", "Scholarship", "Penalty", "Subsidy", "DonorFund", "Encumbrance", "FiscalClose", "Impairment", "Reversal"
   referenceId       String?
+  fiscalPeriodId    String?
   isAutoGenerated   Boolean       @default(false)
+  isAdjusting       Boolean       @default(false)
+  isClosing         Boolean       @default(false)
   createdBy         String
-  approvedBy        String?
-  approvedAt        DateTime?
+  postedBy          String?
+  postedAt          DateTime?
+  reversedBy        String?
+  reversedAt        DateTime?
+  reversalOfId      String? // if this txn is a reversal, id of the original txn
   status            JournalStatus @default(DRAFT)
   createdAt         DateTime      @default(now())
 
-  entries JournalEntry[]
+  fiscalPeriod FiscalPeriod?        @relation(fields: [fiscalPeriodId], references: [id])
+  entries      JournalEntry[]
+  reversalOf   JournalTransaction?  @relation("JournalTxnReversal", fields: [reversalOfId], references: [id])
+  reversals    JournalTransaction[] @relation("JournalTxnReversal")
 
   @@index([schoolId])
   @@index([date])
   @@index([status])
   @@index([referenceType, referenceId])
+  @@index([fiscalPeriodId])
 }
 
 model JournalEntry {
-  id                   String  @id @default(cuid())
+  id                   String      @id @default(cuid())
   journalTransactionId String
   schoolId             String
-  debitAccountId       String
-  creditAccountId      String
-  amount               Decimal @db.Decimal(18, 2)
+  accountId            String
+  fundId               String? // null = General Fund
+  side                 BalanceSide
+  amount               Decimal     @db.Decimal(18, 2)
   narration            String?
+  lineOrder            Int         @default(0)
 
   journalTransaction JournalTransaction @relation(fields: [journalTransactionId], references: [id], onDelete: Cascade)
-  debitAccount       Account            @relation("DebitAccount", fields: [debitAccountId], references: [id])
-  creditAccount      Account            @relation("CreditAccount", fields: [creditAccountId], references: [id])
+  account            Account            @relation("AccountEntries", fields: [accountId], references: [id])
+  fund               Fund?              @relation(fields: [fundId], references: [id])
   school             School             @relation("SchoolJournalEntry", fields: [schoolId], references: [id])
 
   @@index([journalTransactionId])
-  @@index([debitAccountId])
-  @@index([creditAccountId])
+  @@index([accountId])
   @@index([schoolId])
+  @@index([fundId])
+  @@index([side])
 }
 
 enum JournalStatus {
@@ -105,7 +185,7 @@ enum JournalStatus {
   REVERSED
 }
 
-// ─── Phase 3: Expense Management ─────────────────────────────────
+// ─── Expense Management ───────────────────────────────────────────
 
 model ExpenseCategory {
   id        String   @id @default(cuid())
@@ -127,25 +207,29 @@ model ExpenseCategory {
 }
 
 model Expense {
-  id                   String         @id @default(cuid())
-  schoolId             String
-  expenseCategoryId    String
-  description          String
-  amount               Decimal        @db.Decimal(18, 2)
-  date                 DateTime
-  payee                String?
-  referenceNumber      String?
-  paymentMethod        PaymentMethod?
-  receiptUrl           String?
-  departmentId         String?
-  termId               String?
-  status               ExpenseStatus  @default(PENDING)
-  submittedBy          String // userId
-  approvedBy           String?
-  approvedAt           DateTime?
-  journalTransactionId String? // link to auto-generated journal entry
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+  id                 String         @id @default(cuid())
+  schoolId           String
+  expenseCategoryId  String
+  description        String
+  amount             Decimal        @db.Decimal(18, 2)
+  date               DateTime
+  payee              String?
+  referenceNumber    String?
+  paymentMethod      PaymentMethod?
+  receiptUrl         String?
+  departmentId       String?
+  termId             String?
+  fundId             String? // IPSAS fund segregation
+  budgetCommitmentId String? // set when expense liquidates a budget commitment
+  status             ExpenseStatus  @default(PENDING)
+  submittedBy        String
+  approvedBy         String?
+  approvedAt         DateTime?
+  paidAt             DateTime?
+  accrualJournalId   String? // Dr Expense / Cr AP at approval
+  paymentJournalId   String? // Dr AP / Cr Cash at payment
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   expenseCategory ExpenseCategory @relation(fields: [expenseCategoryId], references: [id])
 
@@ -154,6 +238,7 @@ model Expense {
   @@index([status])
   @@index([date])
   @@index([departmentId])
+  @@index([budgetCommitmentId])
 }
 
 enum ExpenseStatus {
@@ -164,15 +249,16 @@ enum ExpenseStatus {
   CANCELLED
 }
 
-// ─── Phase 3: Petty Cash ─────────────────────────────────────────
+// ─── Petty Cash ───────────────────────────────────────────────────
 
 model PettyCashFund {
   id              String   @id @default(cuid())
   schoolId        String
   name            String
-  custodianId     String // userId
+  custodianId     String
   authorizedLimit Decimal  @db.Decimal(18, 2)
   currentBalance  Decimal  @default(0) @db.Decimal(18, 2)
+  accountId       String? // chart-of-accounts petty-cash account (1141)
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -186,18 +272,19 @@ model PettyCashFund {
 }
 
 model PettyCashTransaction {
-  id                String        @id @default(cuid())
-  pettyCashFundId   String
-  schoolId          String
-  type              PettyCashType
-  amount            Decimal       @db.Decimal(18, 2)
-  description       String
-  receiptNumber     String?
-  receiptUrl        String?
-  recordedBy        String // userId
-  expenseCategoryId String?
-  date              DateTime
-  createdAt         DateTime      @default(now())
+  id                   String        @id @default(cuid())
+  pettyCashFundId      String
+  schoolId             String
+  type                 PettyCashType
+  amount               Decimal       @db.Decimal(18, 2)
+  description          String
+  receiptNumber        String?
+  receiptUrl           String?
+  recordedBy           String
+  expenseCategoryId    String?
+  journalTransactionId String?
+  date                 DateTime
+  createdAt            DateTime      @default(now())
 
   pettyCashFund PettyCashFund @relation(fields: [pettyCashFundId], references: [id], onDelete: Cascade)
   school        School        @relation("SchoolPettyCashTransaction", fields: [schoolId], references: [id])
@@ -208,15 +295,16 @@ model PettyCashTransaction {
 }
 
 model PettyCashReplenishment {
-  id              String              @id @default(cuid())
-  pettyCashFundId String
-  schoolId        String
-  amount          Decimal             @db.Decimal(18, 2)
-  requestedBy     String
-  approvedBy      String?
-  status          ReplenishmentStatus @default(PENDING)
-  requestedAt     DateTime            @default(now())
-  approvedAt      DateTime?
+  id                   String              @id @default(cuid())
+  pettyCashFundId      String
+  schoolId             String
+  amount               Decimal             @db.Decimal(18, 2)
+  requestedBy          String
+  approvedBy           String?
+  journalTransactionId String?
+  status               ReplenishmentStatus @default(PENDING)
+  requestedAt          DateTime            @default(now())
+  approvedAt           DateTime?
 
   pettyCashFund PettyCashFund @relation(fields: [pettyCashFundId], references: [id], onDelete: Cascade)
   school        School        @relation("SchoolPettyCashReplenishment", fields: [schoolId], references: [id])
@@ -239,15 +327,18 @@ enum ReplenishmentStatus {
   DISBURSED
 }
 
-// ─── Phase 3: Budget Management ──────────────────────────────────
+// ─── Budget Management ────────────────────────────────────────────
 
 model Budget {
   id             String       @id @default(cuid())
   schoolId       String
   name           String
   academicYearId String
-  termId         String? // null = annual budget
+  termId         String?
+  fiscalPeriodId String? // IPSAS 24 — linked to fiscal period for budget-vs-actual
+  fundId         String? // budget may be scoped to a fund
   totalAmount    Decimal      @db.Decimal(18, 2)
+  originalAmount Decimal?     @db.Decimal(18, 2) // IPSAS 24 — original budget before revisions
   status         BudgetStatus @default(DRAFT)
   createdBy      String
   approvedBy     String?
@@ -269,12 +360,16 @@ model BudgetLine {
   expenseCategoryId String
   departmentId      String?
   allocatedAmount   Decimal @db.Decimal(18, 2)
-  spentAmount       Decimal @default(0) @db.Decimal(18, 2)
+  originalAmount    Decimal @default(0) @db.Decimal(18, 2) // IPSAS 24 — before revisions
+  committedAmount   Decimal @default(0) @db.Decimal(18, 2) // encumbrances outstanding
+  spentAmount       Decimal @default(0) @db.Decimal(18, 2) // actual expenses paid
   description       String?
 
-  budget          Budget          @relation(fields: [budgetId], references: [id], onDelete: Cascade)
-  expenseCategory ExpenseCategory @relation(fields: [expenseCategoryId], references: [id])
-  school          School          @relation("SchoolBudgetLine", fields: [schoolId], references: [id])
+  budget            Budget             @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  expenseCategory   ExpenseCategory    @relation(fields: [expenseCategoryId], references: [id])
+  school            School             @relation("SchoolBudgetLine", fields: [schoolId], references: [id])
+  budgetCommitments BudgetCommitment[]
+  encumbrances      Encumbrance[]
 
   @@unique([budgetId, expenseCategoryId, departmentId])
   @@index([budgetId])
@@ -288,19 +383,20 @@ enum BudgetStatus {
   CLOSED
 }
 
-// ─── Phase 3: Expense Claims ─────────────────────────────────────
+// ─── Expense Claims ───────────────────────────────────────────────
 
 model ExpenseClaim {
-  id          String             @id @default(cuid())
-  schoolId    String
-  claimantId  String // userId or staffId
-  description String
-  totalAmount Decimal            @db.Decimal(18, 2)
-  status      ExpenseClaimStatus @default(SUBMITTED)
-  submittedAt DateTime           @default(now())
-  approvedBy  String?
-  approvedAt  DateTime?
-  paidAt      DateTime?
+  id                   String             @id @default(cuid())
+  schoolId             String
+  claimantId           String
+  description          String
+  totalAmount          Decimal            @db.Decimal(18, 2)
+  status               ExpenseClaimStatus @default(SUBMITTED)
+  submittedAt          DateTime           @default(now())
+  approvedBy           String?
+  approvedAt           DateTime?
+  paidAt               DateTime?
+  journalTransactionId String?
 
   items ExpenseClaimItem[]
 
@@ -333,7 +429,100 @@ enum ExpenseClaimStatus {
   PAID
 }
 
-// ─── Phase 4: Financial Report Snapshots ─────────────────────────
+// ─── Budgetary Commitments & Encumbrances (IPSAS budgetary control) ─
+
+// Commitment = a board-approved obligation against a budget line that reserves
+// budget authority BEFORE an actual expense is recognized. Creates an encumbrance
+// journal (Dr Encumbrance / Cr Reserve for Encumbrance) on approval and liquidates
+// (reverses) it when invoiced as a real Expense.
+model BudgetCommitment {
+  id                   String                 @id @default(cuid())
+  schoolId             String
+  commitmentNumber     String // COM/YYYY/NNNN
+  vendorName           String
+  vendorContact        String?
+  budgetLineId         String?
+  fundId               String?
+  description          String?
+  totalAmount          Decimal                @db.Decimal(18, 2)
+  liquidatedAmount     Decimal                @default(0) @db.Decimal(18, 2)
+  currency             String                 @default("GHS")
+  commitmentDate       DateTime
+  expectedDate         DateTime?
+  status               BudgetCommitmentStatus @default(DRAFT)
+  approvedBy           String?
+  approvedAt           DateTime?
+  fulfilledAt          DateTime?
+  cancelledAt          DateTime?
+  cancellationReason   String?
+  encumbranceJournalId String? // initial Dr Encumbrance / Cr Reserve journal
+  createdBy            String
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  budgetLine   BudgetLine?            @relation(fields: [budgetLineId], references: [id])
+  lines        BudgetCommitmentLine[]
+  encumbrances Encumbrance[]
+
+  @@unique([schoolId, commitmentNumber])
+  @@index([schoolId])
+  @@index([status])
+  @@index([budgetLineId])
+}
+
+model BudgetCommitmentLine {
+  id                 String  @id @default(cuid())
+  budgetCommitmentId String
+  schoolId           String
+  description        String
+  quantity           Decimal @default(1) @db.Decimal(18, 4)
+  unitPrice          Decimal @db.Decimal(18, 4)
+  amount             Decimal @db.Decimal(18, 2)
+  expenseCategoryId  String?
+
+  budgetCommitment BudgetCommitment @relation(fields: [budgetCommitmentId], references: [id], onDelete: Cascade)
+
+  @@index([budgetCommitmentId])
+  @@index([schoolId])
+}
+
+enum BudgetCommitmentStatus {
+  DRAFT
+  APPROVED
+  PARTIALLY_LIQUIDATED
+  LIQUIDATED
+  CANCELLED
+}
+
+model Encumbrance {
+  id                   String            @id @default(cuid())
+  schoolId             String
+  budgetCommitmentId   String
+  budgetLineId         String?
+  amount               Decimal           @db.Decimal(18, 2)
+  status               EncumbranceStatus @default(ACTIVE)
+  journalTransactionId String? // Dr 9100 Encumbrance / Cr 9200 Reserve
+  liquidationJournalId String? // reversal journal when liquidated
+  createdAt            DateTime          @default(now())
+  liquidatedAt         DateTime?
+  cancelledAt          DateTime?
+
+  budgetCommitment BudgetCommitment @relation(fields: [budgetCommitmentId], references: [id], onDelete: Cascade)
+  budgetLine       BudgetLine?      @relation(fields: [budgetLineId], references: [id])
+
+  @@index([schoolId])
+  @@index([budgetCommitmentId])
+  @@index([budgetLineId])
+  @@index([status])
+}
+
+enum EncumbranceStatus {
+  ACTIVE
+  LIQUIDATED
+  CANCELLED
+}
+
+// ─── Financial Report Snapshots ───────────────────────────────────
 
 model FinancialReport {
   id          String              @id @default(cuid())
@@ -341,10 +530,11 @@ model FinancialReport {
   reportType  FinancialReportType
   periodStart DateTime
   periodEnd   DateTime
+  fundId      String? // optional fund segment
   generatedBy String
   generatedAt DateTime            @default(now())
-  data        Json // Structured report data
-  fileUrl     String? // PDF export URL
+  data        Json
+  fileUrl     String?
   status      ReportStatus        @default(DRAFT)
 
   @@index([schoolId])
@@ -362,6 +552,13 @@ enum FinancialReportType {
   BOARD_SUMMARY
   GRA_TAX_RETURN
   CUSTOM
+  STATEMENT_OF_FINANCIAL_POSITION // IPSAS renaming of Balance Sheet
+  STATEMENT_OF_FINANCIAL_PERFORMANCE // IPSAS renaming of Income Statement
+  STATEMENT_OF_CHANGES_IN_NET_ASSETS // IPSAS 1
+  STATEMENT_OF_BUDGET_VS_ACTUAL // IPSAS 24
+  RECEIVABLES_AGING
+  FUND_STATEMENT
+  CASH_FLOW_DIRECT
 }
 
 enum ReportStatus {
@@ -369,18 +566,18 @@ enum ReportStatus {
   FINALIZED
 }
 
-// ─── Phase 4: Tax Records (GRA Compliance) ───────────────────────
+// ─── Tax Records (GRA Compliance) ─────────────────────────────────
 
 model TaxRecord {
   id              String    @id @default(cuid())
   schoolId        String
   taxType         TaxType
-  period          String // "2026-Q1", "2026-03"
+  period          String
   amount          Decimal   @db.Decimal(18, 2)
   dueDate         DateTime
   paidAmount      Decimal   @default(0) @db.Decimal(18, 2)
   paidDate        DateTime?
-  referenceNumber String? // GRA filing reference
+  referenceNumber String?
   status          TaxStatus @default(PENDING)
   filedBy         String?
   filedAt         DateTime?
@@ -407,14 +604,14 @@ enum TaxStatus {
   OVERDUE
 }
 
-// ─── Phase 4: Custom Report Definitions ──────────────────────────
+// ─── Custom Report Definitions ────────────────────────────────────
 
 model CustomReportDefinition {
   id          String   @id @default(cuid())
   schoolId    String
   name        String
   description String?
-  definition  Json // Report structure: columns, filters, grouping, formulas
+  definition  Json
   createdBy   String
   isShared    Boolean  @default(false)
   createdAt   DateTime @default(now())
@@ -422,4 +619,21 @@ model CustomReportDefinition {
 
   @@index([schoolId])
   @@index([createdBy])
+}
+
+// ─── Receivables Impairment (IPSAS 29/41) ─────────────────────────
+
+model ImpairmentRun {
+  id                   String   @id @default(cuid())
+  schoolId             String
+  asOfDate             DateTime
+  totalReceivables     Decimal  @db.Decimal(18, 2)
+  totalAllowance       Decimal  @db.Decimal(18, 2) // expected credit loss
+  journalTransactionId String?
+  generatedBy          String
+  generatedAt          DateTime @default(now())
+  buckets              Json // aging breakdown {b0_30, b31_60, b61_90, b91_180, b180_plus, rates, allowance per bucket}
+
+  @@index([schoolId])
+  @@index([asOfDate])
 }

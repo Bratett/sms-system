@@ -40,19 +40,22 @@ model FeeItem {
 }
 
 model StudentBill {
-  id             String     @id @default(cuid())
-  studentId      String
-  feeStructureId String
-  schoolId       String
-  termId         String
-  academicYearId String
-  totalAmount    Decimal    @db.Decimal(18, 2)
-  paidAmount     Decimal    @default(0) @db.Decimal(18, 2)
-  balanceAmount  Decimal    @db.Decimal(18, 2)
-  status         BillStatus @default(UNPAID)
-  generatedAt    DateTime   @default(now())
-  dueDate        DateTime?
-  updatedAt      DateTime   @updatedAt
+  id                String     @id @default(cuid())
+  studentId         String
+  feeStructureId    String
+  schoolId          String
+  termId            String
+  academicYearId    String
+  totalAmount       Decimal    @db.Decimal(18, 2)
+  paidAmount        Decimal    @default(0) @db.Decimal(18, 2)
+  balanceAmount     Decimal    @db.Decimal(18, 2)
+  writtenOffAmount  Decimal    @default(0) @db.Decimal(18, 2)
+  status            BillStatus @default(UNPAID)
+  generatedAt       DateTime   @default(now())
+  dueDate           DateTime?
+  accrualJournalId  String? // Dr AR / Cr Fee Revenue at bill generation
+  writeOffJournalId String? // if written off as uncollectible
+  updatedAt         DateTime   @updatedAt
 
   feeStructure FeeStructure         @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
   school       School               @relation("SchoolStudentBill", fields: [schoolId], references: [id])
@@ -92,18 +95,19 @@ model StudentBillItem {
 }
 
 model Payment {
-  id              String        @id @default(cuid())
-  studentBillId   String
-  studentId       String
-  schoolId        String
-  amount          Decimal       @db.Decimal(18, 2)
-  paymentMethod   PaymentMethod
-  referenceNumber String?
-  receivedBy      String // userId
-  receivedAt      DateTime      @default(now())
-  status          PaymentStatus @default(CONFIRMED)
-  notes           String?
-  createdAt       DateTime      @default(now())
+  id                   String        @id @default(cuid())
+  studentBillId        String
+  studentId            String
+  schoolId             String
+  amount               Decimal       @db.Decimal(18, 2)
+  paymentMethod        PaymentMethod
+  referenceNumber      String?
+  receivedBy           String // userId
+  receivedAt           DateTime      @default(now())
+  status               PaymentStatus @default(CONFIRMED)
+  notes                String?
+  journalTransactionId String? // Dr Cash/Bank / Cr AR
+  createdAt            DateTime      @default(now())
 
   studentBill StudentBill      @relation(fields: [studentBillId], references: [id], onDelete: Cascade)
   school      School           @relation("SchoolPayment", fields: [schoolId], references: [id])
@@ -151,13 +155,14 @@ model Scholarship {
 }
 
 model StudentScholarship {
-  id            String   @id @default(cuid())
-  studentId     String
-  scholarshipId String
-  schoolId      String
-  appliedAmount Decimal  @db.Decimal(18, 2)
-  termId        String
-  createdAt     DateTime @default(now())
+  id                   String   @id @default(cuid())
+  studentId            String
+  scholarshipId        String
+  schoolId             String
+  appliedAmount        Decimal  @db.Decimal(18, 2)
+  termId               String
+  journalTransactionId String?
+  createdAt            DateTime @default(now())
 
   scholarship Scholarship @relation(fields: [scholarshipId], references: [id], onDelete: Cascade)
   school      School      @relation("SchoolStudentScholarship", fields: [schoolId], references: [id])
@@ -170,15 +175,16 @@ model StudentScholarship {
 }
 
 model PaymentReversal {
-  id         String         @id @default(cuid())
-  paymentId  String         @unique
-  schoolId   String
-  reason     String
-  reversedBy String // userId who initiated
-  reversedAt DateTime       @default(now())
-  approvedBy String? // userId who approved
-  approvedAt DateTime?
-  status     ReversalStatus @default(PENDING)
+  id                   String         @id @default(cuid())
+  paymentId            String         @unique
+  schoolId             String
+  reason               String
+  reversedBy           String // userId who initiated
+  reversedAt           DateTime       @default(now())
+  approvedBy           String? // userId who approved
+  approvedAt           DateTime?
+  status               ReversalStatus @default(PENDING)
+  journalTransactionId String? // reversal journal when approved
 
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   school  School  @relation("SchoolPaymentReversal", fields: [schoolId], references: [id])
@@ -350,15 +356,17 @@ model LatePenaltyRule {
 }
 
 model AppliedPenalty {
-  id                String    @id @default(cuid())
-  studentBillId     String
-  latePenaltyRuleId String
-  schoolId          String
-  amount            Decimal   @db.Decimal(18, 2)
-  appliedAt         DateTime  @default(now())
-  waived            Boolean   @default(false)
-  waivedBy          String? // userId
-  waivedAt          DateTime?
+  id                   String    @id @default(cuid())
+  studentBillId        String
+  latePenaltyRuleId    String
+  schoolId             String
+  amount               Decimal   @db.Decimal(18, 2)
+  appliedAt            DateTime  @default(now())
+  waived               Boolean   @default(false)
+  waivedBy             String? // userId
+  waivedAt             DateTime?
+  journalTransactionId String? // Dr AR / Cr Penalty Revenue
+  waiverJournalId      String? // reversal when waived
 
   studentBill     StudentBill     @relation(fields: [studentBillId], references: [id], onDelete: Cascade)
   latePenaltyRule LatePenaltyRule @relation(fields: [latePenaltyRuleId], references: [id], onDelete: Cascade)
@@ -393,6 +401,8 @@ model FeeWaiver {
   requestedAt       DateTime     @default(now())
   reviewedAt        DateTime?
   notes             String?
+
+  journalTransactionId String?
 
   studentBill StudentBill @relation(fields: [studentBillId], references: [id], onDelete: Cascade)
 
@@ -430,6 +440,8 @@ model GovernmentSubsidy {
   referenceNumber String? // Government reference / voucher number
   receivedAt      DateTime?
   notes           String?
+  isConditional   Boolean       @default(false) // IPSAS 23 — conditional grants go to Deferred Inflow until conditions met
+  fundId          String? // restricted fund for this subsidy
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -441,15 +453,16 @@ model GovernmentSubsidy {
 }
 
 model SubsidyDisbursement {
-  id                  String   @id @default(cuid())
-  governmentSubsidyId String
-  schoolId            String
-  amount              Decimal  @db.Decimal(18, 2)
-  receivedAt          DateTime
-  bankReference       String?
-  recordedBy          String // userId
-  notes               String?
-  createdAt           DateTime @default(now())
+  id                   String   @id @default(cuid())
+  governmentSubsidyId  String
+  schoolId             String
+  amount               Decimal  @db.Decimal(18, 2)
+  receivedAt           DateTime
+  bankReference        String?
+  recordedBy           String // userId
+  notes                String?
+  journalTransactionId String? // Dr Bank / Cr Grant Revenue or Deferred Inflow
+  createdAt            DateTime @default(now())
 
   governmentSubsidy GovernmentSubsidy @relation(fields: [governmentSubsidyId], references: [id], onDelete: Cascade)
   school            School            @relation("SchoolSubsidyDisbursement", fields: [schoolId], references: [id])
@@ -488,6 +501,7 @@ model DonorFund {
   startDate      DateTime?
   endDate        DateTime?
   isActive       Boolean   @default(true)
+  fundId         String? // link to IPSAS Fund (restricted)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -498,15 +512,16 @@ model DonorFund {
 }
 
 model DonorFundAllocation {
-  id          String   @id @default(cuid())
-  donorFundId String
-  schoolId    String
-  studentId   String
-  termId      String
-  amount      Decimal  @db.Decimal(18, 2)
-  description String?
-  allocatedBy String // userId
-  allocatedAt DateTime @default(now())
+  id                   String   @id @default(cuid())
+  donorFundId          String
+  schoolId             String
+  studentId            String
+  termId               String
+  amount               Decimal  @db.Decimal(18, 2)
+  description          String?
+  allocatedBy          String // userId
+  allocatedAt          DateTime @default(now())
+  journalTransactionId String?
 
   donorFund DonorFund @relation(fields: [donorFundId], references: [id], onDelete: Cascade)
   school    School    @relation("SchoolDonorFundAllocation", fields: [schoolId], references: [id])

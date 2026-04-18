@@ -28,6 +28,7 @@
 import { PrismaClient, Prisma } from "@prisma/client";
 import { computeStudentRiskProfiles } from "../../../src/lib/ai/analytics-engine";
 import { MALE_FIRST, FEMALE_FIRST, SURNAMES, STAFF_PROFESSIONAL, pick, makeRng } from "./names";
+import { seedDemoLedger } from "./ledger";
 
 const db = new PrismaClient();
 const rng = makeRng(42);
@@ -91,6 +92,9 @@ async function main() {
 
   await seedRiskProfiles(academicYear.id, terms[0].id);
   console.log(`✓ Risk profiles\n`);
+
+  await seedDemoLedger(db);
+  console.log(`✓ IPSAS ledger backfill + demo data\n`);
 
   console.log("✅ Demo seed complete.\n");
 }

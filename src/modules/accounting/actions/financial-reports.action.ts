@@ -4,13 +4,62 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { audit } from "@/lib/audit";
 import { toNum } from "@/lib/decimal";
-import { PERMISSIONS, requirePermission, assertPermission } from "@/lib/permissions";
+import { PERMISSIONS, requirePermission } from "@/lib/permissions";
 import {
   generateReportSchema,
   type GenerateReportInput,
 } from "@/modules/accounting/schemas/financial-reports.schema";
+import { ACCOUNTS } from "@/modules/accounting/lib/account-codes";
 
-export async function generateTrialBalanceAction(periodEnd: Date) {
+const EPS = 0.005;
+
+/**
+ * Net ledger balance per account as-of a date. Computed from POSTED journal
+ * entries (not live `currentBalance`) so historical statements are reproducible.
+ * Returns a map accountId → signed balance on the account's NORMAL side.
+ */
+async function computeNetBalances(
+  schoolId: string,
+  periodEnd: Date,
+  opts?: { fundId?: string; periodStart?: Date },
+): Promise<Map<string, number>> {
+  // Include both POSTED and REVERSED journals. A reversal creates a new POSTED
+  // counter-entry; the original is flagged REVERSED but its entries persist as
+  // an audit trail. Including both lets them cancel correctly; excluding one
+  // while including the other would leave the report out of sync with the
+  // live Account.currentBalance and with Σdebits=Σcredits.
+  const entries = await db.journalEntry.findMany({
+    where: {
+      schoolId,
+      ...(opts?.fundId ? { fundId: opts.fundId } : {}),
+      journalTransaction: {
+        status: { in: ["POSTED", "REVERSED"] },
+        date: {
+          ...(opts?.periodStart ? { gte: opts.periodStart } : {}),
+          lte: periodEnd,
+        },
+      },
+    },
+    select: { accountId: true, side: true, amount: true },
+  });
+
+  const accounts = await db.account.findMany({
+    where: { schoolId },
+    select: { id: true, normalBalance: true },
+  });
+  const normalBySide = new Map(accounts.map((a) => [a.id, a.normalBalance]));
+
+  const net = new Map<string, number>();
+  for (const e of entries) {
+    const normal = normalBySide.get(e.accountId);
+    if (!normal) continue;
+    const delta = e.side === normal ? toNum(e.amount) : -toNum(e.amount);
+    net.set(e.accountId, (net.get(e.accountId) ?? 0) + delta);
+  }
+  return net;
+}
+
+export async function generateTrialBalanceAction(periodEnd: Date, opts?: { fundId?: string }) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
   const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
@@ -22,52 +71,31 @@ export async function generateTrialBalanceAction(periodEnd: Date) {
     orderBy: { code: "asc" },
   });
 
-  // Compute balances from journal entries up to periodEnd instead of using live currentBalance
-  const entries = await db.journalEntry.findMany({
-    where: {
-      journalTransaction: {
-        schoolId: ctx.schoolId,
-        status: "POSTED",
-        date: { lte: periodEnd },
-      },
-    },
-    select: { debitAccountId: true, creditAccountId: true, amount: true },
-  });
-
-  // Aggregate debit and credit totals per account
-  const debitTotals = new Map<string, number>();
-  const creditTotals = new Map<string, number>();
-  for (const entry of entries) {
-    debitTotals.set(entry.debitAccountId, (debitTotals.get(entry.debitAccountId) ?? 0) + toNum(entry.amount));
-    creditTotals.set(entry.creditAccountId, (creditTotals.get(entry.creditAccountId) ?? 0) + toNum(entry.amount));
-  }
+  const net = await computeNetBalances(ctx.schoolId, periodEnd, opts);
 
   let totalDebits = 0;
   let totalCredits = 0;
-
-  const lines = accounts.map((acc) => {
-    const totalDebit = debitTotals.get(acc.id) ?? 0;
-    const totalCredit = creditTotals.get(acc.id) ?? 0;
-    const netBalance = totalDebit - totalCredit; // positive = net debit
-
-    // Place net balance on the appropriate side based on sign
-    const debit = netBalance > 0 ? netBalance : 0;
-    const credit = netBalance < 0 ? Math.abs(netBalance) : 0;
-
-    totalDebits += debit;
-    totalCredits += credit;
-
-    return {
-      accountCode: acc.code,
-      accountName: acc.name,
-      categoryName: acc.category.name,
-      categoryType: acc.category.type,
-      debit,
-      credit,
-    };
-  });
-
-  const isBalanced = Math.abs(totalDebits - totalCredits) < 0.01;
+  const lines = accounts
+    .filter((acc) => acc.category.type !== "BUDGETARY") // exclude encumbrance accounts from proprietary TB
+    .map((acc) => {
+      const balance = net.get(acc.id) ?? 0;
+      // Positive balance = shown on its normal side; negative = shown on opposite side
+      const onNormal = Math.max(balance, 0);
+      const onOpposite = Math.max(-balance, 0);
+      const debit = acc.normalBalance === "DEBIT" ? onNormal : onOpposite;
+      const credit = acc.normalBalance === "CREDIT" ? onNormal : onOpposite;
+      totalDebits += debit;
+      totalCredits += credit;
+      return {
+        accountCode: acc.code,
+        accountName: acc.name,
+        categoryName: acc.category.name,
+        categoryType: acc.category.type,
+        normalBalance: acc.normalBalance,
+        debit,
+        credit,
+      };
+    });
 
   return {
     data: {
@@ -76,12 +104,15 @@ export async function generateTrialBalanceAction(periodEnd: Date) {
       totalDebits,
       totalCredits,
       difference: totalDebits - totalCredits,
-      isBalanced,
+      isBalanced: Math.abs(totalDebits - totalCredits) < EPS,
     },
   };
 }
 
-export async function generateBalanceSheetAction(periodEnd: Date) {
+/**
+ * Statement of Financial Position (IPSAS 1 — same data model as Balance Sheet).
+ */
+export async function generateBalanceSheetAction(periodEnd: Date, opts?: { fundId?: string }) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
   const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
@@ -93,82 +124,84 @@ export async function generateBalanceSheetAction(periodEnd: Date) {
     orderBy: { code: "asc" },
   });
 
+  const net = await computeNetBalances(ctx.schoolId, periodEnd, opts);
+
+  const signed = (acc: (typeof accounts)[number]): number => {
+    const bal = net.get(acc.id) ?? 0;
+    return acc.isContra ? -bal : bal;
+  };
+
   const assets = accounts.filter((a) => a.category.type === "ASSET");
   const liabilities = accounts.filter((a) => a.category.type === "LIABILITY");
   const equity = accounts.filter((a) => a.category.type === "EQUITY");
-
-  const totalAssets = assets.reduce((sum, a) => sum + Math.abs(toNum(a.currentBalance)), 0);
-  const totalLiabilities = liabilities.reduce((sum, a) => sum + Math.abs(toNum(a.currentBalance)), 0);
-  const totalEquity = equity.reduce((sum, a) => sum + Math.abs(toNum(a.currentBalance)), 0);
-
-  // Calculate net income for the period (Revenue - Expenses)
   const revenue = accounts.filter((a) => a.category.type === "REVENUE");
   const expenses = accounts.filter((a) => a.category.type === "EXPENSE");
-  const totalRevenue = revenue.reduce((sum, a) => sum + Math.abs(toNum(a.currentBalance)), 0);
-  const totalExpenses = expenses.reduce((sum, a) => sum + Math.abs(toNum(a.currentBalance)), 0);
-  const netIncome = totalRevenue - totalExpenses;
+
+  const totalAssets = assets.reduce((s, a) => s + signed(a), 0);
+  const totalLiabilities = liabilities.reduce((s, a) => s + (net.get(a.id) ?? 0), 0);
+  // Exclude Income Summary (3900) from the main equity list — it should be zero except during close
+  const equityReal = equity.filter((a) => a.code !== ACCOUNTS.INCOME_SUMMARY);
+  const totalEquityPosted = equityReal.reduce((s, a) => s + (net.get(a.id) ?? 0), 0);
+
+  // Surplus/Deficit for the period (accumulates in Equity when closing entries run)
+  const totalRevenue = revenue.reduce((s, a) => s + (net.get(a.id) ?? 0), 0);
+  const totalExpenses = expenses.reduce((s, a) => s + (net.get(a.id) ?? 0), 0);
+  const currentSurplus = totalRevenue - totalExpenses;
 
   const mapAccounts = (accs: typeof accounts) =>
-    accs.map((a) => ({ code: a.code, name: a.name, balance: Math.abs(toNum(a.currentBalance)) }));
+    accs
+      .map((a) => ({ code: a.code, name: a.name, balance: signed(a), isContra: a.isContra }))
+      .filter((a) => Math.abs(a.balance) > EPS);
+
+  const totalNetAssets = totalEquityPosted + currentSurplus;
+  const totalLiabAndEquity = totalLiabilities + totalNetAssets;
 
   return {
     data: {
       asOf: periodEnd,
       assets: { accounts: mapAccounts(assets), total: totalAssets },
       liabilities: { accounts: mapAccounts(liabilities), total: totalLiabilities },
-      equity: { accounts: mapAccounts(equity), total: totalEquity, netIncome },
-      totalLiabilitiesAndEquity: totalLiabilities + totalEquity + netIncome,
-      isBalanced: Math.abs(totalAssets - (totalLiabilities + totalEquity + netIncome)) < 0.01,
+      netAssets: {
+        accounts: mapAccounts(equityReal),
+        postedBalance: totalEquityPosted,
+        currentPeriodSurplus: currentSurplus,
+        total: totalNetAssets,
+      },
+      totalLiabilitiesAndEquity: totalLiabAndEquity,
+      isBalanced: Math.abs(totalAssets - totalLiabAndEquity) < EPS,
     },
   };
 }
 
-export async function generateIncomeStatementAction(periodStart: Date, periodEnd: Date) {
+/**
+ * Statement of Financial Performance (IPSAS 1 — same as Income Statement).
+ */
+export async function generateIncomeStatementAction(periodStart: Date, periodEnd: Date, opts?: { fundId?: string }) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
   const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
   if (permErr) return permErr;
 
-  // Get journal entries for the period
-  const entries = await db.journalEntry.findMany({
-    where: {
-      journalTransaction: {
-        schoolId: ctx.schoolId,
-        status: "POSTED",
-        date: { gte: periodStart, lte: periodEnd },
-      },
-    },
-    include: {
-      debitAccount: { include: { category: { select: { type: true } } } },
-      creditAccount: { include: { category: { select: { type: true } } } },
-    },
+  const net = await computeNetBalances(ctx.schoolId, periodEnd, { ...opts, periodStart });
+
+  const accounts = await db.account.findMany({
+    where: { schoolId: ctx.schoolId, isActive: true, category: { type: { in: ["REVENUE", "EXPENSE"] } } },
+    include: { category: { select: { type: true } } },
+    orderBy: { code: "asc" },
   });
 
-  // Aggregate by account for revenue and expense accounts
-  const accountTotals = new Map<string, { code: string; name: string; type: string; total: number }>();
+  const revenueLines = accounts
+    .filter((a) => a.category.type === "REVENUE")
+    .map((a) => ({ code: a.code, name: a.name, total: net.get(a.id) ?? 0 }))
+    .filter((l) => Math.abs(l.total) > EPS);
 
-  for (const entry of entries) {
-    // Credit to revenue account = revenue
-    if (entry.creditAccount.category.type === "REVENUE") {
-      const key = entry.creditAccountId;
-      const existing = accountTotals.get(key) ?? { code: entry.creditAccount.code, name: entry.creditAccount.name, type: "REVENUE", total: 0 };
-      existing.total += toNum(entry.amount);
-      accountTotals.set(key, existing);
-    }
-    // Debit to expense account = expense
-    if (entry.debitAccount.category.type === "EXPENSE") {
-      const key = entry.debitAccountId;
-      const existing = accountTotals.get(key) ?? { code: entry.debitAccount.code, name: entry.debitAccount.name, type: "EXPENSE", total: 0 };
-      existing.total += toNum(entry.amount);
-      accountTotals.set(key, existing);
-    }
-  }
+  const expenseLines = accounts
+    .filter((a) => a.category.type === "EXPENSE")
+    .map((a) => ({ code: a.code, name: a.name, total: net.get(a.id) ?? 0 }))
+    .filter((l) => Math.abs(l.total) > EPS);
 
-  const revenueLines = Array.from(accountTotals.values()).filter((a) => a.type === "REVENUE").sort((a, b) => a.code.localeCompare(b.code));
-  const expenseLines = Array.from(accountTotals.values()).filter((a) => a.type === "EXPENSE").sort((a, b) => a.code.localeCompare(b.code));
-
-  const totalRevenue = revenueLines.reduce((sum, r) => sum + r.total, 0);
-  const totalExpenses = expenseLines.reduce((sum, e) => sum + e.total, 0);
+  const totalRevenue = revenueLines.reduce((s, r) => s + r.total, 0);
+  const totalExpenses = expenseLines.reduce((s, e) => s + e.total, 0);
 
   return {
     data: {
@@ -176,89 +209,339 @@ export async function generateIncomeStatementAction(periodStart: Date, periodEnd
       periodEnd,
       revenue: { lines: revenueLines, total: totalRevenue },
       expenses: { lines: expenseLines, total: totalExpenses },
-      netIncome: totalRevenue - totalExpenses,
-      netIncomeMargin: totalRevenue > 0 ? ((totalRevenue - totalExpenses) / totalRevenue) * 100 : 0,
+      surplus: totalRevenue - totalExpenses,
+      surplusMargin: totalRevenue > 0 ? ((totalRevenue - totalExpenses) / totalRevenue) * 100 : 0,
     },
   };
 }
 
-export async function generateCashFlowAction(periodStart: Date, periodEnd: Date) {
+/**
+ * Cash Flow Statement — direct method (IPSAS 2 preferred).
+ *
+ * Walks every journal line involving a Cash/Bank/MoMo account in the period and
+ * classifies the movement by the counterparty account type:
+ *   - Counterparty REVENUE/EXPENSE/AR/AP → Operating
+ *   - Counterparty PPE/Investment → Investing
+ *   - Counterparty EQUITY/Long-term Liability → Financing
+ */
+export async function generateCashFlowAction(periodStart: Date, periodEnd: Date, opts?: { fundId?: string }) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
   const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
   if (permErr) return permErr;
 
-  // Get cash/bank account IDs
+  const CASH_CODES = new Set([
+    ACCOUNTS.CASH_ON_HAND,
+    ACCOUNTS.BANK_GCB,
+    ACCOUNTS.BANK_ECOBANK,
+    ACCOUNTS.BANK_STANBIC,
+    ACCOUNTS.MOMO_MTN,
+    ACCOUNTS.MOMO_VODAFONE,
+    ACCOUNTS.MOMO_AIRTELTIGO,
+    ACCOUNTS.PETTY_CASH,
+  ]);
+
   const cashAccounts = await db.account.findMany({
-    where: {
-      schoolId: ctx.schoolId,
-      code: { in: ["1000", "1010", "1020", "1030"] }, // Cash, Bank accounts
-    },
+    where: { schoolId: ctx.schoolId, code: { in: Array.from(CASH_CODES) } },
     select: { id: true, code: true, name: true },
   });
-  const cashAccountIds = cashAccounts.map((a) => a.id);
+  const cashIds = new Set(cashAccounts.map((a) => a.id));
 
-  // Get all posted journal entries involving cash accounts
-  const entries = await db.journalEntry.findMany({
+  // Pull all journal transactions in the period that touch a cash account.
+  // Include POSTED + REVERSED so reversed cash flows + their counter-entries
+  // both contribute and net to zero, matching currentBalance.
+  const transactions = await db.journalTransaction.findMany({
     where: {
-      journalTransaction: {
-        schoolId: ctx.schoolId,
-        status: "POSTED",
-        date: { gte: periodStart, lte: periodEnd },
-      },
-      OR: [
-        { debitAccountId: { in: cashAccountIds } },
-        { creditAccountId: { in: cashAccountIds } },
-      ],
+      schoolId: ctx.schoolId,
+      status: { in: ["POSTED", "REVERSED"] },
+      date: { gte: periodStart, lte: periodEnd },
+      entries: { some: { accountId: { in: Array.from(cashIds) }, ...(opts?.fundId ? { fundId: opts.fundId } : {}) } },
     },
     include: {
-      journalTransaction: { select: { date: true, description: true, referenceType: true } },
-      debitAccount: { include: { category: { select: { type: true } } } },
-      creditAccount: { include: { category: { select: { type: true } } } },
+      entries: { include: { account: { include: { category: { select: { type: true } } } } } },
     },
   });
 
-  let operatingInflows = 0;
-  let operatingOutflows = 0;
-  let investingInflows = 0;
-  let investingOutflows = 0;
+  type Bucket = { inflows: number; outflows: number; lines: Array<{ date: Date; description: string; amount: number; direction: "IN" | "OUT"; account: string }> };
+  const operating: Bucket = { inflows: 0, outflows: 0, lines: [] };
+  const investing: Bucket = { inflows: 0, outflows: 0, lines: [] };
+  const financing: Bucket = { inflows: 0, outflows: 0, lines: [] };
 
-  for (const entry of entries) {
-    const isCashDebit = cashAccountIds.includes(entry.debitAccountId);
-    const refType = entry.journalTransaction.referenceType?.toLowerCase() ?? "";
+  for (const txn of transactions) {
+    const cashLines = txn.entries.filter((e) => cashIds.has(e.accountId));
+    const nonCashLines = txn.entries.filter((e) => !cashIds.has(e.accountId));
+    if (nonCashLines.length === 0) continue;
 
-    // Classify based on the non-cash leg's category (cash/bank accounts are assets,
-    // so checking the cash leg would always flag as investing)
-    const nonCashCategory = isCashDebit
-      ? entry.creditAccount.category.type
-      : entry.debitAccount.category.type;
-    const isInvesting = refType.includes("asset") || refType.includes("depreciation") ||
-      nonCashCategory === "ASSET";
+    // Classify by dominant non-cash account type (first non-cash line is usually representative)
+    const refType = txn.referenceType?.toLowerCase() ?? "";
+    const nonCashType = nonCashLines[0]?.account.category.type;
+    const nonCashCode = nonCashLines[0]?.account.code ?? "";
 
-    if (isCashDebit) {
-      // Cash coming in
-      if (isInvesting) investingInflows += toNum(entry.amount);
-      else operatingInflows += toNum(entry.amount);
-    } else {
-      // Cash going out
-      if (isInvesting) investingOutflows += toNum(entry.amount);
-      else operatingOutflows += toNum(entry.amount);
+    let bucket: Bucket = operating;
+    if (refType.includes("encumbrance") || refType.includes("ppe") || nonCashType === "ASSET" && (nonCashCode.startsWith("17") || nonCashCode.startsWith("12"))) {
+      bucket = investing;
+    } else if (nonCashType === "EQUITY" || (nonCashType === "LIABILITY" && nonCashCode.startsWith("28"))) {
+      bucket = financing;
+    }
+
+    for (const cashLine of cashLines) {
+      const amt = toNum(cashLine.amount);
+      if (cashLine.side === "DEBIT") {
+        bucket.inflows += amt;
+        bucket.lines.push({ date: txn.date, description: txn.description, amount: amt, direction: "IN", account: cashLine.account.code });
+      } else {
+        bucket.outflows += amt;
+        bucket.lines.push({ date: txn.date, description: txn.description, amount: amt, direction: "OUT", account: cashLine.account.code });
+      }
     }
   }
 
-  const netOperating = operatingInflows - operatingOutflows;
-  const netInvesting = investingInflows - investingOutflows;
-  const netChange = netOperating + netInvesting;
+  const netOperating = operating.inflows - operating.outflows;
+  const netInvesting = investing.inflows - investing.outflows;
+  const netFinancing = financing.inflows - financing.outflows;
 
   return {
     data: {
       periodStart,
       periodEnd,
-      operating: { inflows: operatingInflows, outflows: operatingOutflows, net: netOperating },
-      investing: { inflows: investingInflows, outflows: investingOutflows, net: netInvesting },
-      netChange,
+      method: "direct" as const,
+      operating: { inflows: operating.inflows, outflows: operating.outflows, net: netOperating, lines: operating.lines },
+      investing: { inflows: investing.inflows, outflows: investing.outflows, net: netInvesting, lines: investing.lines },
+      financing: { inflows: financing.inflows, outflows: financing.outflows, net: netFinancing, lines: financing.lines },
+      netChange: netOperating + netInvesting + netFinancing,
     },
   };
+}
+
+/**
+ * Statement of Changes in Net Assets / Equity (IPSAS 1).
+ * Opening balance per equity component + surplus + transfers = closing balance.
+ */
+export async function generateChangesInNetAssetsAction(periodStart: Date, periodEnd: Date) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  if (permErr) return permErr;
+
+  const equity = await db.account.findMany({
+    where: { schoolId: ctx.schoolId, category: { type: "EQUITY" }, isActive: true },
+    orderBy: { code: "asc" },
+  });
+
+  const opening = await computeNetBalances(ctx.schoolId, new Date(periodStart.getTime() - 1));
+  const closing = await computeNetBalances(ctx.schoolId, periodEnd);
+
+  // Surplus for the period from Revenue/Expense
+  const revenueExpense = await db.account.findMany({
+    where: { schoolId: ctx.schoolId, category: { type: { in: ["REVENUE", "EXPENSE"] } } },
+    include: { category: { select: { type: true } } },
+  });
+  const netForPeriod = await computeNetBalances(ctx.schoolId, periodEnd, { periodStart });
+  const totalRevenue = revenueExpense.filter((a) => a.category.type === "REVENUE").reduce((s, a) => s + (netForPeriod.get(a.id) ?? 0), 0);
+  const totalExpenses = revenueExpense.filter((a) => a.category.type === "EXPENSE").reduce((s, a) => s + (netForPeriod.get(a.id) ?? 0), 0);
+  const surplus = totalRevenue - totalExpenses;
+
+  const lines = equity.map((acc) => {
+    const o = opening.get(acc.id) ?? 0;
+    const c = closing.get(acc.id) ?? 0;
+    return {
+      code: acc.code,
+      name: acc.name,
+      opening: o,
+      movement: c - o,
+      closing: c,
+    };
+  });
+
+  return {
+    data: {
+      periodStart,
+      periodEnd,
+      lines,
+      surplus,
+      totalOpening: lines.reduce((s, l) => s + l.opening, 0),
+      totalClosing: lines.reduce((s, l) => s + l.closing, 0),
+    },
+  };
+}
+
+/**
+ * Statement of Comparison of Budget and Actual Amounts (IPSAS 24).
+ * Original Budget, Final Budget, Actual, Variance, Variance %.
+ */
+export async function generateBudgetVsActualAction(budgetId: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  if (permErr) return permErr;
+
+  const budget = await db.budget.findUnique({
+    where: { id: budgetId },
+    include: {
+      lines: {
+        include: {
+          expenseCategory: { select: { name: true, code: true, accountId: true } },
+        },
+      },
+    },
+  });
+  if (!budget) return { error: "Budget not found" };
+  if (budget.schoolId !== ctx.schoolId) return { error: "Access denied" };
+
+  const lines = budget.lines.map((l) => {
+    const original = toNum(l.originalAmount) || toNum(l.allocatedAmount);
+    const final = toNum(l.allocatedAmount);
+    const committed = toNum(l.committedAmount);
+    const actual = toNum(l.spentAmount);
+    const variance = final - (committed + actual);
+    const variancePct = final > 0 ? (variance / final) * 100 : 0;
+    return {
+      category: l.expenseCategory.name,
+      code: l.expenseCategory.code,
+      originalBudget: original,
+      finalBudget: final,
+      committed,
+      actual,
+      available: variance,
+      variance,
+      variancePct,
+    };
+  });
+
+  return {
+    data: {
+      budgetId: budget.id,
+      budgetName: budget.name,
+      totalOriginal: lines.reduce((s, l) => s + l.originalBudget, 0),
+      totalFinal: lines.reduce((s, l) => s + l.finalBudget, 0),
+      totalCommitted: lines.reduce((s, l) => s + l.committed, 0),
+      totalActual: lines.reduce((s, l) => s + l.actual, 0),
+      totalVariance: lines.reduce((s, l) => s + l.variance, 0),
+      lines,
+    },
+  };
+}
+
+/**
+ * Receivables Aging Report with expected credit loss (IPSAS 29/41).
+ */
+export async function generateReceivablesAgingAction(asOfDate: Date = new Date()) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  if (permErr) return permErr;
+
+  // Default ECL rates (percent) per aging bucket — schools should refine based on historical loss experience
+  const ECL_RATES = { b0_30: 1, b31_60: 3, b61_90: 10, b91_180: 25, b180_plus: 60 };
+
+  const bills = await db.studentBill.findMany({
+    where: {
+      schoolId: ctx.schoolId,
+      balanceAmount: { gt: 0 },
+      status: { in: ["UNPAID", "PARTIAL"] },
+    },
+    select: {
+      id: true,
+      studentId: true,
+      balanceAmount: true,
+      dueDate: true,
+      generatedAt: true,
+      termId: true,
+    },
+  });
+
+  const buckets = { b0_30: 0, b31_60: 0, b61_90: 0, b91_180: 0, b180_plus: 0 };
+  const details: Array<{ bucket: keyof typeof buckets; billId: string; studentId: string; days: number; amount: number }> = [];
+
+  for (const b of bills) {
+    const baseDate = b.dueDate ?? b.generatedAt;
+    const days = Math.max(0, Math.floor((asOfDate.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const amount = toNum(b.balanceAmount);
+    let bucket: keyof typeof buckets;
+    if (days <= 30) bucket = "b0_30";
+    else if (days <= 60) bucket = "b31_60";
+    else if (days <= 90) bucket = "b61_90";
+    else if (days <= 180) bucket = "b91_180";
+    else bucket = "b180_plus";
+    buckets[bucket] += amount;
+    details.push({ bucket, billId: b.id, studentId: b.studentId, days, amount });
+  }
+
+  const totalReceivables = Object.values(buckets).reduce((s, v) => s + v, 0);
+  const ecl = {
+    b0_30: (buckets.b0_30 * ECL_RATES.b0_30) / 100,
+    b31_60: (buckets.b31_60 * ECL_RATES.b31_60) / 100,
+    b61_90: (buckets.b61_90 * ECL_RATES.b61_90) / 100,
+    b91_180: (buckets.b91_180 * ECL_RATES.b91_180) / 100,
+    b180_plus: (buckets.b180_plus * ECL_RATES.b180_plus) / 100,
+  };
+  const totalAllowance = Object.values(ecl).reduce((s, v) => s + v, 0);
+
+  return {
+    data: {
+      asOfDate,
+      buckets,
+      eclRates: ECL_RATES,
+      allowancePerBucket: ecl,
+      totalReceivables,
+      totalAllowance,
+      netReceivables: totalReceivables - totalAllowance,
+      billCount: bills.length,
+      details,
+    },
+  };
+}
+
+/**
+ * Fund Statement — balances and activity per Fund.
+ */
+export async function generateFundStatementAction(periodStart: Date, periodEnd: Date) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
+  if (permErr) return permErr;
+
+  const funds = await db.fund.findMany({
+    where: { schoolId: ctx.schoolId, isActive: true },
+    orderBy: { code: "asc" },
+  });
+
+  const fundRows = [];
+  for (const fund of funds) {
+    const opening = await computeNetBalances(ctx.schoolId, new Date(periodStart.getTime() - 1), { fundId: fund.id });
+    const closing = await computeNetBalances(ctx.schoolId, periodEnd, { fundId: fund.id });
+    const periodActivity = await computeNetBalances(ctx.schoolId, periodEnd, { fundId: fund.id, periodStart });
+
+    const accounts = await db.account.findMany({
+      where: { schoolId: ctx.schoolId },
+      include: { category: { select: { type: true } } },
+    });
+    const revenueForFund = accounts
+      .filter((a) => a.category.type === "REVENUE")
+      .reduce((s, a) => s + (periodActivity.get(a.id) ?? 0), 0);
+    const expensesForFund = accounts
+      .filter((a) => a.category.type === "EXPENSE")
+      .reduce((s, a) => s + (periodActivity.get(a.id) ?? 0), 0);
+    const netAssetsOpening = accounts
+      .filter((a) => a.category.type === "EQUITY")
+      .reduce((s, a) => s + (opening.get(a.id) ?? 0), 0);
+    const netAssetsClosing = accounts
+      .filter((a) => a.category.type === "EQUITY")
+      .reduce((s, a) => s + (closing.get(a.id) ?? 0), 0);
+
+    fundRows.push({
+      fundCode: fund.code,
+      fundName: fund.name,
+      fundType: fund.type,
+      revenue: revenueForFund,
+      expenses: expensesForFund,
+      surplus: revenueForFund - expensesForFund,
+      netAssetsOpening,
+      netAssetsClosing,
+    });
+  }
+
+  return { data: { periodStart, periodEnd, funds: fundRows } };
 }
 
 export async function generateBoardSummaryAction(periodStart: Date, periodEnd: Date) {
@@ -267,34 +550,29 @@ export async function generateBoardSummaryAction(periodStart: Date, periodEnd: D
   const permErr = requirePermission(ctx.session, PERMISSIONS.FINANCIAL_STATEMENTS_GENERATE);
   if (permErr) return permErr;
 
-  // Fee collection summary
   const bills = await db.studentBill.findMany({
-    where: { feeStructure: { schoolId: ctx.schoolId } },
+    where: { schoolId: ctx.schoolId },
   });
   const totalBilled = bills.reduce((sum, b) => sum + toNum(b.totalAmount), 0);
   const totalCollected = bills.reduce((sum, b) => sum + toNum(b.paidAmount), 0);
   const collectionRate = totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0;
 
-  // Expense summary
   const expenses = await db.expense.findMany({
     where: { schoolId: ctx.schoolId, status: { in: ["APPROVED", "PAID"] }, date: { gte: periodStart, lte: periodEnd } },
   });
   const totalExpenses = expenses.reduce((sum, e) => sum + toNum(e.amount), 0);
 
-  // Government subsidies
-  const subsidies = await db.governmentSubsidy.findMany({
-    where: { schoolId: ctx.schoolId },
-  });
+  const subsidies = await db.governmentSubsidy.findMany({ where: { schoolId: ctx.schoolId } });
   const subsidyExpected = subsidies.reduce((sum, s) => sum + toNum(s.expectedAmount), 0);
   const subsidyReceived = subsidies.reduce((sum, s) => sum + toNum(s.receivedAmount), 0);
 
-  // Budget utilization
   const activeBudgets = await db.budget.findMany({
     where: { schoolId: ctx.schoolId, status: "ACTIVE" },
     include: { lines: true },
   });
   const budgetAllocated = activeBudgets.reduce((sum, b) => sum + toNum(b.totalAmount), 0);
   const budgetSpent = activeBudgets.reduce((sum, b) => b.lines.reduce((s, l) => s + toNum(l.spentAmount), 0) + sum, 0);
+  const budgetCommitted = activeBudgets.reduce((sum, b) => b.lines.reduce((s, l) => s + toNum(l.committedAmount), 0) + sum, 0);
 
   return {
     data: {
@@ -303,7 +581,7 @@ export async function generateBoardSummaryAction(periodStart: Date, periodEnd: D
       feeCollection: { billed: totalBilled, collected: totalCollected, outstanding: totalBilled - totalCollected, rate: collectionRate },
       expenses: { total: totalExpenses, count: expenses.length },
       subsidies: { expected: subsidyExpected, received: subsidyReceived, gap: subsidyExpected - subsidyReceived },
-      budget: { allocated: budgetAllocated, spent: budgetSpent, utilization: budgetAllocated > 0 ? (budgetSpent / budgetAllocated) * 100 : 0 },
+      budget: { allocated: budgetAllocated, committed: budgetCommitted, spent: budgetSpent, utilization: budgetAllocated > 0 ? ((budgetSpent + budgetCommitted) / budgetAllocated) * 100 : 0 },
       netPosition: totalCollected + subsidyReceived - totalExpenses,
     },
   };
