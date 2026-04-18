@@ -6,6 +6,13 @@ export interface NavItem {
   icon: string;
   permission?: Permission;
   children?: NavItem[];
+  /**
+   * Optional sub-group label. When a child has this set, the sidebar renders
+   * a small muted divider with the label above the child. Used to break long
+   * child lists (e.g., Finance with 25 items) into digestible sections without
+   * introducing another nesting level.
+   */
+  group?: string;
 }
 
 export interface NavGroup {
@@ -265,150 +272,44 @@ export const navigationGroups: NavGroup[] = [
         href: "/finance",
         icon: "DollarSign",
         children: [
-          {
-            title: "Fee Structures",
-            href: "/finance/fee-structures",
-            icon: "FileText",
-            permission: PERMISSIONS.FEE_STRUCTURES_READ,
-          },
-          {
-            title: "Billing",
-            href: "/finance/billing",
-            icon: "Receipt",
-            permission: PERMISSIONS.BILLING_READ,
-          },
-          {
-            title: "Payments",
-            href: "/finance/payments",
-            icon: "CreditCard",
-            permission: PERMISSIONS.PAYMENTS_READ,
-          },
-          {
-            title: "Receipts",
-            href: "/finance/receipts",
-            icon: "FileText",
-            permission: PERMISSIONS.PAYMENTS_READ,
-          },
-          {
-            title: "Fee Templates",
-            href: "/finance/fee-templates",
-            icon: "Copy",
-            permission: PERMISSIONS.FEE_TEMPLATES_READ,
-          },
-          {
-            title: "Installment Plans",
-            href: "/finance/installments",
-            icon: "CalendarDays",
-            permission: PERMISSIONS.INSTALLMENTS_READ,
-          },
-          {
-            title: "Late Penalties",
-            href: "/finance/penalties",
-            icon: "AlertTriangle",
-            permission: PERMISSIONS.PENALTIES_READ,
-          },
-          {
-            title: "Fee Waivers",
-            href: "/finance/waivers",
-            icon: "ShieldCheck",
-            permission: PERMISSIONS.FEE_WAIVERS_READ,
-          },
-          {
-            title: "Government Subsidies",
-            href: "/finance/government-subsidies",
-            icon: "Landmark",
-            permission: PERMISSIONS.SUBSIDIES_READ,
-          },
-          {
-            title: "Donor Funds",
-            href: "/finance/donor-funds",
-            icon: "Heart",
-            permission: PERMISSIONS.DONOR_FUNDS_READ,
-          },
-          {
-            title: "Financial Aid",
-            href: "/finance/financial-aid",
-            icon: "HandHeart",
-            permission: PERMISSIONS.FINANCIAL_AID_READ,
-          },
-          {
-            title: "Scholarships",
-            href: "/finance/scholarships",
-            icon: "Award",
-            permission: PERMISSIONS.FEE_STRUCTURES_READ,
-          },
-          {
-            title: "Payment Links",
-            href: "/finance/payment-links",
-            icon: "Link",
-            permission: PERMISSIONS.PAYMENT_LINKS_READ,
-          },
-          {
-            title: "Bank Reconciliation",
-            href: "/finance/bank-reconciliation",
-            icon: "FileSearch",
-            permission: PERMISSIONS.BANK_RECONCILIATION_READ,
-          },
-          {
-            title: "Arrears",
-            href: "/finance/arrears",
-            icon: "FileText",
-            permission: PERMISSIONS.BILLING_READ,
-          },
-          {
-            title: "Chart of Accounts",
-            href: "/finance/accounting/chart-of-accounts",
-            icon: "BookOpen",
-            permission: PERMISSIONS.COA_READ,
-          },
-          {
-            title: "Journal Entries",
-            href: "/finance/accounting/journal",
-            icon: "FileText",
-            permission: PERMISSIONS.JOURNAL_READ,
-          },
-          {
-            title: "Expenses",
-            href: "/finance/accounting/expenses",
-            icon: "Receipt",
-            permission: PERMISSIONS.EXPENSES_READ,
-          },
-          {
-            title: "Petty Cash",
-            href: "/finance/accounting/petty-cash",
-            icon: "Wallet",
-            permission: PERMISSIONS.PETTY_CASH_READ,
-          },
-          {
-            title: "Budgets",
-            href: "/finance/accounting/budgets",
-            icon: "PieChart",
-            permission: PERMISSIONS.BUDGETS_READ,
-          },
-          {
-            title: "Expense Claims",
-            href: "/finance/accounting/expense-claims",
-            icon: "FileCheck",
-            permission: PERMISSIONS.EXPENSE_CLAIMS_READ,
-          },
-          {
-            title: "Financial Statements",
-            href: "/finance/reports/statements",
-            icon: "FileSpreadsheet",
-            permission: PERMISSIONS.FINANCIAL_STATEMENTS_READ,
-          },
-          {
-            title: "Tax Compliance",
-            href: "/finance/tax-compliance",
-            icon: "Scale",
-            permission: PERMISSIONS.TAX_COMPLIANCE_READ,
-          },
-          {
-            title: "Reports",
-            href: "/finance/reports",
-            icon: "BarChart3",
-            permission: PERMISSIONS.FINANCE_REPORTS_READ,
-          },
+          // ── Fees & Billing ──────────────────────────
+          { group: "Fees & Billing", title: "Fee Structures", href: "/finance/fee-structures", icon: "FileText", permission: PERMISSIONS.FEE_STRUCTURES_READ },
+          { title: "Fee Templates", href: "/finance/fee-templates", icon: "Copy", permission: PERMISSIONS.FEE_TEMPLATES_READ },
+          { title: "Billing", href: "/finance/billing", icon: "Receipt", permission: PERMISSIONS.BILLING_READ },
+          { title: "Installment Plans", href: "/finance/installments", icon: "CalendarDays", permission: PERMISSIONS.INSTALLMENTS_READ },
+          { title: "Late Penalties", href: "/finance/penalties", icon: "AlertTriangle", permission: PERMISSIONS.PENALTIES_READ },
+          { title: "Fee Waivers", href: "/finance/waivers", icon: "ShieldCheck", permission: PERMISSIONS.FEE_WAIVERS_READ },
+          { title: "Scholarships", href: "/finance/scholarships", icon: "Award", permission: PERMISSIONS.FEE_STRUCTURES_READ },
+          { title: "Financial Aid", href: "/finance/financial-aid", icon: "HandHeart", permission: PERMISSIONS.FINANCIAL_AID_READ },
+
+          // ── Collections ─────────────────────────────
+          { group: "Collections", title: "Payments", href: "/finance/payments", icon: "CreditCard", permission: PERMISSIONS.PAYMENTS_READ },
+          { title: "Receipts", href: "/finance/receipts", icon: "FileText", permission: PERMISSIONS.PAYMENTS_READ },
+          { title: "Payment Links", href: "/finance/payment-links", icon: "Link", permission: PERMISSIONS.PAYMENT_LINKS_READ },
+          { title: "Bank Reconciliation", href: "/finance/bank-reconciliation", icon: "FileSearch", permission: PERMISSIONS.BANK_RECONCILIATION_READ },
+          { title: "Arrears", href: "/finance/arrears", icon: "FileText", permission: PERMISSIONS.BILLING_READ },
+
+          // ── Funding ─────────────────────────────────
+          { group: "Funding", title: "Government Subsidies", href: "/finance/government-subsidies", icon: "Landmark", permission: PERMISSIONS.SUBSIDIES_READ },
+          { title: "Donor Funds", href: "/finance/donor-funds", icon: "Heart", permission: PERMISSIONS.DONOR_FUNDS_READ },
+
+          // ── Accounting (IPSAS) ──────────────────────
+          { group: "Accounting", title: "Chart of Accounts", href: "/finance/accounting/chart-of-accounts", icon: "BookOpen", permission: PERMISSIONS.COA_READ },
+          { title: "Funds", href: "/finance/accounting/funds", icon: "Briefcase", permission: PERMISSIONS.JOURNAL_READ },
+          { title: "Fiscal Periods", href: "/finance/accounting/periods", icon: "Calendar", permission: PERMISSIONS.JOURNAL_READ },
+          { title: "Journal Entries", href: "/finance/accounting/journal", icon: "FileText", permission: PERMISSIONS.JOURNAL_READ },
+          { title: "General Ledger", href: "/finance/accounting/general-ledger", icon: "ScrollText", permission: PERMISSIONS.JOURNAL_READ },
+          { title: "Expenses", href: "/finance/accounting/expenses", icon: "Receipt", permission: PERMISSIONS.EXPENSES_READ },
+          { title: "Petty Cash", href: "/finance/accounting/petty-cash", icon: "Wallet", permission: PERMISSIONS.PETTY_CASH_READ },
+          { title: "Expense Claims", href: "/finance/accounting/expense-claims", icon: "FileCheck", permission: PERMISSIONS.EXPENSE_CLAIMS_READ },
+          { title: "Budgets", href: "/finance/accounting/budgets", icon: "PieChart", permission: PERMISSIONS.BUDGETS_READ },
+          { title: "Commitments", href: "/finance/accounting/commitments", icon: "ClipboardCheck", permission: PERMISSIONS.JOURNAL_READ },
+          { title: "Impairment", href: "/finance/accounting/impairment", icon: "TrendingDown", permission: PERMISSIONS.JOURNAL_READ },
+
+          // ── Reporting ───────────────────────────────
+          { group: "Reporting", title: "Financial Statements", href: "/finance/reports/statements", icon: "FileSpreadsheet", permission: PERMISSIONS.FINANCIAL_STATEMENTS_READ },
+          { title: "Reports", href: "/finance/reports", icon: "BarChart3", permission: PERMISSIONS.FINANCE_REPORTS_READ },
+          { title: "Tax Compliance", href: "/finance/tax-compliance", icon: "Scale", permission: PERMISSIONS.TAX_COMPLIANCE_READ },
         ],
       },
       {

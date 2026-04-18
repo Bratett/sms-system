@@ -60,11 +60,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         });
 
         const roles = user.userRoles.map((ur) => ur.role.name);
-        const permissions = [
-          ...new Set(
-            user.userRoles.flatMap((ur) => ur.role.rolePermissions.map((rp) => rp.permission.code)),
-          ),
-        ];
+        // Encode super_admin as the wildcard "*" rather than listing every
+        // permission in the JWT — with ~380 permission codes the cookie blows
+        // past the browser's header-size limit and the server returns HTTP 431.
+        // `requirePermission` / `denyPermission` / `hasPermission` already treat
+        // "*" as "all permissions".
+        const permissions = roles.includes("super_admin")
+          ? ["*"]
+          : [
+              ...new Set(
+                user.userRoles.flatMap((ur) => ur.role.rolePermissions.map((rp) => rp.permission.code)),
+              ),
+            ];
 
         // Determine active school: default school, or first assigned school
         const schools = user.userSchools.map((us) => ({

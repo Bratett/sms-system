@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/use-permissions";
 import { navigationGroups, type NavItem } from "@/lib/navigation";
+import { useModuleMenu } from "@/hooks/use-module-menu";
 import {
   LayoutDashboard,
   Settings,
@@ -45,8 +46,6 @@ import {
   Wrench,
   MessageSquare,
   Megaphone,
-  ChevronDown,
-  ChevronRight,
   PanelLeftClose,
   PanelLeft,
   Clock,
@@ -61,6 +60,19 @@ import {
   ScanSearch,
   PieChart,
   TrendingDown,
+  ScrollText,
+  Search,
+  Wallet,
+  FileCheck,
+  FileSpreadsheet,
+  Scale,
+  Copy,
+  Link as LinkIcon,
+  Landmark,
+  Heart,
+  HandHeart,
+  FileSearch,
+  X as XIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -115,105 +127,47 @@ const iconMap: Record<string, LucideIcon> = {
   ScanSearch,
   PieChart,
   TrendingDown,
+  ScrollText,
+  Wallet,
+  FileCheck,
+  FileSpreadsheet,
+  Scale,
+  Copy,
+  Link: LinkIcon,
+  Landmark,
+  Heart,
+  HandHeart,
+  FileSearch,
 };
 
-function SidebarItem({
-  item,
-  depth = 0,
-  collapsed,
-}: {
-  item: NavItem;
-  depth?: number;
-  collapsed?: boolean;
-}) {
+/* ─── Top-level module row ─────────────────────────────────────── */
+
+function ModuleRow({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const pathname = usePathname();
-  const { hasPermission } = usePermissions();
-  const [expanded, setExpanded] = useState(pathname.startsWith(item.href));
-
-  if (item.permission && !hasPermission(item.permission)) return null;
-
+  const { setOpen } = useModuleMenu();
   const Icon = iconMap[item.icon] || LayoutDashboard;
-  const isActive = pathname === item.href || (item.children && pathname.startsWith(item.href));
-  const isExactActive = pathname === item.href;
-  const hasChildren = item.children && item.children.length > 0;
+  const isActive =
+    pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href + "/"));
+  const hasChildren = !!item.children && item.children.length > 0;
 
-  if (hasChildren) {
-    const visibleChildren = item.children!.filter(
-      (child) => !child.permission || hasPermission(child.permission),
-    );
-    if (visibleChildren.length === 0) return null;
+  const onClick = () => {
+    if (hasChildren) setOpen(true);
+  };
 
-    // In collapsed mode, show only icon with tooltip
-    if (collapsed) {
-      return (
-        <div className="group relative">
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className={cn(
-              "flex w-full items-center justify-center rounded-lg p-2.5 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-              isActive && "bg-primary text-primary-foreground",
-            )}
-            title={item.title}
-          >
-            <Icon className="h-[18px] w-[18px] shrink-0" />
-          </button>
-          {/* Tooltip */}
-          <div className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2.5 py-1.5 text-xs font-medium text-background opacity-0 shadow-md transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
-            {item.title}
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div>
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-sidebar-accent",
-            isActive
-              ? "text-sidebar-accent-foreground"
-              : "text-sidebar-foreground",
-          )}
-          style={{ paddingLeft: `${depth * 12 + 12}px` }}
-        >
-          <Icon className="h-[18px] w-[18px] shrink-0" />
-          <span className="flex-1 text-left">{item.title}</span>
-          {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 text-sidebar-muted" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5 text-sidebar-muted" />
-          )}
-        </button>
-        {expanded && (
-          <div className="mt-0.5 space-y-0.5">
-            {visibleChildren.map((child) => (
-              <SidebarItem key={child.href} item={child} depth={depth + 1} collapsed={collapsed} />
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Leaf node
   if (collapsed) {
     return (
       <div className="group relative">
         <Link
           href={item.href}
+          onClick={onClick}
           className={cn(
             "flex items-center justify-center rounded-lg p-2.5 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-            isExactActive
-              ? "bg-primary text-primary-foreground"
-              : "text-sidebar-foreground",
+            isActive ? "bg-primary text-primary-foreground" : "text-sidebar-foreground",
           )}
-          aria-current={isExactActive ? "page" : undefined}
-          title={item.title}
+          aria-current={isActive ? "page" : undefined}
         >
           <Icon className="h-[18px] w-[18px] shrink-0" />
         </Link>
-        {/* Tooltip */}
         <div className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2.5 py-1.5 text-xs font-medium text-background opacity-0 shadow-md transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
           {item.title}
         </div>
@@ -224,29 +178,51 @@ function SidebarItem({
   return (
     <Link
       href={item.href}
+      onClick={onClick}
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-        isExactActive
-          ? "bg-primary font-medium text-primary-foreground"
+        isActive
+          ? "bg-primary/10 font-medium text-sidebar-accent-foreground"
           : "text-sidebar-foreground",
       )}
-      style={{ paddingLeft: `${depth * 12 + 12}px` }}
-      aria-current={isExactActive ? "page" : undefined}
+      aria-current={isActive ? "page" : undefined}
+      aria-haspopup={hasChildren ? "menu" : undefined}
     >
       <Icon className="h-[18px] w-[18px] shrink-0" />
-      <span>{item.title}</span>
+      <span className="truncate">{item.title}</span>
     </Link>
   );
 }
 
+/* ─── Sidebar ──────────────────────────────────────────────────── */
+
 export function Sidebar({
   collapsed,
   onToggleCollapse,
+  onOpenPalette,
 }: {
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  onOpenPalette?: () => void;
 }) {
   const { hasPermission } = usePermissions();
+  const pathname = usePathname();
+  const [query, setQuery] = useState("");
+
+  // Filter: permission + case-insensitive title match on the module itself
+  const filteredGroups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return navigationGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => {
+          if (item.permission && !hasPermission(item.permission)) return false;
+          if (!q) return true;
+          return item.title.toLowerCase().includes(q);
+        }),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [query, hasPermission]);
 
   return (
     <aside
@@ -258,10 +234,12 @@ export function Sidebar({
       aria-label="Main navigation"
     >
       {/* Header */}
-      <div className={cn(
-        "flex h-14 items-center border-b border-sidebar-border",
-        collapsed ? "justify-center px-2" : "px-5",
-      )}>
+      <div
+        className={cn(
+          "flex h-14 items-center border-b border-sidebar-border",
+          collapsed ? "justify-center px-2" : "px-5",
+        )}
+      >
         <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <GraduationCap className="h-4.5 w-4.5" />
@@ -274,53 +252,84 @@ export function Sidebar({
         </Link>
       </div>
 
+      {/* Search + ⌘K trigger */}
+      {!collapsed && (
+        <div className="px-3 pt-3 pb-1">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-sidebar-muted" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Filter menu…"
+              className="w-full rounded-md border border-sidebar-border bg-background/50 py-1.5 pl-8 pr-8 text-xs text-sidebar-foreground placeholder:text-sidebar-muted focus:border-primary focus:outline-none"
+              aria-label="Filter sidebar"
+            />
+            {query ? (
+              <button
+                onClick={() => setQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-sidebar-muted hover:text-sidebar-foreground"
+                aria-label="Clear filter"
+              >
+                <XIcon className="h-3 w-3" />
+              </button>
+            ) : (
+              <button
+                onClick={onOpenPalette}
+                title="Quick jump (Ctrl/⌘+K)"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 rounded bg-sidebar-accent/40 px-1.5 py-0.5 text-[9px] font-mono text-sidebar-muted hover:text-sidebar-foreground"
+              >
+                ⌘K
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {collapsed && (
+        <div className="px-2 pt-3 pb-1 flex justify-center">
+          <button
+            onClick={onOpenPalette}
+            title="Quick jump (Ctrl/⌘+K)"
+            className="rounded-lg p-2.5 text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <Search className="h-[18px] w-[18px]" />
+          </button>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav
-        className={cn(
-          "flex flex-col overflow-y-auto",
-          collapsed ? "p-2" : "p-3",
-        )}
-        style={{ height: "calc(100vh - 3.5rem - 3rem)" }}
+        className={cn("flex flex-col overflow-y-auto", collapsed ? "p-2" : "px-3 pb-3 pt-1")}
+        style={{ height: "calc(100vh - 3.5rem - 3rem - 3rem)" }}
       >
-        {navigationGroups.map((group) => {
-          const visibleItems = group.items.filter((item) => {
-            if (item.permission && !hasPermission(item.permission)) return false;
-            if (item.children) {
-              const visibleChildren = item.children.filter(
-                (child) => !child.permission || hasPermission(child.permission),
-              );
-              return visibleChildren.length > 0;
-            }
-            return true;
-          });
+        {filteredGroups.length === 0 && query && (
+          <p className="mt-4 px-3 text-sm text-sidebar-muted">No modules match "{query}".</p>
+        )}
 
-          if (visibleItems.length === 0) return null;
-
-          return (
-            <div key={group.label} className="mb-1">
-              {!collapsed && group.label !== "Main" && (
-                <p className="mb-1.5 mt-4 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted">
-                  {group.label}
-                </p>
-              )}
-              {collapsed && group.label !== "Main" && (
-                <div className="my-2 border-t border-sidebar-border" />
-              )}
-              <div className="space-y-0.5">
-                {visibleItems.map((item) => (
-                  <SidebarItem key={item.href} item={item} collapsed={collapsed} />
-                ))}
-              </div>
+        {filteredGroups.map((group) => (
+          <div key={group.label} className="mb-1">
+            {!collapsed && group.label !== "Main" && (
+              <p className="mb-1 mt-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted">
+                {group.label}
+              </p>
+            )}
+            {collapsed && group.label !== "Main" && <div className="my-2 border-t border-sidebar-border" />}
+            <div className="space-y-0">
+              {group.items.map((item) => (
+                <ModuleRow key={item.href} item={item} collapsed={Boolean(collapsed)} />
+              ))}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </nav>
 
       {/* Collapse Toggle */}
-      <div className={cn(
-        "absolute bottom-0 left-0 right-0 border-t border-sidebar-border bg-sidebar",
-        collapsed ? "p-2" : "p-3",
-      )}>
+      <div
+        className={cn(
+          "absolute bottom-0 left-0 right-0 border-t border-sidebar-border bg-sidebar",
+          collapsed ? "p-2" : "p-3",
+        )}
+      >
         <button
           onClick={onToggleCollapse}
           className={cn(

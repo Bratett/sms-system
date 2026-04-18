@@ -212,6 +212,14 @@ export const PERMISSIONS = {
   AUDIT_REPORTS_READ: "accounting:audit-reports:read",
   AUDIT_REPORTS_EXPORT: "accounting:audit-reports:export",
 
+  // Accounting - IPSAS (fiscal periods, funds, encumbrances)
+  PERIOD_CLOSE: "accounting:period:close",
+  PERIOD_ADJUST: "accounting:period:adjust",
+  PO_CREATE: "accounting:commitment:create",
+  PO_APPROVE: "accounting:commitment:approve",
+  FUND_MANAGE: "accounting:fund:manage",
+  REPORT_IPSAS_VIEW: "accounting:report-ipsas:view",
+
   // Inventory - Fixed Assets
   FIXED_ASSETS_CREATE: "inventory:fixed-assets:create",
   FIXED_ASSETS_READ: "inventory:fixed-assets:read",
@@ -855,6 +863,13 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.TAX_COMPLIANCE_FILE,
     PERMISSIONS.AUDIT_REPORTS_READ,
     PERMISSIONS.AUDIT_REPORTS_EXPORT,
+    // IPSAS: fiscal periods, funds, encumbrances
+    PERMISSIONS.PERIOD_CLOSE,
+    PERMISSIONS.PERIOD_ADJUST,
+    PERMISSIONS.PO_CREATE,
+    PERMISSIONS.PO_APPROVE,
+    PERMISSIONS.FUND_MANAGE,
+    PERMISSIONS.REPORT_IPSAS_VIEW,
     // Phase 5: Fixed assets
     PERMISSIONS.FIXED_ASSETS_CREATE,
     PERMISSIONS.FIXED_ASSETS_READ,

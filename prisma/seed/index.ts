@@ -1,11 +1,20 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+// Import the AUTHORITATIVE PERMISSIONS constant so the seed never drifts.
+// If this import breaks for any reason (circular deps, server-only code in a
+// transitive dep), fall back to the inline `_LEGACY_PERMISSIONS` below — but
+// fix it properly. The DB MUST have every permission string the app checks.
+import { PERMISSIONS as AUTHORITATIVE_PERMISSIONS } from "../../src/lib/permissions";
 
 const prisma = new PrismaClient();
 
-// ─── Permission definitions (mirroring src/lib/permissions.ts) ───────────────
+// ─── Permission definitions (legacy inline copy, kept only so the role
+// mappings below that reference PERMISSIONS.<KEY> resolve. Any NEW permission
+// added to src/lib/permissions.ts will still be seeded because we iterate
+// AUTHORITATIVE_PERMISSIONS when creating Permission rows — see line
+// `for (const perm of Object.values(AUTHORITATIVE_PERMISSIONS))` below). ──
 
-const PERMISSIONS: Record<string, string> = {
+const _LEGACY_PERMISSIONS: Record<string, string> = {
   // School Settings
   SCHOOL_SETTINGS_READ: "school:settings:read",
   SCHOOL_SETTINGS_UPDATE: "school:settings:update",
@@ -346,7 +355,15 @@ const PERMISSIONS: Record<string, string> = {
   AWARDS_READ: "academics:awards:read",
 };
 
-const ALL_PERMISSIONS = Object.values(PERMISSIONS);
+// Merge authoritative + legacy, with authoritative winning on any collision.
+// `PERMISSIONS` is what the role-mapping dictionaries below reference via
+// `PERMISSIONS.KEY_NAME`. `ALL_PERMISSIONS` is the set we actually insert.
+const PERMISSIONS: Record<string, string> = {
+  ..._LEGACY_PERMISSIONS,
+  ...(AUTHORITATIVE_PERMISSIONS as unknown as Record<string, string>),
+};
+
+const ALL_PERMISSIONS = Array.from(new Set(Object.values(PERMISSIONS)));
 
 // ─── Default role-permission mappings ────────────────────────────────────────
 
@@ -1192,6 +1209,20 @@ async function main() {
     });
   }
   console.log(`  ✓ Grading scale with ${GRADE_DEFINITIONS.length} grades created\n`);
+
+  // ── 6b. Seed Ghana public-sector / IPSAS Chart of Accounts ────────────────
+  // Creates AccountCategory + Account hierarchy (GIFMIS codes) plus default
+  // General/Capital/Restricted funds. Idempotent — existing rows are kept.
+  console.log("Seeding Ghana public-sector Chart of Accounts...");
+  const { seedGhanaPublicSectorCoa } = await import(
+    "../../src/modules/accounting/seed/ghana-public-sector-coa"
+  );
+  const coaResult = await prisma.$transaction((tx) =>
+    seedGhanaPublicSectorCoa(tx, school.id),
+  );
+  console.log(
+    `  ✓ COA seeded: ${coaResult.categoriesCreated} new categories, ${coaResult.accountsCreated} new accounts, ${coaResult.fundsCreated} new funds\n`,
+  );
 
   // ── 7. Seed global React-PDF DocumentTemplates ───────────────────────────
   // These are `schoolId: null` rows — every tenant sees them via the lenient

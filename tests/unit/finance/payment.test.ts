@@ -78,13 +78,17 @@ describe("recordPaymentAction", () => {
 
     prismaMock.$transaction.mockImplementation(async (fn) => {
       const tx = {
-        payment: { create: async () => mockPayment },
+        payment: { create: async () => mockPayment, update: async () => ({}) },
         studentBill: { update: async () => ({}) },
-        receipt: { create: async () => mockReceipt },
         term: {
           findUnique: async () => ({ termNumber: 1, academicYear: { startDate: new Date() } }),
         },
         receipt: { findFirst: async () => null, create: async () => mockReceipt },
+        account: { findFirst: async () => null, findMany: async () => [], update: async () => ({}) },
+        fiscalPeriod: { findFirst: async () => null },
+        fund: { findFirst: async () => null },
+        journalTransaction: { findFirst: async () => null, create: async () => ({ id: "j1", transactionNumber: "JRN/2026/0001" }) },
+        journalEntry: { createMany: async () => ({}) },
       };
       return fn(tx as never);
     });
