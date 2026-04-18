@@ -362,10 +362,3 @@ export async function postBankAdjustmentAction(input: {
     throw err;
   }
 }
-
-// Convenient re-export so UI can pick standard offset codes
-export const BANK_ADJUSTMENT_PRESETS = {
-  BANK_CHARGES: ACCOUNTS.EXPENSE_BANK_CHARGES,
-  INTEREST_INCOME: ACCOUNTS.INVESTMENT_INCOME,
-  SUSPENSE: ACCOUNTS.ACCRUED_EXPENSES,
-} as const;
