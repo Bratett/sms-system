@@ -144,6 +144,10 @@ export async function sendOfferExpiryWarningsCore(opts: {
   const now = new Date();
   const threshold = new Date();
   threshold.setDate(threshold.getDate() + OFFER_EXPIRY_WARNING_DAYS);
+  // Don't re-warn within 24h. The hourly worker would otherwise send up to
+  // 72 notifications over the 3-day window.
+  const resendAfter = new Date();
+  resendAfter.setDate(resendAfter.getDate() - 1);
 
   const warning = await db.admissionApplication.findMany({
     where: {
@@ -151,6 +155,10 @@ export async function sendOfferExpiryWarningsCore(opts: {
       status: "ACCEPTED",
       offerAccepted: { not: true },
       offerExpiryDate: { gte: now, lte: threshold },
+      OR: [
+        { offerExpiryWarningSentAt: null },
+        { offerExpiryWarningSentAt: { lt: resendAfter } },
+      ],
     },
     select: {
       id: true,
@@ -164,21 +172,35 @@ export async function sendOfferExpiryWarningsCore(opts: {
     },
   });
 
+  let warnedCount = 0;
   for (const app of warning) {
-    await dispatch({
-      event: NOTIFICATION_EVENTS.ADMISSION_OFFER_EXPIRING,
-      title: "Your admission offer is expiring soon",
-      message: `Offer for ${app.firstName} ${app.lastName} (${app.applicationNumber}) expires on ${app.offerExpiryDate?.toLocaleDateString()}.`,
-      recipients: [
-        {
-          name: app.guardianName,
-          phone: app.guardianPhone,
-          email: app.guardianEmail ?? undefined,
-        },
-      ],
-      schoolId: opts.schoolId,
-    });
+    try {
+      await dispatch({
+        event: NOTIFICATION_EVENTS.ADMISSION_OFFER_EXPIRING,
+        title: "Your admission offer is expiring soon",
+        message: `Offer for ${app.firstName} ${app.lastName} (${app.applicationNumber}) expires on ${app.offerExpiryDate?.toLocaleDateString()}.`,
+        recipients: [
+          {
+            name: app.guardianName,
+            phone: app.guardianPhone,
+            email: app.guardianEmail ?? undefined,
+          },
+        ],
+        schoolId: opts.schoolId,
+      });
+      await db.admissionApplication.update({
+        where: { id: app.id },
+        data: { offerExpiryWarningSentAt: new Date() },
+      });
+      warnedCount += 1;
+    } catch (err) {
+      // Log and continue — one bad recipient must not block the rest.
+      console.error(
+        `[admissions] expiry warning failed for ${app.applicationNumber}:`,
+        (err as Error).message,
+      );
+    }
   }
 
-  return { warnedCount: warning.length };
+  return { warnedCount };
 }

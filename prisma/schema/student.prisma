@@ -141,9 +141,12 @@ model AdmissionApplication {
   autoDecision   Boolean @default(false)
 
   // Offer lifecycle
-  offerAccepted    Boolean?
-  offerAcceptedAt  DateTime?
-  offerExpiryDate  DateTime?
+  offerAccepted              Boolean?
+  offerAcceptedAt            DateTime?
+  offerExpiryDate            DateTime?
+  /// Last time the hourly worker dispatched an "offer expiring soon" warning.
+  /// Gates repeat sends; null means never warned.
+  offerExpiryWarningSentAt   DateTime?
 
   // Placement verification
   placementVerified   Boolean   @default(false)
@@ -219,6 +222,7 @@ model AdmissionInterview {
   updatedAt       DateTime          @updatedAt
 
   application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  school      School               @relation("SchoolAdmissionInterview", fields: [schoolId], references: [id])
 
   @@index([applicationId])
   @@index([schoolId])
@@ -227,17 +231,18 @@ model AdmissionInterview {
 }
 
 model AdmissionDecision {
-  id            String               @id @default(cuid())
+  id            String                @id @default(cuid())
   applicationId String
   schoolId      String
-  decision      AdmissionStatus // ACCEPTED | CONDITIONAL_ACCEPT | WAITLISTED | REJECTED
+  decision      AdmissionDecisionType
   decidedBy     String // User ID (or "SYSTEM" for auto-decision)
-  decidedAt     DateTime             @default(now())
+  decidedAt     DateTime              @default(now())
   reason        String?
   approvedBy    String?
-  autoDecision  Boolean              @default(false)
+  autoDecision  Boolean               @default(false)
 
   application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  school      School               @relation("SchoolAdmissionDecision", fields: [schoolId], references: [id])
   conditions  AdmissionCondition[]
 
   @@index([applicationId])
@@ -276,6 +281,7 @@ model AdmissionAppeal {
   resolution    String?
 
   application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  school      School               @relation("SchoolAdmissionAppeal", fields: [schoolId], references: [id])
 
   @@index([applicationId])
   @@index([schoolId])
@@ -293,6 +299,7 @@ model AdmissionOffer {
   declineReason String?
 
   application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  school      School               @relation("SchoolAdmissionOffer", fields: [schoolId], references: [id])
 
   @@index([applicationId])
   @@index([schoolId])
@@ -368,6 +375,16 @@ enum InterviewOutcome {
   FAILED
   NO_SHOW
   WAIVED
+}
+
+/// Narrow outcome enum for AdmissionDecision.decision. The full AdmissionStatus
+/// enum is kept as the lifecycle state on AdmissionApplication; decisions are
+/// one of exactly these four outcomes.
+enum AdmissionDecisionType {
+  ACCEPTED
+  CONDITIONAL_ACCEPT
+  WAITLISTED
+  REJECTED
 }
 
 enum DocumentVerificationStatus {

@@ -221,10 +221,14 @@ export const admissionWorkflow: WorkflowDefinition<AdmissionEntity> = {
       notifyEvent: NOTIFICATION_EVENTS.ADMISSION_ACCEPTED,
     },
 
-    // Offer lifecycle
+    // Offer lifecycle. CONDITIONAL_ACCEPT is intentionally omitted from the
+    // `from` list: conditional applicants must first have their conditions
+    // verified and a DECIDE_ACCEPT fired by staff (from CONDITIONAL_ACCEPT →
+    // ACCEPTED). Otherwise the guardian-facing ACCEPT_OFFER path would allow
+    // them to self-promote past the condition gate.
     {
       event: ADMISSION_EVENTS.ACCEPT_OFFER,
-      from: [ADMISSION_STATES.ACCEPTED, ADMISSION_STATES.CONDITIONAL_ACCEPT],
+      from: ADMISSION_STATES.ACCEPTED,
       to: ADMISSION_STATES.ACCEPTED,
     },
     {

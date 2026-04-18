@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { db } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import {
   expireOffersCore,
@@ -6,7 +6,6 @@ import {
   sendOfferExpiryWarningsCore,
 } from "@/modules/admissions/schedule/core";
 
-const db = new PrismaClient();
 const log = logger.child({ worker: "admissions-schedule" });
 
 const HOURLY_MS = 60 * 60 * 1000;

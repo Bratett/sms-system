@@ -152,9 +152,21 @@ export async function submitPublicApplicationAction(input: PublicApplicationInpu
 }
 
 /**
+ * Strip application numbers (APP/YYYY/NNNN) from a user-facing message so
+ * the public verify probe cannot be used to harvest valid identifiers.
+ * Staff-side callers keep the full detailed messages.
+ */
+function redactPublicMessage(message: string): string {
+  return message.replace(/\bAPP\/[A-Z0-9]+\/\d+\b/g, "[redacted]");
+}
+
+/**
  * Pre-submit placement verification probe for the public form.
  * Read-only: runs the same validation the submit action performs but without
  * creating an application, so the UI can show a green "Placement verified" banner.
+ *
+ * Responses are scrubbed of application numbers to prevent the unauthenticated
+ * endpoint from doubling as an enumeration oracle.
  */
 export async function verifyPlacementAction(input: {
   enrollmentCode: string;
@@ -176,8 +188,8 @@ export async function verifyPlacementAction(input: {
   return {
     data: {
       valid: result.valid,
-      errors: result.errors,
-      warnings: result.warnings,
+      errors: result.errors.map(redactPublicMessage),
+      warnings: result.warnings.map(redactPublicMessage),
     },
   };
 }

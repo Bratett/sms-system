@@ -74,18 +74,14 @@ export async function submitAppealAction(
     newData: { reason: parsed.data.reason },
   });
 
-  // Notify admissions staff (no specific recipients list — goes to in-app feed).
+  // Staff-facing notification — let the dispatcher fan out to admissions
+  // roles via event routing. Sending to the guardian would page them with
+  // internal workflow language like "requires review".
   await dispatch({
     event: NOTIFICATION_EVENTS.ADMISSION_APPEAL_SUBMITTED,
     title: "Admission appeal submitted",
     message: `Appeal for ${application.applicationNumber} requires review.`,
-    recipients: [
-      {
-        name: application.guardianName,
-        phone: application.guardianPhone,
-        email: application.guardianEmail ?? undefined,
-      },
-    ],
+    recipients: [],
     schoolId: ctx.schoolId,
   });
 

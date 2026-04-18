@@ -588,6 +588,25 @@ export async function verifyPlacementAction(
     return { error: "Only placement applications can be verified." };
   }
 
+  // Terminal states can't be verified back into the active pipeline. Without
+  // this guard a "verify" click on a REJECTED/WITHDRAWN app with a qualifying
+  // BECE aggregate would silently resurrect it into ACCEPTED via auto-admit.
+  const VERIFIABLE_STATUSES: readonly typeof application.status[] = [
+    "DRAFT",
+    "SUBMITTED",
+    "PAYMENT_PENDING",
+    "DOCUMENTS_PENDING",
+    "UNDER_REVIEW",
+    "SHORTLISTED",
+    "INTERVIEW_SCHEDULED",
+    "AWAITING_DECISION",
+  ] as const;
+  if (!VERIFIABLE_STATUSES.includes(application.status)) {
+    return {
+      error: `Placement cannot be verified while the application is ${application.status}.`,
+    };
+  }
+
   const result = await validatePlacement({
     enrollmentCode: application.enrollmentCode,
     beceIndexNumber: application.beceIndexNumber,
