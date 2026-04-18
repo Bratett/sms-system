@@ -189,7 +189,7 @@ export function CommandPalette({
         <div className="max-h-[50vh] overflow-y-auto">
           {results.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-              No matches for "{query}".
+              No matches for &quot;{query}&quot;.
             </div>
           ) : (
             <ul>

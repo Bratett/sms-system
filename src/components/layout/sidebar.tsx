@@ -303,7 +303,7 @@ export function Sidebar({
         style={{ height: "calc(100vh - 3.5rem - 3rem - 3rem)" }}
       >
         {filteredGroups.length === 0 && query && (
-          <p className="mt-4 px-3 text-sm text-sidebar-muted">No modules match "{query}".</p>
+          <p className="mt-4 px-3 text-sm text-sidebar-muted">No modules match &quot;{query}&quot;.</p>
         )}
 
         {filteredGroups.map((group) => (

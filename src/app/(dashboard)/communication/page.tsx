@@ -11,6 +11,18 @@ const PRIORITY_STYLES: Record<string, string> = {
   LOW: "bg-muted text-muted-foreground",
 };
 
+function countUpcoming(sessions: Array<{ date: Date | string }>): number {
+  const now = Date.now();
+  return sessions.filter((s) => new Date(s.date).getTime() >= now).length;
+}
+
+function startOfCurrentMonth(): Date {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 export default async function CommunicationPage() {
   const session = await auth();
   if (!session?.user) return null;
@@ -46,12 +58,9 @@ export default async function CommunicationPage() {
     ptcRes && "data" in ptcRes && Array.isArray(ptcRes.data)
       ? (ptcRes.data as Array<{ date: Date | string }>)
       : [];
-  const now = Date.now();
-  const upcomingPtc = ptcSessions.filter((s) => new Date(s.date).getTime() >= now).length;
+  const upcomingPtc = countUpcoming(ptcSessions);
 
-  const thisMonth = new Date();
-  thisMonth.setDate(1);
-  thisMonth.setHours(0, 0, 0, 0);
+  const thisMonth = startOfCurrentMonth();
   const announcementsThisMonth = announcements.filter((a) => {
     const pub = a.publishedAt ? new Date(a.publishedAt) : new Date(a.createdAt);
     return pub >= thisMonth;
