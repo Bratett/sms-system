@@ -36,3 +36,27 @@ export async function getEligibleSourceArmsAction() {
 
   return { data: arms.filter((a) => !draftArmIds.has(a.id)) };
 }
+
+export async function listPromotionRunsAction(opts?: { status?: "DRAFT" | "COMMITTED" | "REVERTED"; academicYearId?: string }) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_PROMOTE);
+  if (denied) return denied;
+
+  const runs = await db.promotionRun.findMany({
+    where: {
+      schoolId: ctx.schoolId,
+      ...(opts?.status && { status: opts.status }),
+      ...(opts?.academicYearId && { sourceAcademicYearId: opts.academicYearId }),
+    },
+    include: {
+      sourceClassArm: { include: { class: { select: { name: true, yearGroup: true } } } },
+      sourceAcademicYear: { select: { name: true } },
+      targetAcademicYear: { select: { name: true } },
+      _count: { select: { items: true } },
+    },
+    orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+  });
+
+  return { data: runs };
+}

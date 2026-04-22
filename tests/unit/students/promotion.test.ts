@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prismaMock, mockAuthenticatedUser, mockUnauthenticated } from "../setup";
-import { getEligibleSourceArmsAction } from "@/modules/student/actions/promotion.action";
+import { getEligibleSourceArmsAction, listPromotionRunsAction } from "@/modules/student/actions/promotion.action";
 
 describe("getEligibleSourceArmsAction", () => {
   beforeEach(() => mockAuthenticatedUser());
@@ -33,5 +33,22 @@ describe("getEligibleSourceArmsAction", () => {
 
     const result = await getEligibleSourceArmsAction();
     expect(result).toEqual({ data: [] });
+  });
+});
+
+describe("listPromotionRunsAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("returns drafts and recent committed runs", async () => {
+    prismaMock.promotionRun.findMany.mockResolvedValue([
+      { id: "pr-1", status: "DRAFT", sourceClassArm: { name: "A", class: { name: "SHS1 Sci" } } },
+      { id: "pr-2", status: "COMMITTED", committedAt: new Date(), sourceClassArm: { name: "B", class: { name: "SHS1 Sci" } } },
+    ] as never);
+
+    const result = await listPromotionRunsAction();
+    expect(result).toEqual({ data: expect.arrayContaining([
+      expect.objectContaining({ id: "pr-1" }),
+      expect.objectContaining({ id: "pr-2" }),
+    ]) });
   });
 });
