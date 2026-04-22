@@ -90,10 +90,15 @@ export function TranscriptTemplate({ data }: { data: TranscriptData }) {
         </View>
 
         {data.years.map((year, yi) => (
-          <View key={yi} wrap={false}>
+          // Allow a year's terms to break across pages. A multi-year transcript
+          // with 3 terms per year per subject would otherwise force the whole
+          // year onto one page and truncate for students with many subjects.
+          <View key={yi}>
             <Text style={styles.yearHeading}>{year.academicYearName}</Text>
             {year.terms.map((term, ti) => (
-              <View key={ti} style={{ marginBottom: 8 }}>
+              // Keep each individual term's table together on one page where
+              // possible; if a term doesn't fit, react-pdf will still break.
+              <View key={ti} wrap={false} style={{ marginBottom: 8 }}>
                 <Text style={{ fontSize: 10, fontWeight: "bold", marginBottom: 3 }}>
                   {term.termName} . Avg {term.averageScore?.toFixed(1) ?? "-"} .{" "}
                   Grade {term.overallGrade ?? "-"} . Position {term.classPosition ?? "-"}
