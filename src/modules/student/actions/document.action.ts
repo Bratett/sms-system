@@ -9,6 +9,7 @@ import {
   createDocumentTypeSchema,
   updateDocumentTypeSchema,
   recordUploadedStudentDocumentSchema,
+  updateStudentDocumentSchema,
 } from "../schemas/document.schema";
 
 export async function listDocumentTypesAction(opts?: { status?: "ACTIVE" | "INACTIVE" }) {
@@ -288,4 +289,83 @@ export async function recordUploadedStudentDocumentAction(input: {
     } catch {}
     return { error: "Document record creation failed; file was cleaned up." };
   }
+}
+
+export async function updateStudentDocumentAction(input: {
+  id: string;
+  title?: string;
+  notes?: string | null;
+}) {
+  const parsed = updateStudentDocumentSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_DOCUMENTS_CREATE);
+  if (denied) return denied;
+
+  const existing = await db.studentDocument.findFirst({
+    where: { id: parsed.data.id, schoolId: ctx.schoolId },
+  });
+  if (!existing) return { error: "Document not found" };
+
+  const data: Record<string, unknown> = {};
+  if (parsed.data.title !== undefined) data.title = parsed.data.title;
+  if (parsed.data.notes !== undefined) data.notes = parsed.data.notes;
+
+  const updated = await db.studentDocument.update({
+    where: { id: parsed.data.id },
+    data,
+  });
+
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "UPDATE",
+    entity: "StudentDocument",
+    entityId: parsed.data.id,
+    module: "students",
+    description: `Updated document: ${updated.title}`,
+    previousData: { title: existing.title, notes: existing.notes },
+    newData: data,
+  });
+
+  return { data: updated };
+}
+
+export async function deleteStudentDocumentAction(id: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_DOCUMENTS_DELETE);
+  if (denied) return denied;
+
+  const existing = await db.studentDocument.findFirst({
+    where: { id, schoolId: ctx.schoolId },
+  });
+  if (!existing) return { error: "Document not found" };
+
+  let r2Failed = false;
+  try {
+    await deleteFile(existing.fileKey);
+  } catch {
+    r2Failed = true;
+  }
+
+  await db.studentDocument.delete({ where: { id } });
+
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "DELETE",
+    entity: "StudentDocument",
+    entityId: id,
+    module: "students",
+    description: `Deleted document: ${existing.title}`,
+    previousData: {
+      title: existing.title,
+      fileName: existing.fileName,
+      fileKey: existing.fileKey,
+    },
+    metadata: r2Failed ? { r2DeleteFailed: true } : undefined,
+  });
+
+  return { data: { deleted: true } };
 }

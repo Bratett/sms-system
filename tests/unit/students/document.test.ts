@@ -283,3 +283,62 @@ describe("recordUploadedStudentDocumentAction", () => {
     expect(vi.mocked(r2.deleteFile)).toHaveBeenCalledWith("orphan-key");
   });
 });
+
+import {
+  updateStudentDocumentAction,
+  deleteStudentDocumentAction,
+} from "@/modules/student/actions/document.action";
+
+describe("updateStudentDocumentAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("updates title and notes", async () => {
+    prismaMock.studentDocument.findFirst.mockResolvedValue({
+      id: "sd-1", schoolId: "default-school", title: "Old title",
+    } as never);
+    prismaMock.studentDocument.update.mockResolvedValue({ id: "sd-1", title: "New title" } as never);
+
+    const result = await updateStudentDocumentAction({
+      id: "clh0000000000000000000001",
+      title: "New title",
+    });
+    expect(result).toMatchObject({ data: { id: "sd-1", title: "New title" } });
+  });
+
+  it("returns error when document not found in current school", async () => {
+    prismaMock.studentDocument.findFirst.mockResolvedValue(null);
+    const result = await updateStudentDocumentAction({ id: "clh0000000000000000000099", title: "X" });
+    expect(result).toEqual({ error: "Document not found" });
+  });
+});
+
+describe("deleteStudentDocumentAction", () => {
+  beforeEach(() => {
+    mockAuthenticatedUser();
+    vi.mocked(r2.deleteFile).mockClear();
+  });
+
+  it("deletes DB row and R2 object", async () => {
+    prismaMock.studentDocument.findFirst.mockResolvedValue({
+      id: "sd-1", schoolId: "default-school", fileKey: "student-documents/s/file.pdf",
+      fileName: "file.pdf", title: "X",
+    } as never);
+    prismaMock.studentDocument.delete.mockResolvedValue({ id: "sd-1" } as never);
+
+    const result = await deleteStudentDocumentAction("sd-1");
+    expect(result).toEqual({ data: { deleted: true } });
+    expect(vi.mocked(r2.deleteFile)).toHaveBeenCalledWith("student-documents/s/file.pdf");
+  });
+
+  it("still deletes DB row when R2 delete fails", async () => {
+    prismaMock.studentDocument.findFirst.mockResolvedValue({
+      id: "sd-1", schoolId: "default-school", fileKey: "k", fileName: "f", title: "X",
+    } as never);
+    vi.mocked(r2.deleteFile).mockRejectedValueOnce(new Error("R2 down"));
+    prismaMock.studentDocument.delete.mockResolvedValue({ id: "sd-1" } as never);
+
+    const result = await deleteStudentDocumentAction("sd-1");
+    expect(result).toEqual({ data: { deleted: true } });
+    expect(prismaMock.studentDocument.delete).toHaveBeenCalled();
+  });
+});
