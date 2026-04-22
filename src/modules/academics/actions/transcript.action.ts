@@ -5,8 +5,10 @@ import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { uploadFile, getSignedDownloadUrl, generateFileKey } from "@/lib/storage/r2";
-import { renderPdfToBuffer } from "@/lib/pdf/generator";
+import { renderPdfToBuffer, PDF_SYNC_THRESHOLD } from "@/lib/pdf/generator";
 import { TranscriptTemplate, type TranscriptData } from "@/lib/pdf/templates/transcript";
+import { enqueuePdfJob } from "@/modules/common/pdf-job-dispatcher";
+import { PDFDocument } from "pdf-lib";
 
 // ─── Generate Transcript ───────────────────────────────────────────
 
@@ -348,4 +350,50 @@ export async function issueTranscriptAction(transcriptId: string) {
   });
 
   return { data: updated };
+}
+
+// ─── Batch Transcript Rendering ─────────────────────────────────────
+
+export async function renderBatchTranscriptsAction(input: { studentIds: string[] }) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.TRANSCRIPTS_CREATE);
+  if (denied) return denied;
+
+  if (input.studentIds.length === 0) return { error: "No students provided" };
+
+  if (input.studentIds.length > PDF_SYNC_THRESHOLD) {
+    const jobId = await enqueuePdfJob({
+      schoolId: ctx.schoolId,
+      kind: "TRANSCRIPT_BATCH",
+      params: { studentIds: input.studentIds },
+      totalItems: input.studentIds.length,
+      requestedBy: ctx.session.user.id!,
+    });
+    return { data: { jobId, queued: true } };
+  }
+
+  const urls: string[] = [];
+  for (const sid of input.studentIds) {
+    const latest = await db.transcript.findFirst({
+      where: { studentId: sid, schoolId: ctx.schoolId },
+      orderBy: { generatedAt: "desc" },
+    });
+    if (!latest) continue;
+    const res = await renderTranscriptPdfAction(latest.id);
+    if ("data" in res) urls.push(res.data.url);
+  }
+  const stitched = await PDFDocument.create();
+  for (const url of urls) {
+    const resp = await fetch(url);
+    const doc = await PDFDocument.load(await resp.arrayBuffer());
+    const pages = await stitched.copyPages(doc, doc.getPageIndices());
+    pages.forEach((p) => stitched.addPage(p));
+  }
+  const buffer = Buffer.from(await stitched.save());
+  const initialKey = generateFileKey("transcript-batches", ctx.schoolId, `batch-${Date.now()}.pdf`);
+  const uploaded = await uploadFile(initialKey, buffer, "application/pdf");
+  const url = await getSignedDownloadUrl(uploaded.key);
+
+  return { data: { url, queued: false } };
 }

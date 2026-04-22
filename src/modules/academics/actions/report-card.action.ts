@@ -9,12 +9,14 @@ import {
   getSignedDownloadUrl,
   generateFileKey,
 } from "@/lib/storage/r2";
-import { renderPdfToBuffer } from "@/lib/pdf/generator";
+import { renderPdfToBuffer, PDF_SYNC_THRESHOLD } from "@/lib/pdf/generator";
 import {
   ReportCard,
   type ReportCardProps,
   type SubjectRow,
 } from "@/lib/pdf/templates/report-card";
+import { enqueuePdfJob } from "@/modules/common/pdf-job-dispatcher";
+import { PDFDocument } from "pdf-lib";
 
 // ─── Generate Report Card Data for a Single Student ───────────────────
 
@@ -411,4 +413,61 @@ export async function invalidateReportCardCacheAction(input: {
     data: { invalidatedAt: new Date() },
   });
   return { data: { invalidated: result.count } };
+}
+
+export async function renderClassReportCardsPdfAction(input: { classArmId: string; termId: string }) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.REPORT_CARDS_GENERATE);
+  if (denied) return denied;
+
+  const enrollments = await db.enrollment.findMany({
+    where: { classArmId: input.classArmId, status: "ACTIVE" },
+    select: { studentId: true },
+  });
+  if (enrollments.length === 0) return { error: "No active students in this class arm" };
+
+  if (enrollments.length > PDF_SYNC_THRESHOLD) {
+    const jobId = await enqueuePdfJob({
+      schoolId: ctx.schoolId,
+      kind: "REPORT_CARD_BATCH",
+      params: { classArmId: input.classArmId, termId: input.termId },
+      totalItems: enrollments.length,
+      requestedBy: ctx.session.user.id!,
+    });
+    return { data: { jobId, queued: true } };
+  }
+
+  const urls: string[] = [];
+  for (const e of enrollments) {
+    const res = await renderReportCardPdfAction({ studentId: e.studentId, termId: input.termId });
+    if ("data" in res) urls.push(res.data.url);
+  }
+  const stitched = await PDFDocument.create();
+  for (const url of urls) {
+    const resp = await fetch(url);
+    const doc = await PDFDocument.load(await resp.arrayBuffer());
+    const pages = await stitched.copyPages(doc, doc.getPageIndices());
+    pages.forEach((p) => stitched.addPage(p));
+  }
+  const buffer = Buffer.from(await stitched.save());
+  const initialKey = generateFileKey(
+    "report-card-batches",
+    `${input.classArmId}-${input.termId}`,
+    `batch-${Date.now()}.pdf`
+  );
+  const uploaded = await uploadFile(initialKey, buffer, "application/pdf");
+  const url = await getSignedDownloadUrl(uploaded.key);
+
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "CREATE",
+    entity: "ReportCardBatch",
+    entityId: `${input.classArmId}-${input.termId}`,
+    module: "academics",
+    description: `Generated ${enrollments.length} report cards inline`,
+    metadata: { fileKey: uploaded.key },
+  });
+
+  return { data: { url, queued: false } };
 }

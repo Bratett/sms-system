@@ -1,5 +1,7 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 
+export const PDF_SYNC_THRESHOLD = 20;
+
 /**
  * Renders a React PDF component to a Node.js Buffer.
  *
