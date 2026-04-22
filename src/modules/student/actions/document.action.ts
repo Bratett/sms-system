@@ -10,6 +10,7 @@ import {
   updateDocumentTypeSchema,
   recordUploadedStudentDocumentSchema,
   updateStudentDocumentSchema,
+  rejectStudentDocumentSchema,
 } from "../schemas/document.schema";
 
 export async function listDocumentTypesAction(opts?: { status?: "ACTIVE" | "INACTIVE" }) {
@@ -368,4 +369,114 @@ export async function deleteStudentDocumentAction(id: string) {
   });
 
   return { data: { deleted: true } };
+}
+
+export async function verifyStudentDocumentAction(id: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_DOCUMENTS_VERIFY);
+  if (denied) return denied;
+
+  const existing = await db.studentDocument.findFirst({
+    where: { id, schoolId: ctx.schoolId },
+  });
+  if (!existing) return { error: "Document not found" };
+  if (existing.verificationStatus !== "PENDING") return { error: "Document is no longer PENDING" };
+
+  const updated = await db.studentDocument.update({
+    where: { id },
+    data: {
+      verificationStatus: "VERIFIED",
+      verifiedBy: ctx.session.user.id!,
+      verifiedAt: new Date(),
+      rejectionReason: null,
+    },
+  });
+
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "UPDATE",
+    entity: "StudentDocument",
+    entityId: id,
+    module: "students",
+    description: `Verified document: ${existing.title}`,
+    previousData: { verificationStatus: existing.verificationStatus },
+    newData: { verificationStatus: "VERIFIED" },
+  });
+
+  return { data: updated };
+}
+
+export async function rejectStudentDocumentAction(input: { id: string; reason: string }) {
+  const parsed = rejectStudentDocumentSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_DOCUMENTS_VERIFY);
+  if (denied) return denied;
+
+  const existing = await db.studentDocument.findFirst({
+    where: { id: parsed.data.id, schoolId: ctx.schoolId },
+  });
+  if (!existing) return { error: "Document not found" };
+  if (existing.verificationStatus !== "PENDING") return { error: "Document is no longer PENDING" };
+
+  const updated = await db.studentDocument.update({
+    where: { id: parsed.data.id },
+    data: {
+      verificationStatus: "REJECTED",
+      rejectionReason: parsed.data.reason,
+    },
+  });
+
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "UPDATE",
+    entity: "StudentDocument",
+    entityId: parsed.data.id,
+    module: "students",
+    description: `Rejected document: ${existing.title}`,
+    previousData: { verificationStatus: existing.verificationStatus },
+    newData: { verificationStatus: "REJECTED" },
+    metadata: { reason: parsed.data.reason },
+  });
+
+  return { data: updated };
+}
+
+export async function reopenStudentDocumentAction(id: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_DOCUMENTS_VERIFY);
+  if (denied) return denied;
+
+  const existing = await db.studentDocument.findFirst({
+    where: { id, schoolId: ctx.schoolId },
+  });
+  if (!existing) return { error: "Document not found" };
+  if (existing.verificationStatus === "PENDING") return { error: "Document is already PENDING" };
+
+  const updated = await db.studentDocument.update({
+    where: { id },
+    data: {
+      verificationStatus: "PENDING",
+      verifiedBy: null,
+      verifiedAt: null,
+      rejectionReason: null,
+    },
+  });
+
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "UPDATE",
+    entity: "StudentDocument",
+    entityId: id,
+    module: "students",
+    description: `Reopened document: ${existing.title}`,
+    previousData: { verificationStatus: existing.verificationStatus },
+    newData: { verificationStatus: "PENDING" },
+  });
+
+  return { data: updated };
 }

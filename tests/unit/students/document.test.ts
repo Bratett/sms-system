@@ -342,3 +342,89 @@ describe("deleteStudentDocumentAction", () => {
     expect(prismaMock.studentDocument.delete).toHaveBeenCalled();
   });
 });
+
+import {
+  verifyStudentDocumentAction,
+  rejectStudentDocumentAction,
+  reopenStudentDocumentAction,
+} from "@/modules/student/actions/document.action";
+
+describe("verifyStudentDocumentAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("PENDING → VERIFIED with verifier + timestamp", async () => {
+    prismaMock.studentDocument.findFirst.mockResolvedValue({
+      id: "sd-1", schoolId: "default-school", verificationStatus: "PENDING", title: "X",
+    } as never);
+    prismaMock.studentDocument.update.mockResolvedValue({ id: "sd-1", verificationStatus: "VERIFIED" } as never);
+
+    const result = await verifyStudentDocumentAction("sd-1");
+    expect(result).toMatchObject({ data: { verificationStatus: "VERIFIED" } });
+    expect(prismaMock.studentDocument.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "sd-1" },
+      data: expect.objectContaining({
+        verificationStatus: "VERIFIED",
+        verifiedBy: "test-user-id",
+        verifiedAt: expect.any(Date),
+      }),
+    }));
+  });
+
+  it("refuses when not PENDING", async () => {
+    prismaMock.studentDocument.findFirst.mockResolvedValue({
+      id: "sd-1", schoolId: "default-school", verificationStatus: "VERIFIED", title: "X",
+    } as never);
+    const result = await verifyStudentDocumentAction("sd-1");
+    expect(result).toEqual({ error: "Document is no longer PENDING" });
+  });
+});
+
+describe("rejectStudentDocumentAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("PENDING → REJECTED with reason", async () => {
+    prismaMock.studentDocument.findFirst.mockResolvedValue({
+      id: "sd-1", schoolId: "default-school", verificationStatus: "PENDING", title: "X",
+    } as never);
+    prismaMock.studentDocument.update.mockResolvedValue({ id: "sd-1", verificationStatus: "REJECTED" } as never);
+
+    const result = await rejectStudentDocumentAction({
+      id: "clh0000000000000000000001",
+      reason: "Illegible scan, please re-upload",
+    });
+    expect(result).toMatchObject({ data: { verificationStatus: "REJECTED" } });
+    expect(prismaMock.studentDocument.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        verificationStatus: "REJECTED",
+        rejectionReason: "Illegible scan, please re-upload",
+      }),
+    }));
+  });
+
+  it("enforces reason min length", async () => {
+    const result = await rejectStudentDocumentAction({ id: "clh0000000000000000000001", reason: "no" });
+    expect(result).toEqual({ error: expect.stringMatching(/5|character/i) });
+  });
+});
+
+describe("reopenStudentDocumentAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("VERIFIED → PENDING", async () => {
+    prismaMock.studentDocument.findFirst.mockResolvedValue({
+      id: "sd-1", schoolId: "default-school", verificationStatus: "VERIFIED", title: "X",
+    } as never);
+    prismaMock.studentDocument.update.mockResolvedValue({ id: "sd-1", verificationStatus: "PENDING" } as never);
+
+    const result = await reopenStudentDocumentAction("sd-1");
+    expect(result).toMatchObject({ data: { verificationStatus: "PENDING" } });
+  });
+
+  it("refuses when already PENDING", async () => {
+    prismaMock.studentDocument.findFirst.mockResolvedValue({
+      id: "sd-1", schoolId: "default-school", verificationStatus: "PENDING", title: "X",
+    } as never);
+    const result = await reopenStudentDocumentAction("sd-1");
+    expect(result).toEqual({ error: "Document is already PENDING" });
+  });
+});
