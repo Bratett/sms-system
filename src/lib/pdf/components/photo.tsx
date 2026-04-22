@@ -1,6 +1,6 @@
 import { Image, View, StyleSheet } from "@react-pdf/renderer";
 import path from "path";
-import { PLACEHOLDER_PHOTO_SENTINEL } from "@/modules/student/actions/photo";
+import { PLACEHOLDER_PHOTO_SENTINEL } from "@/lib/pdf/constants";
 
 const styles = StyleSheet.create({
   wrapper: {

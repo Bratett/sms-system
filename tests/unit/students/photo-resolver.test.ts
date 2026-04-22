@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { prismaMock, mockAuthenticatedUser } from "../setup";
-import { resolveStudentPhotoUrl, PLACEHOLDER_PHOTO_SENTINEL } from "@/modules/student/actions/photo";
+import { resolveStudentPhotoUrl } from "@/modules/student/actions/photo";
+import { PLACEHOLDER_PHOTO_SENTINEL } from "@/lib/pdf/constants";
 import { getSignedDownloadUrl } from "@/lib/storage/r2";
 
 describe("resolveStudentPhotoUrl", () => {

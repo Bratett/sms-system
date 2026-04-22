@@ -1,13 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { PLACEHOLDER_PHOTO_SENTINEL } from "@/lib/pdf/constants";
 import { getSignedDownloadUrl } from "@/lib/storage/r2";
-
-/**
- * Sentinel returned when no photo source is available. The PDF template
- * renders the bundled placeholder image in this case.
- */
-export const PLACEHOLDER_PHOTO_SENTINEL = "__PLACEHOLDER__";
 
 /**
  * Resolves a student's photo URL with fallback chain:
