@@ -12,6 +12,8 @@ import {
   deleteStudentDocumentAction,
   recordUploadedStudentDocumentAction,
 } from "@/modules/student/actions/document.action";
+import { usePermissions } from "@/hooks/use-permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 
 // ─── Types (derived from action return shapes) ──────────────────────
 type StudentDocumentRow = Extract<
@@ -81,6 +83,10 @@ function StatusPill({ doc }: { doc: StudentDocumentRow }) {
 
 export function StudentDocumentsSection({ studentId }: { studentId: string }) {
   const router = useRouter();
+  const { hasPermission } = usePermissions();
+  const canVerify = hasPermission(PERMISSIONS.STUDENTS_DOCUMENTS_VERIFY);
+  const canDelete = hasPermission(PERMISSIONS.STUDENTS_DOCUMENTS_DELETE);
+  const canUpload = hasPermission(PERMISSIONS.STUDENTS_DOCUMENTS_CREATE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [documents, setDocuments] = useState<StudentDocumentRow[]>([]);
@@ -396,7 +402,7 @@ export function StudentDocumentsSection({ studentId }: { studentId: string }) {
                           >
                             View
                           </button>
-                          {d.verificationStatus === "PENDING" && (
+                          {canVerify && d.verificationStatus === "PENDING" && (
                             <>
                               <button
                                 type="button"
@@ -419,14 +425,16 @@ export function StudentDocumentsSection({ studentId }: { studentId: string }) {
                               </button>
                             </>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(d.id, d.title)}
-                            disabled={rowPending}
-                            className="text-xs text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
-                          >
-                            Delete
-                          </button>
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(d.id, d.title)}
+                              disabled={rowPending}
+                              className="text-xs text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -488,6 +496,7 @@ export function StudentDocumentsSection({ studentId }: { studentId: string }) {
       </div>
 
       {/* Upload panel */}
+      {canUpload && (
       <div className="rounded-lg border border-border bg-muted/20 p-4">
         <h3 className="text-sm font-semibold mb-3">Upload document</h3>
         {uploadError && (
@@ -565,6 +574,7 @@ export function StudentDocumentsSection({ studentId }: { studentId: string }) {
           </div>
         </form>
       </div>
+      )}
     </div>
   );
 }
