@@ -549,8 +549,12 @@ export async function listStudentsWithMissingDocsAction(opts?: { page?: number; 
         select: { documentTypeId: true },
       },
     },
-    take: opts?.limit ?? 100,
-    skip: ((opts?.page ?? 1) - 1) * (opts?.limit ?? 100),
+    // NOTE: This is a post-filter in JS (see .filter() below). We load more students
+    // than the final result will contain, so take must comfortably exceed the expected
+    // cohort size. 2000 is safe for Ghana SHS scale; pass `limit` to narrow explicitly.
+    // TODO(scale): if schools exceed this, move the missing-type diff into SQL.
+    take: opts?.limit ?? 2000,
+    skip: ((opts?.page ?? 1) - 1) * (opts?.limit ?? 2000),
   });
 
   const missing = students.filter((s) => {

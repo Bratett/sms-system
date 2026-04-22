@@ -525,6 +525,18 @@ describe("listStudentsWithMissingDocsAction", () => {
     expect(result.data).toHaveLength(1);
     expect(result.data[0]).toMatchObject({ id: "s-1" });
   });
+
+  it("uses a generous default take to avoid silent capping", async () => {
+    prismaMock.documentType.findMany.mockResolvedValue([
+      { id: "dt-1", name: "Birth Cert", isRequired: true, appliesTo: "ALL", status: "ACTIVE" },
+    ] as never);
+    prismaMock.student.findMany.mockResolvedValue([] as never);
+
+    await listStudentsWithMissingDocsAction();
+    expect(prismaMock.student.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 2000,
+    }));
+  });
 });
 
 describe("listStudentsWithExpiringDocsAction", () => {
