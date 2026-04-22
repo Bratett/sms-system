@@ -29,6 +29,8 @@ model Student {
 
   promotionRunItems PromotionRunItem[]
 
+  studentDocuments StudentDocument[]
+
   @@index([schoolId])
   @@index([studentId])
   @@index([status])
@@ -479,4 +481,63 @@ enum PromotionOutcome {
   RETAIN
   GRADUATE
   WITHDRAW
+}
+
+model DocumentType {
+  id           String            @id @default(cuid())
+  schoolId     String
+  name         String
+  description  String?
+  isRequired   Boolean           @default(false)
+  expiryMonths Int?
+  appliesTo    DocumentAppliesTo @default(ALL)
+  status       Status            @default(ACTIVE)
+  sortOrder    Int               @default(0)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  school    School             @relation("SchoolDocumentType", fields: [schoolId], references: [id], onDelete: Cascade)
+  documents StudentDocument[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@index([schoolId, status])
+}
+
+model StudentDocument {
+  id                 String                     @id @default(cuid())
+  schoolId           String
+  studentId          String
+  documentTypeId     String
+  title              String
+  fileKey            String
+  fileName           String
+  fileSize           Int
+  contentType        String
+  verificationStatus DocumentVerificationStatus @default(PENDING)
+  verifiedBy         String?
+  verifiedAt         DateTime?
+  rejectionReason    String?
+  expiresAt          DateTime?
+  notes              String?
+  uploadedBy         String
+  uploadedAt         DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  school       School       @relation("SchoolStudentDocument", fields: [schoolId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  documentType DocumentType @relation(fields: [documentTypeId], references: [id])
+
+  @@index([studentId])
+  @@index([schoolId])
+  @@index([documentTypeId])
+  @@index([verificationStatus])
+  @@index([expiresAt])
+  @@index([schoolId, verificationStatus])
+}
+
+enum DocumentAppliesTo {
+  ALL
+  BOARDING_ONLY
+  DAY_ONLY
 }

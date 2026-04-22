@@ -142,6 +142,10 @@ model School {
 
   // Promotion
   promotionRuns PromotionRun[] @relation("SchoolPromotionRun")
+
+  // Student documents
+  documentTypes    DocumentType[]    @relation("SchoolDocumentType")
+  studentDocuments StudentDocument[] @relation("SchoolStudentDocument")
 }
 
 model AcademicYear {

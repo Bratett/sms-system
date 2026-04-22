@@ -38,6 +38,7 @@ import {
   checkBoardingCapacity,
 } from "@/modules/admissions/services/capacity.service";
 import { getSignedDownloadUrl } from "@/lib/storage/r2";
+import { portAdmissionDocumentsToStudentAction } from "@/modules/student/actions/document.action";
 
 const ADMISSION_ENTITY = "AdmissionApplication";
 
@@ -885,6 +886,17 @@ export async function enrollApplicationAction(id: string, classArmId: string) {
       enrollment: result.enrollment,
     },
   });
+
+  // Port admission documents to the student vault (non-blocking on failure).
+  try {
+    await portAdmissionDocumentsToStudentAction({
+      applicationId: id,
+      studentId: result.student.id,
+    });
+  } catch (portErr) {
+    // Log but don't fail enrollment — the admission docs remain accessible via admissions.
+    console.error("Failed to port admission documents to student vault:", portErr);
+  }
 
   return {
     data: {

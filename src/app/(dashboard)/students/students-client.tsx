@@ -1,10 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStudentsAction } from "@/modules/student/actions/student.action";
+import {
+  listStudentsWithMissingDocsAction,
+  listStudentsWithExpiringDocsAction,
+} from "@/modules/student/actions/document.action";
 import {
   Search,
   ChevronLeft,
@@ -78,12 +82,63 @@ export function StudentsClient({
   const [filterGender, setFilterGender] = useState("");
   const [filterBoarding, setFilterBoarding] = useState("");
 
+  // Document-cohort chip filter (mutually exclusive)
+  type DocChip = "missing" | "expiring" | null;
+  const [docChip, setDocChip] = useState<DocChip>(null);
+  const [missingCount, setMissingCount] = useState<number | null>(null);
+  const [expiringCount, setExpiringCount] = useState<number | null>(null);
+
+  // Cached cohort IDs — populated when a chip toggles ON, reused across
+  // pagination / filter changes to avoid refetching the (expensive) cohort
+  // on every click. Cleared when the chip toggles OFF.
+  const [missingDocIds, setMissingDocIds] = useState<string[] | null>(null);
+  const [expiringDocIds, setExpiringDocIds] = useState<string[] | null>(null);
+
+  // Load chip counts on mount
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const [missing, expiring] = await Promise.all([
+        listStudentsWithMissingDocsAction(),
+        listStudentsWithExpiringDocsAction(),
+      ]);
+      if (cancelled) return;
+      if ("data" in missing) setMissingCount(missing.data.length);
+      if ("data" in expiring) setExpiringCount(expiring.data.length);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const totalPages = Math.ceil(total / pageSize);
   const hasActiveFilters =
-    search || filterClassArm || filterProgramme || filterStatus || filterGender || filterBoarding;
+    search ||
+    filterClassArm ||
+    filterProgramme ||
+    filterStatus ||
+    filterGender ||
+    filterBoarding ||
+    docChip;
 
-  function fetchStudents(newPage: number) {
+  function fetchStudents(
+    newPage: number,
+    overrideChip?: DocChip,
+    overrideIds?: { missing?: string[] | null; expiring?: string[] | null },
+  ) {
+    const activeChip = overrideChip !== undefined ? overrideChip : docChip;
+    const effectiveMissing =
+      overrideIds?.missing !== undefined ? overrideIds.missing : missingDocIds;
+    const effectiveExpiring =
+      overrideIds?.expiring !== undefined ? overrideIds.expiring : expiringDocIds;
     startTransition(async () => {
+      let idsFilter: string[] | undefined;
+      if (activeChip === "missing") {
+        idsFilter = effectiveMissing ?? [];
+      } else if (activeChip === "expiring") {
+        idsFilter = effectiveExpiring ?? [];
+      }
+
       const result = await getStudentsAction({
         search: search || undefined,
         classArmId: filterClassArm || undefined,
@@ -91,6 +146,7 @@ export function StudentsClient({
         status: filterStatus || undefined,
         gender: filterGender || undefined,
         boardingStatus: filterBoarding || undefined,
+        ids: idsFilter,
         page: newPage,
         pageSize,
       });
@@ -100,6 +156,42 @@ export function StudentsClient({
         setPage(result.page ?? 1);
       }
     });
+  }
+
+  async function toggleChip(chip: Exclude<DocChip, null>) {
+    const next: DocChip = docChip === chip ? null : chip;
+    setDocChip(next);
+
+    if (next === null) {
+      // Toggling OFF — clear caches and refetch without cohort filter.
+      setMissingDocIds(null);
+      setExpiringDocIds(null);
+      fetchStudents(1, next, { missing: null, expiring: null });
+      return;
+    }
+
+    // Toggling ON — fetch cohort IDs once, cache them, then fetch students.
+    if (next === "missing") {
+      if (missingDocIds !== null) {
+        fetchStudents(1, next);
+        return;
+      }
+      const res = await listStudentsWithMissingDocsAction();
+      const ids = "data" in res ? res.data.map((s) => s.id) : [];
+      setMissingDocIds(ids);
+      setMissingCount(ids.length);
+      fetchStudents(1, next, { missing: ids });
+    } else {
+      if (expiringDocIds !== null) {
+        fetchStudents(1, next);
+        return;
+      }
+      const res = await listStudentsWithExpiringDocsAction();
+      const ids = "data" in res ? res.data.map((s) => s.id) : [];
+      setExpiringDocIds(ids);
+      setExpiringCount(ids.length);
+      fetchStudents(1, next, { expiring: ids });
+    }
   }
 
   function handleSearch() {
@@ -119,6 +211,9 @@ export function StudentsClient({
     setFilterStatus("");
     setFilterGender("");
     setFilterBoarding("");
+    setDocChip(null);
+    setMissingDocIds(null);
+    setExpiringDocIds(null);
     startTransition(async () => {
       const result = await getStudentsAction({ page: 1, pageSize });
       if ("students" in result) {
@@ -254,6 +349,71 @@ export function StudentsClient({
         >
           Apply
         </button>
+
+        {/* Document cohort chips */}
+        <button
+          type="button"
+          onClick={() => toggleChip("missing")}
+          disabled={isPending}
+          aria-pressed={docChip === "missing"}
+          title={
+            docChip === "missing" && missingCount !== null && total !== missingCount
+              ? `${total} of ${missingCount} cohort students match the current filters`
+              : undefined
+          }
+          className={`flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors ${
+            docChip === "missing"
+              ? "bg-primary text-primary-foreground"
+              : "border border-border bg-background hover:bg-muted"
+          }`}
+        >
+          Missing required docs
+          {missingCount !== null && (
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                docChip === "missing"
+                  ? "bg-primary-foreground/20 text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {docChip === "missing" && total !== missingCount
+                ? `${total} of ${missingCount}`
+                : missingCount}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleChip("expiring")}
+          disabled={isPending}
+          aria-pressed={docChip === "expiring"}
+          title={
+            docChip === "expiring" && expiringCount !== null && total !== expiringCount
+              ? `${total} of ${expiringCount} cohort students match the current filters`
+              : undefined
+          }
+          className={`flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors ${
+            docChip === "expiring"
+              ? "bg-primary text-primary-foreground"
+              : "border border-border bg-background hover:bg-muted"
+          }`}
+        >
+          Docs expiring in 30 days
+          {expiringCount !== null && (
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                docChip === "expiring"
+                  ? "bg-primary-foreground/20 text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {docChip === "expiring" && total !== expiringCount
+                ? `${total} of ${expiringCount}`
+                : expiringCount}
+            </span>
+          )}
+        </button>
+
         {hasActiveFilters && (
           <button
             onClick={handleResetFilters}
