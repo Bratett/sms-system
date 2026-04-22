@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prismaMock, mockAuthenticatedUser, mockUnauthenticated } from "../setup";
-import { getEligibleSourceArmsAction, listPromotionRunsAction, getPromotionRunAction, createPromotionRunAction } from "@/modules/student/actions/promotion.action";
+import { getEligibleSourceArmsAction, listPromotionRunsAction, getPromotionRunAction, createPromotionRunAction, seedPromotionRunItemsAction } from "@/modules/student/actions/promotion.action";
 
 describe("getEligibleSourceArmsAction", () => {
   beforeEach(() => mockAuthenticatedUser());
@@ -133,5 +133,82 @@ describe("createPromotionRunAction", () => {
 
     const result = await createPromotionRunAction({ sourceClassArmId: "clh1234567890abcdefghijkl" });
     expect(result).toEqual({ data: expect.objectContaining({ id: "pr-new", status: "DRAFT" }) });
+  });
+});
+
+describe("seedPromotionRunItemsAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("returns missing-class errors when next-yearGroup classes are absent", async () => {
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "pr-1", schoolId: "default-school", status: "DRAFT",
+      sourceAcademicYearId: "ay-1", targetAcademicYearId: "ay-2",
+      sourceClassArm: { id: "ca-1", name: "A", class: { programmeId: "pr-sci", yearGroup: 1 } },
+    } as never);
+    prismaMock.enrollment.findMany.mockResolvedValue([
+      { id: "e-1", studentId: "s-1", student: { id: "s-1", status: "ACTIVE" }, isFreeShsPlacement: false },
+    ] as never);
+    prismaMock.class.findFirst.mockResolvedValue(null);
+
+    const result = await seedPromotionRunItemsAction("pr-1");
+    expect(result).toMatchObject({ error: expect.stringContaining("Missing target-year class") });
+  });
+
+  it("seeds items with PROMOTE default for yearGroup 1 students and same-named dest arm", async () => {
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "pr-1", schoolId: "default-school", status: "DRAFT",
+      sourceAcademicYearId: "ay-1", targetAcademicYearId: "ay-2",
+      sourceClassArm: { id: "ca-1", name: "A", class: { programmeId: "pr-sci", yearGroup: 1 } },
+    } as never);
+    prismaMock.enrollment.findMany.mockResolvedValue([
+      { id: "e-1", studentId: "s-1", student: { id: "s-1", status: "ACTIVE" }, isFreeShsPlacement: false },
+    ] as never);
+    prismaMock.class.findFirst.mockResolvedValue({ id: "cl-2", yearGroup: 2, classArms: [{ id: "ca-2", name: "A" }] } as never);
+    prismaMock.promotionRunItem.findMany.mockResolvedValue([]);
+    prismaMock.promotionRunItem.createMany.mockResolvedValue({ count: 1 } as never);
+
+    const result = await seedPromotionRunItemsAction("pr-1");
+    expect(result).toEqual({ data: { seeded: 1, skipped: 0 } });
+    expect(prismaMock.promotionRunItem.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({
+        runId: "pr-1", studentId: "s-1", outcome: "PROMOTE", destinationClassArmId: "ca-2",
+        previousEnrollmentId: "e-1", previousStatus: "ACTIVE",
+      })],
+    });
+  });
+
+  it("defaults yearGroup 3 students to GRADUATE with null destination", async () => {
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "pr-1", schoolId: "default-school", status: "DRAFT",
+      sourceAcademicYearId: "ay-1", targetAcademicYearId: "ay-2",
+      sourceClassArm: { id: "ca-3", name: "A", class: { programmeId: "pr-sci", yearGroup: 3 } },
+    } as never);
+    prismaMock.enrollment.findMany.mockResolvedValue([
+      { id: "e-3", studentId: "s-3", student: { id: "s-3", status: "ACTIVE" }, isFreeShsPlacement: false },
+    ] as never);
+    prismaMock.promotionRunItem.findMany.mockResolvedValue([]);
+    prismaMock.promotionRunItem.createMany.mockResolvedValue({ count: 1 } as never);
+
+    const result = await seedPromotionRunItemsAction("pr-1");
+    expect(result).toEqual({ data: { seeded: 1, skipped: 0 } });
+    expect(prismaMock.promotionRunItem.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ outcome: "GRADUATE", destinationClassArmId: null })],
+    });
+  });
+
+  it("is idempotent: skips students that already have an item", async () => {
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "pr-1", schoolId: "default-school", status: "DRAFT",
+      sourceAcademicYearId: "ay-1", targetAcademicYearId: "ay-2",
+      sourceClassArm: { id: "ca-1", name: "A", class: { programmeId: "pr-sci", yearGroup: 1 } },
+    } as never);
+    prismaMock.enrollment.findMany.mockResolvedValue([
+      { id: "e-1", studentId: "s-1", student: { id: "s-1", status: "ACTIVE" }, isFreeShsPlacement: false },
+    ] as never);
+    prismaMock.class.findFirst.mockResolvedValue({ id: "cl-2", yearGroup: 2, classArms: [{ id: "ca-2", name: "A" }] } as never);
+    prismaMock.promotionRunItem.findMany.mockResolvedValue([{ studentId: "s-1" }] as never);
+
+    const result = await seedPromotionRunItemsAction("pr-1");
+    expect(result).toEqual({ data: { seeded: 0, skipped: 1 } });
   });
 });

@@ -158,3 +158,66 @@ export async function createPromotionRunAction(input: { sourceClassArmId: string
 
   return { data: run };
 }
+
+export async function seedPromotionRunItemsAction(runId: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_PROMOTE);
+  if (denied) return denied;
+
+  const run = await db.promotionRun.findFirst({
+    where: { id: runId, schoolId: ctx.schoolId, status: "DRAFT" },
+    include: { sourceClassArm: { include: { class: { select: { programmeId: true, yearGroup: true } } } } },
+  });
+  if (!run) return { error: "Promotion run not found or not in DRAFT status" };
+
+  const enrollments = await db.enrollment.findMany({
+    where: { classArmId: run.sourceClassArmId, academicYearId: run.sourceAcademicYearId, status: "ACTIVE" },
+    include: { student: { select: { id: true, status: true } } },
+  });
+
+  const sourceYearGroup = run.sourceClassArm.class.yearGroup;
+  const isFinalYear = sourceYearGroup >= 3;
+  const sourceArmName = run.sourceClassArm.name;
+
+  let destArmByDefault: string | null = null;
+  if (!isFinalYear) {
+    const targetClass = await db.class.findFirst({
+      where: {
+        schoolId: ctx.schoolId,
+        academicYearId: run.targetAcademicYearId,
+        programmeId: run.sourceClassArm.class.programmeId,
+        yearGroup: sourceYearGroup + 1,
+      },
+      include: { classArms: { where: { status: "ACTIVE" } } },
+    });
+    if (!targetClass) {
+      return { error: `Missing target-year class for programme yearGroup ${sourceYearGroup + 1}` };
+    }
+    const sameNamedArm = targetClass.classArms.find((a) => a.name === sourceArmName);
+    destArmByDefault = sameNamedArm?.id ?? null;
+  }
+
+  const existing = await db.promotionRunItem.findMany({
+    where: { runId },
+    select: { studentId: true },
+  });
+  const existingIds = new Set(existing.map((e) => e.studentId));
+
+  const toCreate = enrollments
+    .filter((e) => !existingIds.has(e.studentId))
+    .map((e) => ({
+      runId,
+      studentId: e.studentId,
+      outcome: (isFinalYear ? "GRADUATE" : "PROMOTE") as "GRADUATE" | "PROMOTE",
+      destinationClassArmId: isFinalYear ? null : destArmByDefault,
+      previousEnrollmentId: e.id,
+      previousStatus: e.student.status,
+    }));
+
+  if (toCreate.length > 0) {
+    await db.promotionRunItem.createMany({ data: toCreate });
+  }
+
+  return { data: { seeded: toCreate.length, skipped: enrollments.length - toCreate.length } };
+}
