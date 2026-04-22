@@ -1,26 +1,29 @@
 model Student {
-  id                String         @id @default(cuid())
-  schoolId          String
-  studentId         String         @unique // Auto-generated: SCH/YYYY/NNNN
-  userId            String?        @unique // Optional link to User for portal access
-  firstName         String
-  lastName          String
-  otherNames        String?
-  dateOfBirth       DateTime
-  gender            Gender
-  nationality       String?        @default("Ghanaian")
-  hometown          String?
-  region            String?
-  religion          String?
-  bloodGroup        String?
-  medicalConditions String?
-  allergies         String?
-  photoUrl          String?
-  boardingStatus    BoardingStatus @default(DAY)
-  status            StudentStatus  @default(ACTIVE)
-  enrollmentDate    DateTime       @default(now())
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id                       String         @id @default(cuid())
+  schoolId                 String
+  studentId                String         @unique // Auto-generated: SCH/YYYY/NNNN
+  userId                   String?        @unique // Optional link to User for portal access
+  firstName                String
+  lastName                 String
+  otherNames               String?
+  dateOfBirth              DateTime
+  gender                   Gender
+  nationality              String?        @default("Ghanaian")
+  hometown                 String?
+  region                   String?
+  religion                 String?
+  bloodGroup               String?
+  medicalConditions        String?
+  allergies                String?
+  photoUrl                 String?
+  boardingStatus           BoardingStatus @default(DAY)
+  status                   StudentStatus  @default(ACTIVE)
+  enrollmentDate           DateTime       @default(now())
+  idCardPdfKey             String?
+  idCardCachedAt           DateTime?
+  idCardCacheInvalidatedAt DateTime?
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
 
   guardians       StudentGuardian[]
   enrollments     Enrollment[]
@@ -30,6 +33,8 @@ model Student {
   promotionRunItems PromotionRunItem[]
 
   studentDocuments StudentDocument[]
+
+  reportCardPdfCaches ReportCardPdfCache[]
 
   @@index([schoolId])
   @@index([studentId])
@@ -86,8 +91,10 @@ model StudentHouse {
   schoolId       String
   academicYearId String
 
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  school  School  @relation("SchoolStudentHouse", fields: [schoolId], references: [id])
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  school       School       @relation("SchoolStudentHouse", fields: [schoolId], references: [id])
+  house        House        @relation("StudentHouseHouse", fields: [houseId], references: [id])
+  academicYear AcademicYear @relation("StudentHouseAcademicYear", fields: [academicYearId], references: [id])
 
   @@index([houseId])
   @@index([academicYearId])
@@ -145,12 +152,12 @@ model AdmissionApplication {
   autoDecision   Boolean @default(false)
 
   // Offer lifecycle
-  offerAccepted              Boolean?
-  offerAcceptedAt            DateTime?
-  offerExpiryDate            DateTime?
+  offerAccepted            Boolean?
+  offerAcceptedAt          DateTime?
+  offerExpiryDate          DateTime?
   /// Last time the hourly worker dispatched an "offer expiring soon" warning.
   /// Gates repeat sends; null means never warned.
-  offerExpiryWarningSentAt   DateTime?
+  offerExpiryWarningSentAt DateTime?
 
   // Placement verification
   placementVerified   Boolean   @default(false)
@@ -158,18 +165,18 @@ model AdmissionApplication {
   placementVerifiedBy String?
 
   // Withdrawal
-  withdrawnAt       DateTime?
-  withdrawalReason  String?
+  withdrawnAt      DateTime?
+  withdrawalReason String?
 
-  enrolledStudentId      String? // Link to Student record after enrollment
-  createdAt              DateTime          @default(now())
-  updatedAt              DateTime          @updatedAt
+  enrolledStudentId String? // Link to Student record after enrollment
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  documents   AdmissionDocument[]
-  interviews  AdmissionInterview[]
-  decisions   AdmissionDecision[]
-  appeals     AdmissionAppeal[]
-  offers      AdmissionOffer[]
+  documents  AdmissionDocument[]
+  interviews AdmissionInterview[]
+  decisions  AdmissionDecision[]
+  appeals    AdmissionAppeal[]
+  offers     AdmissionOffer[]
 
   @@index([schoolId])
   @@index([academicYearId])
@@ -255,15 +262,15 @@ model AdmissionDecision {
 }
 
 model AdmissionCondition {
-  id           String    @id @default(cuid())
-  decisionId   String
-  type         String // e.g., "PLACEMENT_TEST", "MISSING_DOCS", "MEDICAL_CLEARANCE"
-  description  String
-  deadline     DateTime
-  met          Boolean   @default(false)
-  metAt        DateTime?
-  evidenceKey  String? // R2 key
-  verifiedBy   String?
+  id          String    @id @default(cuid())
+  decisionId  String
+  type        String // e.g., "PLACEMENT_TEST", "MISSING_DOCS", "MEDICAL_CLEARANCE"
+  description String
+  deadline    DateTime
+  met         Boolean   @default(false)
+  metAt       DateTime?
+  evidenceKey String? // R2 key
+  verifiedBy  String?
 
   decision AdmissionDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
 
@@ -417,21 +424,21 @@ enum ApplicationSource {
 // ─── Promotion Runs ────────────────────────────────────────────────
 
 model PromotionRun {
-  id                    String              @id @default(cuid())
-  schoolId              String
-  sourceAcademicYearId  String
-  targetAcademicYearId  String
-  sourceClassArmId      String
-  status                PromotionRunStatus  @default(DRAFT)
-  createdBy             String
-  committedAt           DateTime?
-  committedBy           String?
-  revertedAt            DateTime?
-  revertedBy            String?
-  revertReason          String?
-  notes                 String?
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
+  id                   String             @id @default(cuid())
+  schoolId             String
+  sourceAcademicYearId String
+  targetAcademicYearId String
+  sourceClassArmId     String
+  status               PromotionRunStatus @default(DRAFT)
+  createdBy            String
+  committedAt          DateTime?
+  committedBy          String?
+  revertedAt           DateTime?
+  revertedBy           String?
+  revertReason         String?
+  notes                String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
   school             School             @relation("SchoolPromotionRun", fields: [schoolId], references: [id], onDelete: Cascade)
   sourceAcademicYear AcademicYear       @relation("SourcePromotionYear", fields: [sourceAcademicYearId], references: [id])
@@ -448,16 +455,16 @@ model PromotionRun {
 }
 
 model PromotionRunItem {
-  id                     String            @id @default(cuid())
-  runId                  String
-  studentId              String
-  outcome                PromotionOutcome
-  destinationClassArmId  String?
-  previousEnrollmentId   String
-  previousStatus         StudentStatus
-  newEnrollmentId        String?
-  notes                  String?
-  skippedAt              DateTime?
+  id                    String           @id @default(cuid())
+  runId                 String
+  studentId             String
+  outcome               PromotionOutcome
+  destinationClassArmId String?
+  previousEnrollmentId  String
+  previousStatus        StudentStatus
+  newEnrollmentId       String?
+  notes                 String?
+  skippedAt             DateTime?
 
   run                 PromotionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   student             Student      @relation(fields: [studentId], references: [id])
@@ -496,7 +503,7 @@ model DocumentType {
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
-  school    School             @relation("SchoolDocumentType", fields: [schoolId], references: [id], onDelete: Cascade)
+  school    School            @relation("SchoolDocumentType", fields: [schoolId], references: [id], onDelete: Cascade)
   documents StudentDocument[]
 
   @@unique([schoolId, name])
@@ -540,4 +547,63 @@ enum DocumentAppliesTo {
   ALL
   BOARDING_ONLY
   DAY_ONLY
+}
+
+model ReportCardPdfCache {
+  id            String    @id @default(cuid())
+  schoolId      String
+  studentId     String
+  termId        String
+  fileKey       String
+  renderedAt    DateTime  @default(now())
+  renderedBy    String
+  invalidatedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  school  School  @relation("SchoolReportCardCache", fields: [schoolId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term    Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, termId])
+  @@index([schoolId])
+  @@index([termId])
+  @@index([invalidatedAt])
+}
+
+model PdfJob {
+  id             String       @id @default(cuid())
+  schoolId       String
+  kind           PdfJobKind
+  status         PdfJobStatus @default(QUEUED)
+  params         Json
+  totalItems     Int
+  completedItems Int          @default(0)
+  resultFileKey  String?
+  error          String?
+  requestedBy    String
+  requestedAt    DateTime     @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+
+  school School @relation("SchoolPdfJob", fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([status])
+  @@index([requestedBy])
+  @@index([schoolId, status])
+}
+
+enum PdfJobKind {
+  ID_CARD_BATCH
+  REPORT_CARD_BATCH
+  TRANSCRIPT_BATCH
+}
+
+enum PdfJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETE
+  FAILED
+  CANCELLED
 }

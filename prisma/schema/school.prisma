@@ -146,6 +146,9 @@ model School {
   // Student documents
   documentTypes    DocumentType[]    @relation("SchoolDocumentType")
   studentDocuments StudentDocument[] @relation("SchoolStudentDocument")
+
+  reportCardPdfCaches ReportCardPdfCache[] @relation("SchoolReportCardCache")
+  pdfJobs             PdfJob[]             @relation("SchoolPdfJob")
 }
 
 model AcademicYear {
@@ -165,6 +168,10 @@ model AcademicYear {
 
   sourcePromotionRuns PromotionRun[] @relation("SourcePromotionYear")
   targetPromotionRuns PromotionRun[] @relation("TargetPromotionYear")
+
+  classes       Class[]        @relation("ClassAcademicYear")
+  enrollments   Enrollment[]   @relation("EnrollmentAcademicYear")
+  studentHouses StudentHouse[] @relation("StudentHouseAcademicYear")
 
   @@index([schoolId])
   @@index([isCurrent])
@@ -187,6 +194,8 @@ model Term {
   school        School         @relation(fields: [schoolId], references: [id])
   academicYear  AcademicYear   @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
   examSchedules ExamSchedule[]
+
+  reportCardPdfCaches ReportCardPdfCache[]
 
   @@index([schoolId])
   @@index([academicYearId])
@@ -225,6 +234,7 @@ model Programme {
 
   school     School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  classes    Class[]     @relation("ClassProgramme")
 
   @@unique([schoolId, name])
   @@index([schoolId])
@@ -241,7 +251,8 @@ model House {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  studentHouses StudentHouse[] @relation("StudentHouseHouse")
 
   @@unique([schoolId, name])
   @@index([schoolId])

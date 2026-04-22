@@ -3,6 +3,21 @@
 import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
+import { audit } from "@/lib/audit";
+import {
+  uploadFile,
+  getSignedDownloadUrl,
+  generateFileKey,
+} from "@/lib/storage/r2";
+import { renderPdfToBuffer, PDF_SYNC_THRESHOLD } from "@/lib/pdf/generator";
+import {
+  ReportCard,
+  type ReportCardProps,
+  type SubjectRow,
+} from "@/lib/pdf/templates/report-card";
+import { enqueuePdfJob } from "@/modules/common/pdf-job-dispatcher";
+import { createReportCardBatchJobSchema } from "@/modules/common/schemas/pdf-job.schema";
+import { stitchPdfsFromUrls } from "@/lib/pdf/stitch";
 
 // ─── Generate Report Card Data for a Single Student ───────────────────
 
@@ -246,4 +261,236 @@ export async function generateClassReportCardsAction(
   }
 
   return { data: reportCards, errors };
+}
+
+// ─── PDF Rendering with R2 Cache ──────────────────────────────────────
+
+type ReportCardData = Extract<
+  Awaited<ReturnType<typeof generateReportCardDataAction>>,
+  { data: unknown }
+>["data"];
+
+function isReportCardCacheFresh(
+  renderedAt: Date,
+  invalidatedAt: Date | null,
+) {
+  if (!invalidatedAt) return true;
+  return invalidatedAt <= renderedAt;
+}
+
+function mapReportCardDataToTemplateProps(
+  data: ReportCardData,
+): ReportCardProps {
+  const subjects: SubjectRow[] = data.subjectResults.map((sr) => ({
+    name: sr.subjectName,
+    classScore: sr.classScore ?? 0,
+    examScore: sr.examScore ?? 0,
+    totalScore: sr.totalScore ?? 0,
+    grade: sr.grade ?? "",
+    interpretation: sr.interpretation ?? "",
+    position: sr.position ?? "",
+    remarks: "",
+    caBreakdown: (sr.caBreakdown as SubjectRow["caBreakdown"]) ?? null,
+  }));
+
+  return {
+    schoolName: data.school.name,
+    schoolMotto: data.school.motto,
+    studentName: data.student.name,
+    studentId: data.student.studentId,
+    className: data.student.class,
+    programme: data.student.programme,
+    house: data.student.house,
+    termName: data.term.name,
+    academicYear: data.term.academicYear,
+    subjects,
+    totalScore: data.overall.totalScore ?? 0,
+    averageScore: data.overall.averageScore ?? 0,
+    classPosition: data.overall.position ?? "",
+    totalStudents: data.overall.classSize,
+    classTeacherComment: data.remarks.teacherRemarks,
+    headmasterComment: data.remarks.headmasterRemarks,
+    promotionStatus: "",
+    attendance: data.attendance,
+  };
+}
+
+export async function renderReportCardPdfAction(input: {
+  studentId: string;
+  termId: string;
+}) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(
+    ctx.session,
+    PERMISSIONS.REPORT_CARDS_GENERATE,
+  );
+  if (denied) return denied;
+
+  // Cache check — use findFirst so we can belt-and-braces add schoolId to the
+  // filter alongside the (studentId, termId) composite. studentId is globally
+  // unique per student so a cross-tenant hit is very unlikely in practice, but
+  // being explicit here keeps tenant isolation uniform across the codebase.
+  const cache = await db.reportCardPdfCache.findFirst({
+    where: {
+      studentId: input.studentId,
+      termId: input.termId,
+      schoolId: ctx.schoolId,
+    },
+  });
+  if (cache && isReportCardCacheFresh(cache.renderedAt, cache.invalidatedAt)) {
+    const url = await getSignedDownloadUrl(cache.fileKey);
+    return { data: { url, cached: true } };
+  }
+
+  // Load data via the existing data-loader action
+  const dataResult = await generateReportCardDataAction(
+    input.studentId,
+    input.termId,
+  );
+  if ("error" in dataResult) return dataResult;
+
+  const templateProps = mapReportCardDataToTemplateProps(dataResult.data);
+  const buffer = await renderPdfToBuffer(ReportCard(templateProps));
+  const initialKey = generateFileKey(
+    "report-cards",
+    `${input.studentId}-${input.termId}`,
+    `report-card-${Date.now()}.pdf`,
+  );
+  const uploaded = await uploadFile(initialKey, buffer, "application/pdf");
+  const key = uploaded.key;
+
+  const now = new Date();
+  await db.reportCardPdfCache.upsert({
+    where: {
+      studentId_termId: {
+        studentId: input.studentId,
+        termId: input.termId,
+      },
+    },
+    create: {
+      schoolId: ctx.schoolId,
+      studentId: input.studentId,
+      termId: input.termId,
+      fileKey: key,
+      renderedAt: now,
+      renderedBy: ctx.session.user.id!,
+      invalidatedAt: null,
+    },
+    update: {
+      fileKey: key,
+      renderedAt: now,
+      renderedBy: ctx.session.user.id!,
+      invalidatedAt: null,
+    },
+  });
+
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "CREATE",
+    entity: "ReportCardPdf",
+    entityId: `${input.studentId}-${input.termId}`,
+    module: "academics",
+    description: `Generated report card PDF`,
+    metadata: {
+      studentId: input.studentId,
+      termId: input.termId,
+      fileKey: key,
+    },
+  });
+
+  const url = await getSignedDownloadUrl(key);
+  return { data: { url, cached: false } };
+}
+
+/**
+ * Marks the report card cache row for (studentId, termId) as stale.
+ * Called by mark/result mutation actions to force re-render on next access.
+ *
+ * Exposed as a `"use server"` export, so we re-assert the school context and
+ * scope the updateMany by schoolId to prevent a direct-invocation caller from
+ * invalidating another tenant's cache row.
+ */
+export async function invalidateReportCardCacheAction(input: {
+  studentId: string;
+  termId: string;
+}) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(
+    ctx.session,
+    PERMISSIONS.REPORT_CARDS_GENERATE,
+  );
+  if (denied) return denied;
+
+  const result = await db.reportCardPdfCache.updateMany({
+    where: {
+      studentId: input.studentId,
+      termId: input.termId,
+      schoolId: ctx.schoolId,
+    },
+    data: { invalidatedAt: new Date() },
+  });
+  return { data: { invalidated: result.count } };
+}
+
+export async function renderClassReportCardsPdfAction(input: { classArmId: string; termId: string }) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.REPORT_CARDS_GENERATE);
+  if (denied) return denied;
+
+  const parsed = createReportCardBatchJobSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const { classArmId, termId } = parsed.data;
+
+  const enrollments = await db.enrollment.findMany({
+    where: { classArmId, schoolId: ctx.schoolId, status: "ACTIVE" },
+    select: { studentId: true },
+  });
+  if (enrollments.length === 0) return { error: "No active students in this class arm" };
+
+  if (enrollments.length > PDF_SYNC_THRESHOLD) {
+    const jobId = await enqueuePdfJob({
+      schoolId: ctx.schoolId,
+      kind: "REPORT_CARD_BATCH",
+      params: { classArmId, termId },
+      totalItems: enrollments.length,
+      requestedBy: ctx.session.user.id!,
+    });
+    return { data: { jobId, queued: true } };
+  }
+
+  const urls: string[] = [];
+  const failures: Array<{ studentId: string; error: string }> = [];
+  for (const e of enrollments) {
+    const res = await renderReportCardPdfAction({ studentId: e.studentId, termId });
+    if ("data" in res) urls.push(res.data.url);
+    else failures.push({ studentId: e.studentId, error: res.error });
+  }
+  if (urls.length === 0) {
+    return {
+      error: `All ${enrollments.length} report cards failed to render. First error: ${failures[0]?.error ?? "unknown"}`,
+    };
+  }
+  const buffer = await stitchPdfsFromUrls(urls);
+  const initialKey = generateFileKey(
+    "report-card-batches",
+    `${classArmId}-${termId}`,
+    `batch-${Date.now()}.pdf`
+  );
+  const uploaded = await uploadFile(initialKey, buffer, "application/pdf");
+  const url = await getSignedDownloadUrl(uploaded.key);
+
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "CREATE",
+    entity: "ReportCardBatch",
+    entityId: `${classArmId}-${termId}`,
+    module: "academics",
+    description: `Generated ${urls.length} of ${enrollments.length} report cards inline (${failures.length} failed)`,
+    metadata: { fileKey: uploaded.key, successCount: urls.length, failedCount: failures.length },
+  });
+
+  return { data: { url, queued: false, failures } };
 }

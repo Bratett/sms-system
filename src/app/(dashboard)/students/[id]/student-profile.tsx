@@ -18,6 +18,7 @@ import { StudentDisciplineSection } from "./discipline-section";
 import { StudentHealthSection } from "./health-section";
 import { StudentBoardingSection } from "./boarding-section";
 import { StudentDocumentsSection } from "./documents-section";
+import { StudentAcademicSection } from "./academic-section";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -543,6 +544,9 @@ export function StudentProfile({
 
             {/* Performance Trends */}
             <PerformanceTrendsSection studentId={student.id} />
+
+            {/* ID Cards / Transcripts / Report Cards */}
+            <StudentAcademicSection studentId={student.id} terms={terms} />
           </div>
         )}
 

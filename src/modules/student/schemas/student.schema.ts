@@ -36,6 +36,7 @@ export const updateStudentSchema = z.object({
   status: z
     .enum(["ACTIVE", "SUSPENDED", "WITHDRAWN", "TRANSFERRED", "COMPLETED", "GRADUATED", "DECEASED"])
     .optional(),
+  photoUrl: z.string().nullable().optional(),
 });
 
 export type UpdateStudentInput = z.infer<typeof updateStudentSchema>;

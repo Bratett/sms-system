@@ -5,6 +5,7 @@ import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { lookupGrade } from "@/modules/academics/utils/grading";
+import { invalidateReportCardCacheAction } from "@/modules/academics/actions/report-card.action";
 
 // ─── Compute Terminal Results ──────────────────────────────────────────
 
@@ -323,7 +324,19 @@ export async function computeTerminalResultsAction(
     }
   }
 
-  // 8. Audit log
+  // 8. Invalidate cached report cards for every student whose result was
+  // (re)computed — the underlying terminalResult/subjectResult rows changed.
+  const affectedStudentIds = enrollments
+    .filter((e) => marksByStudent.has(e.studentId))
+    .map((e) => e.studentId);
+  if (affectedStudentIds.length > 0) {
+    await db.reportCardPdfCache.updateMany({
+      where: { studentId: { in: affectedStudentIds }, termId },
+      data: { invalidatedAt: new Date() },
+    });
+  }
+
+  // 9. Audit log
   await audit({
     userId: ctx.session.user.id!,
     action: "CREATE",
@@ -523,6 +536,12 @@ export async function updateTerminalResultRemarksAction(
           ? data.headmasterRemarks
           : existing.headmasterRemarks,
     },
+  });
+
+  // Remarks are rendered on the report card — invalidate the cached PDF.
+  await invalidateReportCardCacheAction({
+    studentId: existing.studentId,
+    termId: existing.termId,
   });
 
   await audit({

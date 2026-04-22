@@ -110,6 +110,16 @@ async function applyCommit(
     }
   }
 
+  // Invalidate ID card cache for every student touched by this commit, regardless
+  // of outcome. Class-arm, status, and enrollment changes all affect the rendered
+  // card, so a single bulk update at the end is cheaper than per-item writes.
+  if (run.items.length > 0) {
+    await tx.student.updateMany({
+      where: { id: { in: run.items.map((i) => i.studentId) } },
+      data: { idCardCacheInvalidatedAt: commitDate },
+    });
+  }
+
   return { counts, skipped, skippedStudentIds };
 }
 
@@ -140,6 +150,16 @@ async function applyRevert(tx: Tx, run: PromotionRunWithItems): Promise<void> {
     await tx.promotionRunItem.update({
       where: { id: item.id },
       data: { skippedAt: null },
+    });
+  }
+
+  // Revert restores pre-commit enrollment / status — the rendered ID card for
+  // every touched student no longer reflects reality, so mirror applyCommit
+  // and invalidate the cached card. Single bulk write keeps the cost minimal.
+  if (run.items.length > 0) {
+    await tx.student.updateMany({
+      where: { id: { in: run.items.map((i) => i.studentId) } },
+      data: { idCardCacheInvalidatedAt: new Date() },
     });
   }
 }

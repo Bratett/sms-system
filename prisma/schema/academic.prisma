@@ -14,6 +14,9 @@ model Class {
   classArms     ClassArm[]
   examSchedules ExamSchedule[]
 
+  programme    Programme    @relation("ClassProgramme", fields: [programmeId], references: [id])
+  academicYear AcademicYear @relation("ClassAcademicYear", fields: [academicYearId], references: [id])
+
   @@unique([schoolId, name, academicYearId])
   @@index([schoolId])
   @@index([programmeId])
@@ -61,9 +64,10 @@ model Enrollment {
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
-  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  classArm ClassArm @relation(fields: [classArmId], references: [id], onDelete: Cascade)
-  school   School   @relation("SchoolEnrollment", fields: [schoolId], references: [id])
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classArm     ClassArm     @relation(fields: [classArmId], references: [id], onDelete: Cascade)
+  school       School       @relation("SchoolEnrollment", fields: [schoolId], references: [id])
+  academicYear AcademicYear @relation("EnrollmentAcademicYear", fields: [academicYearId], references: [id])
 
   previousPromotionItems PromotionRunItem[] @relation("PreviousPromotionEnrollment")
   newPromotionItems      PromotionRunItem[] @relation("NewPromotionEnrollment")
@@ -324,6 +328,11 @@ model Transcript {
   verifiedBy       String?
   verifiedAt       DateTime?
   notes            String?
+  pdfKey           String?
+  previewKey       String?
+  previewRenderedAt DateTime?
+  issuedBy         String?
+  issuedAt         DateTime?
   createdAt        DateTime  @default(now())
 
   @@index([schoolId])
