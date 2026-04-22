@@ -451,9 +451,17 @@ export async function portAdmissionDocumentsToStudentAction(input: {
 }) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_DOCUMENTS_CREATE);
+  if (denied) return denied;
+
+  const student = await db.student.findFirst({
+    where: { id: input.studentId, schoolId: ctx.schoolId },
+    select: { id: true },
+  });
+  if (!student) return { error: "Student not found" };
 
   const admissionDocs = await db.admissionDocument.findMany({
-    where: { applicationId: input.applicationId },
+    where: { applicationId: input.applicationId, schoolId: ctx.schoolId },
   });
   if (admissionDocs.length === 0) return { data: { ported: 0, skipped: 0 } };
 

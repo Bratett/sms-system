@@ -435,6 +435,7 @@ describe("portAdmissionDocumentsToStudentAction", () => {
   beforeEach(() => mockAuthenticatedUser());
 
   it("maps admission docs to matching-named types and preserves verification status", async () => {
+    prismaMock.student.findFirst.mockResolvedValue({ id: "clh0000000000000000000001" } as never);
     prismaMock.admissionDocument.findMany.mockResolvedValue([
       { id: "ad-1", documentType: "Birth Certificate", fileKey: "k1", fileName: "bc.pdf",
         verificationStatus: "VERIFIED", verifiedBy: "u-1", verifiedAt: new Date("2025-01-01"),
@@ -458,6 +459,7 @@ describe("portAdmissionDocumentsToStudentAction", () => {
   });
 
   it("is idempotent: skips existing (studentId, fileKey) pairs", async () => {
+    prismaMock.student.findFirst.mockResolvedValue({ id: "clh0000000000000000000001" } as never);
     prismaMock.admissionDocument.findMany.mockResolvedValue([
       { id: "ad-1", documentType: "Birth Certificate", fileKey: "k1", fileName: "bc.pdf",
         verificationStatus: "VERIFIED", verifiedBy: "u-1", verifiedAt: new Date(),
@@ -476,6 +478,26 @@ describe("portAdmissionDocumentsToStudentAction", () => {
       studentId: "clh0000000000000000000001",
     });
     expect(result).toEqual({ data: { ported: 0, skipped: 1 } });
+  });
+
+  it("rejects callers without STUDENTS_DOCUMENTS_CREATE permission", async () => {
+    mockAuthenticatedUser({ permissions: [] });
+    const result = await portAdmissionDocumentsToStudentAction({
+      applicationId: "app-1",
+      studentId: "clh0000000000000000000001",
+    });
+    expect(result).toEqual({ error: "Insufficient permissions" });
+  });
+
+  it("rejects when the target student does not belong to the current school", async () => {
+    mockAuthenticatedUser();
+    prismaMock.student.findFirst.mockResolvedValue(null);
+
+    const result = await portAdmissionDocumentsToStudentAction({
+      applicationId: "app-1",
+      studentId: "clh0000000000000000000099",
+    });
+    expect(result).toEqual({ error: "Student not found" });
   });
 });
 
