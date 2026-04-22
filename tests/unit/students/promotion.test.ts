@@ -361,6 +361,22 @@ describe("commitPromotionRunAction", () => {
     }));
   });
 
+  it("refuses to commit when a PROMOTE item has no destination arm", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: any) => await fn(prismaMock));
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "pr-1", status: "DRAFT", schoolId: "default-school",
+      sourceAcademicYearId: "ay-1", targetAcademicYearId: "ay-2", sourceClassArmId: "ca-1",
+      items: [{
+        id: "pri-1", studentId: "s-1", outcome: "PROMOTE", destinationClassArmId: null,
+        previousEnrollmentId: "e-1", previousStatus: "ACTIVE",
+      }],
+    } as never);
+
+    const result = await commitPromotionRunAction("pr-1");
+    expect(result).toMatchObject({ error: expect.stringContaining("no destination arm") });
+    expect(prismaMock.enrollment.create).not.toHaveBeenCalled();
+  });
+
   it("skips items whose previous enrollment is no longer ACTIVE", async () => {
     prismaMock.$transaction.mockImplementation(async (fn: any) => await fn(prismaMock));
     prismaMock.promotionRun.findFirst.mockResolvedValue({

@@ -317,6 +317,25 @@ export async function commitPromotionRunAction(runId: string) {
   const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_PROMOTE);
   if (denied) return denied;
 
+  // Pre-flight: load the run and validate items outside the transaction so we can
+  // return the canonical { error } shape rather than bubble an uncaught exception
+  // out of `$transaction` (which the UI's `if ("error" in res)` branch would miss).
+  const preRun = await db.promotionRun.findFirst({
+    where: { id: runId, schoolId: ctx.schoolId },
+    include: { items: true },
+  });
+  if (!preRun) return { error: "Run not found" };
+  if (preRun.status !== "DRAFT") return { error: "Run is not in DRAFT status" };
+
+  const missingDestItem = preRun.items.find(
+    (i) => (i.outcome === "PROMOTE" || i.outcome === "RETAIN") && !i.destinationClassArmId
+  );
+  if (missingDestItem) {
+    return {
+      error: `Item is set to ${missingDestItem.outcome} but has no destination arm. Fix on Step 2.`,
+    };
+  }
+
   const result = await db.$transaction(async (tx) => {
     const run = await tx.promotionRun.findFirst({
       where: { id: runId, schoolId: ctx.schoolId },
@@ -338,7 +357,10 @@ export async function commitPromotionRunAction(runId: string) {
 
       if (item.outcome === "PROMOTE" || item.outcome === "RETAIN") {
         if (!item.destinationClassArmId) {
-          throw new Error(`Item ${item.id} has ${item.outcome} outcome but no destination arm`);
+          // Already pre-validated; defensive skip in case state changed between
+          // pre-flight and transaction start.
+          skipped++;
+          continue;
         }
         await tx.enrollment.update({
           where: { id: item.previousEnrollmentId },
