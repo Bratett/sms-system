@@ -470,8 +470,14 @@ export async function revertPromotionRunAction(input: { runId: string; reason: s
       if (item.newEnrollmentId) {
         try {
           await tx.enrollment.delete({ where: { id: item.newEnrollmentId } });
-        } catch {
-          // enrollment may already be gone; proceed to restore previous state
+        } catch (err: unknown) {
+          // Only tolerate "already gone" (P2025). Any other error (FK/cascade/transient)
+          // must abort the whole revert so we don't end up with both source and target
+          // year enrollments active.
+          const isNotFound =
+            typeof err === "object" && err !== null &&
+            "code" in err && (err as { code?: string }).code === "P2025";
+          if (!isNotFound) throw err;
         }
       }
       await tx.enrollment.update({

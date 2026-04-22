@@ -429,4 +429,38 @@ describe("revertPromotionRunAction", () => {
     const result = await revertPromotionRunAction({ runId: "clh0000000000000000000001", reason: "oops oops" });
     expect(result).toEqual({ error: "Only COMMITTED runs can be reverted" });
   });
+
+  it("aborts revert when a non-P2025 error occurs deleting a new enrollment", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: any) => await fn(prismaMock));
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "clh0000000000000000000001", status: "COMMITTED", schoolId: "default-school", committedAt: new Date(),
+      items: [
+        { id: "pri-1", studentId: "s-1", outcome: "PROMOTE",
+          previousEnrollmentId: "e-1", previousStatus: "ACTIVE", newEnrollmentId: "e-new" },
+      ],
+    } as never);
+    const fkError = Object.assign(new Error("FK violation"), { code: "P2003" });
+    prismaMock.enrollment.delete.mockRejectedValue(fkError);
+
+    await expect(
+      revertPromotionRunAction({ runId: "clh0000000000000000000001", reason: "rollback attempt" })
+    ).rejects.toThrow();
+  });
+
+  it("tolerates P2025 (already gone) and continues the revert", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: any) => await fn(prismaMock));
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "clh0000000000000000000001", status: "COMMITTED", schoolId: "default-school", committedAt: new Date(),
+      items: [
+        { id: "pri-1", studentId: "s-1", outcome: "PROMOTE",
+          previousEnrollmentId: "e-1", previousStatus: "ACTIVE", newEnrollmentId: "e-new" },
+      ],
+    } as never);
+    const notFound = Object.assign(new Error("not found"), { code: "P2025" });
+    prismaMock.enrollment.delete.mockRejectedValue(notFound);
+    prismaMock.promotionRun.update.mockResolvedValue({ id: "clh0000000000000000000001", status: "REVERTED" } as never);
+
+    const result = await revertPromotionRunAction({ runId: "clh0000000000000000000001", reason: "already cleaned up" });
+    expect(result).toMatchObject({ data: { status: "REVERTED" } });
+  });
 });
