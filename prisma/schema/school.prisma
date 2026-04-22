@@ -139,6 +139,9 @@ model School {
   // Workflow engine
   workflowInstances   WorkflowInstance[]   @relation("SchoolWorkflowInstance")
   workflowTransitions WorkflowTransition[] @relation("SchoolWorkflowTransition")
+
+  // Promotion
+  promotionRuns PromotionRun[] @relation("SchoolPromotionRun")
 }
 
 model AcademicYear {
@@ -155,6 +158,9 @@ model AcademicYear {
   school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   terms         Term[]
   examSchedules ExamSchedule[]
+
+  sourcePromotionRuns PromotionRun[] @relation("SourcePromotionYear")
+  targetPromotionRuns PromotionRun[] @relation("TargetPromotionYear")
 
   @@index([schoolId])
   @@index([isCurrent])

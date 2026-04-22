@@ -36,6 +36,9 @@ model ClassArm {
   school      School       @relation("SchoolClassArm", fields: [schoolId], references: [id])
   enrollments Enrollment[]
 
+  sourcePromotionRuns       PromotionRun[]     @relation("SourcePromotionArm")
+  destinationPromotionItems PromotionRunItem[] @relation("DestinationPromotionArm")
+
   @@unique([classId, name])
   @@index([classId])
   @@index([schoolId])
