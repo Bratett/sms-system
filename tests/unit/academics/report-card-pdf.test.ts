@@ -20,7 +20,7 @@ describe("renderReportCardPdfAction", () => {
   });
 
   it("returns cached signed URL when cache row is fresh", async () => {
-    prismaMock.reportCardPdfCache.findUnique.mockResolvedValue({
+    prismaMock.reportCardPdfCache.findFirst.mockResolvedValue({
       id: "rc-1", fileKey: "report-cards/s-1-t-1/abc.pdf",
       renderedAt: new Date(Date.now() - 1000), invalidatedAt: null,
     } as never);
@@ -32,7 +32,7 @@ describe("renderReportCardPdfAction", () => {
   });
 
   it("re-renders when invalidatedAt > renderedAt", async () => {
-    prismaMock.reportCardPdfCache.findUnique.mockResolvedValue({
+    prismaMock.reportCardPdfCache.findFirst.mockResolvedValue({
       id: "rc-1", fileKey: "report-cards/s-1-t-1/old.pdf",
       renderedAt: new Date(Date.now() - 10000), invalidatedAt: new Date(),
     } as never);
@@ -90,7 +90,7 @@ describe("invalidateReportCardCacheAction", () => {
     const result = await invalidateReportCardCacheAction({ studentId: "s-1", termId: "t-1" });
     expect(result).toEqual({ data: { invalidated: 1 } });
     expect(prismaMock.reportCardPdfCache.updateMany).toHaveBeenCalledWith({
-      where: { studentId: "s-1", termId: "t-1" },
+      where: { studentId: "s-1", termId: "t-1", schoolId: "default-school" },
       data: { invalidatedAt: expect.any(Date) },
     });
   });

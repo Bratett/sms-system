@@ -327,13 +327,15 @@ export async function renderReportCardPdfAction(input: {
   );
   if (denied) return denied;
 
-  // Cache check
-  const cache = await db.reportCardPdfCache.findUnique({
+  // Cache check — use findFirst so we can belt-and-braces add schoolId to the
+  // filter alongside the (studentId, termId) composite. studentId is globally
+  // unique per student so a cross-tenant hit is very unlikely in practice, but
+  // being explicit here keeps tenant isolation uniform across the codebase.
+  const cache = await db.reportCardPdfCache.findFirst({
     where: {
-      studentId_termId: {
-        studentId: input.studentId,
-        termId: input.termId,
-      },
+      studentId: input.studentId,
+      termId: input.termId,
+      schoolId: ctx.schoolId,
     },
   });
   if (cache && isReportCardCacheFresh(cache.renderedAt, cache.invalidatedAt)) {
@@ -404,13 +406,29 @@ export async function renderReportCardPdfAction(input: {
 /**
  * Marks the report card cache row for (studentId, termId) as stale.
  * Called by mark/result mutation actions to force re-render on next access.
+ *
+ * Exposed as a `"use server"` export, so we re-assert the school context and
+ * scope the updateMany by schoolId to prevent a direct-invocation caller from
+ * invalidating another tenant's cache row.
  */
 export async function invalidateReportCardCacheAction(input: {
   studentId: string;
   termId: string;
 }) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(
+    ctx.session,
+    PERMISSIONS.REPORT_CARDS_GENERATE,
+  );
+  if (denied) return denied;
+
   const result = await db.reportCardPdfCache.updateMany({
-    where: { studentId: input.studentId, termId: input.termId },
+    where: {
+      studentId: input.studentId,
+      termId: input.termId,
+      schoolId: ctx.schoolId,
+    },
     data: { invalidatedAt: new Date() },
   });
   return { data: { invalidated: result.count } };
@@ -427,7 +445,7 @@ export async function renderClassReportCardsPdfAction(input: { classArmId: strin
   const { classArmId, termId } = parsed.data;
 
   const enrollments = await db.enrollment.findMany({
-    where: { classArmId, status: "ACTIVE" },
+    where: { classArmId, schoolId: ctx.schoolId, status: "ACTIVE" },
     select: { studentId: true },
   });
   if (enrollments.length === 0) return { error: "No active students in this class arm" };
@@ -444,9 +462,16 @@ export async function renderClassReportCardsPdfAction(input: { classArmId: strin
   }
 
   const urls: string[] = [];
+  const failures: Array<{ studentId: string; error: string }> = [];
   for (const e of enrollments) {
     const res = await renderReportCardPdfAction({ studentId: e.studentId, termId });
     if ("data" in res) urls.push(res.data.url);
+    else failures.push({ studentId: e.studentId, error: res.error });
+  }
+  if (urls.length === 0) {
+    return {
+      error: `All ${enrollments.length} report cards failed to render. First error: ${failures[0]?.error ?? "unknown"}`,
+    };
   }
   const buffer = await stitchPdfsFromUrls(urls);
   const initialKey = generateFileKey(
@@ -463,9 +488,9 @@ export async function renderClassReportCardsPdfAction(input: { classArmId: strin
     entity: "ReportCardBatch",
     entityId: `${classArmId}-${termId}`,
     module: "academics",
-    description: `Generated ${enrollments.length} report cards inline`,
-    metadata: { fileKey: uploaded.key },
+    description: `Generated ${urls.length} of ${enrollments.length} report cards inline (${failures.length} failed)`,
+    metadata: { fileKey: uploaded.key, successCount: urls.length, failedCount: failures.length },
   });
 
-  return { data: { url, queued: false } };
+  return { data: { url, queued: false, failures } };
 }
