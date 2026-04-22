@@ -146,6 +146,9 @@ model School {
   // Student documents
   documentTypes    DocumentType[]    @relation("SchoolDocumentType")
   studentDocuments StudentDocument[] @relation("SchoolStudentDocument")
+
+  reportCardPdfCaches ReportCardPdfCache[] @relation("SchoolReportCardCache")
+  pdfJobs             PdfJob[]             @relation("SchoolPdfJob")
 }
 
 model AcademicYear {
@@ -187,6 +190,8 @@ model Term {
   school        School         @relation(fields: [schoolId], references: [id])
   academicYear  AcademicYear   @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
   examSchedules ExamSchedule[]
+
+  reportCardPdfCaches ReportCardPdfCache[]
 
   @@index([schoolId])
   @@index([academicYearId])

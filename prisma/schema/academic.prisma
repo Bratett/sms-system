@@ -324,6 +324,9 @@ model Transcript {
   verifiedBy       String?
   verifiedAt       DateTime?
   notes            String?
+  pdfKey           String?
+  issuedBy         String?
+  issuedAt         DateTime?
   createdAt        DateTime  @default(now())
 
   @@index([schoolId])
