@@ -16,62 +16,27 @@ function isCacheFresh(pdfKey: string | null, cachedAt: Date | null, invalidatedA
   return invalidatedAt <= cachedAt;
 }
 
-// Loose shape that matches both the real Prisma result and the simplified
-// test fixture. The fixture inlines the related entities (academicYear,
-// programme, house) even though Prisma schema doesn't expose them as
-// navigations — we treat them as plain nested data here.
-type EnrollmentWithRelations = {
-  academicYear: { name: string; isCurrent: boolean };
-  classArm: {
-    name: string;
-    class: { name: string; programme: { name: string } };
-  };
-};
-
-type StudentWithRelations = {
-  id: string;
-  schoolId: string;
-  studentId: string;
-  firstName: string;
-  lastName: string;
-  otherNames: string | null;
-  gender: string;
-  bloodGroup: string | null;
-  dateOfBirth: Date;
-  photoUrl: string | null;
-  boardingStatus: string;
-  idCardPdfKey: string | null;
-  idCardCachedAt: Date | null;
-  idCardCacheInvalidatedAt: Date | null;
-  houseAssignment: { house: { name: string } } | null;
-  enrollments: EnrollmentWithRelations[];
-};
-
 export async function renderStudentIdCardAction(studentId: string) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
   const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_ID_CARD_GENERATE);
   if (denied) return denied;
 
-  // The Prisma schema doesn't define navigation relations from Enrollment →
-  // AcademicYear, Class → Programme, or StudentHouse → House, so we can't
-  // express the include tree directly. We load the student with its current
-  // enrollment, then hydrate academic year / programme / house names in
-  // parallel. The test fixtures provide pre-hydrated shapes via mockResolvedValue,
-  // so the same code path is exercised in both environments.
-  const raw = await (db.student.findFirst as unknown as (args: unknown) => Promise<unknown>)({
+  const student = await db.student.findFirst({
     where: { id: studentId, schoolId: ctx.schoolId },
     include: {
-      houseAssignment: true,
+      houseAssignment: { include: { house: true } },
       enrollments: {
         where: { status: "ACTIVE" },
-        include: { classArm: { include: { class: true } } },
+        include: {
+          academicYear: true,
+          classArm: { include: { class: { include: { programme: true } } } },
+        },
         orderBy: { enrollmentDate: "desc" },
         take: 1,
       },
     },
   });
-  const student = raw as StudentWithRelations | null;
   if (!student) return { error: "Student not found" };
   if (student.enrollments.length === 0) return { error: "Student has no active enrollment" };
 
