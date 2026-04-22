@@ -1,10 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStudentsAction } from "@/modules/student/actions/student.action";
+import {
+  listStudentsWithMissingDocsAction,
+  listStudentsWithExpiringDocsAction,
+} from "@/modules/student/actions/document.action";
 import {
   Search,
   ChevronLeft,
@@ -78,12 +82,51 @@ export function StudentsClient({
   const [filterGender, setFilterGender] = useState("");
   const [filterBoarding, setFilterBoarding] = useState("");
 
+  // Document-cohort chip filter (mutually exclusive)
+  type DocChip = "missing" | "expiring" | null;
+  const [docChip, setDocChip] = useState<DocChip>(null);
+  const [missingCount, setMissingCount] = useState<number | null>(null);
+  const [expiringCount, setExpiringCount] = useState<number | null>(null);
+
+  // Load chip counts on mount
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const [missing, expiring] = await Promise.all([
+        listStudentsWithMissingDocsAction(),
+        listStudentsWithExpiringDocsAction(),
+      ]);
+      if (cancelled) return;
+      if ("data" in missing) setMissingCount(missing.data.length);
+      if ("data" in expiring) setExpiringCount(expiring.data.length);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const totalPages = Math.ceil(total / pageSize);
   const hasActiveFilters =
-    search || filterClassArm || filterProgramme || filterStatus || filterGender || filterBoarding;
+    search ||
+    filterClassArm ||
+    filterProgramme ||
+    filterStatus ||
+    filterGender ||
+    filterBoarding ||
+    docChip;
 
-  function fetchStudents(newPage: number) {
+  function fetchStudents(newPage: number, overrideChip?: DocChip) {
+    const activeChip = overrideChip !== undefined ? overrideChip : docChip;
     startTransition(async () => {
+      let idsFilter: string[] | undefined;
+      if (activeChip === "missing") {
+        const res = await listStudentsWithMissingDocsAction();
+        idsFilter = "data" in res ? res.data.map((s) => s.id) : [];
+      } else if (activeChip === "expiring") {
+        const res = await listStudentsWithExpiringDocsAction();
+        idsFilter = "data" in res ? res.data.map((s) => s.id) : [];
+      }
+
       const result = await getStudentsAction({
         search: search || undefined,
         classArmId: filterClassArm || undefined,
@@ -91,6 +134,7 @@ export function StudentsClient({
         status: filterStatus || undefined,
         gender: filterGender || undefined,
         boardingStatus: filterBoarding || undefined,
+        ids: idsFilter,
         page: newPage,
         pageSize,
       });
@@ -100,6 +144,12 @@ export function StudentsClient({
         setPage(result.page ?? 1);
       }
     });
+  }
+
+  function toggleChip(chip: Exclude<DocChip, null>) {
+    const next: DocChip = docChip === chip ? null : chip;
+    setDocChip(next);
+    fetchStudents(1, next);
   }
 
   function handleSearch() {
@@ -119,6 +169,7 @@ export function StudentsClient({
     setFilterStatus("");
     setFilterGender("");
     setFilterBoarding("");
+    setDocChip(null);
     startTransition(async () => {
       const result = await getStudentsAction({ page: 1, pageSize });
       if ("students" in result) {
@@ -254,6 +305,57 @@ export function StudentsClient({
         >
           Apply
         </button>
+
+        {/* Document cohort chips */}
+        <button
+          type="button"
+          onClick={() => toggleChip("missing")}
+          disabled={isPending}
+          aria-pressed={docChip === "missing"}
+          className={`flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors ${
+            docChip === "missing"
+              ? "bg-primary text-primary-foreground"
+              : "border border-border bg-background hover:bg-muted"
+          }`}
+        >
+          Missing required docs
+          {missingCount !== null && (
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                docChip === "missing"
+                  ? "bg-primary-foreground/20 text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {missingCount}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleChip("expiring")}
+          disabled={isPending}
+          aria-pressed={docChip === "expiring"}
+          className={`flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors ${
+            docChip === "expiring"
+              ? "bg-primary text-primary-foreground"
+              : "border border-border bg-background hover:bg-muted"
+          }`}
+        >
+          Docs expiring in 30 days
+          {expiringCount !== null && (
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                docChip === "expiring"
+                  ? "bg-primary-foreground/20 text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {expiringCount}
+            </span>
+          )}
+        </button>
+
         {hasActiveFilters && (
           <button
             onClick={handleResetFilters}

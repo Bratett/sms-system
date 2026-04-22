@@ -20,6 +20,7 @@ export async function getStudentsAction(filters: {
   status?: string;
   gender?: string;
   boardingStatus?: string;
+  ids?: string[];
   page?: number;
   pageSize?: number;
 }) {
@@ -56,6 +57,14 @@ export async function getStudentsAction(filters: {
 
   if (filters.boardingStatus) {
     where.boardingStatus = filters.boardingStatus;
+  }
+
+  if (filters.ids) {
+    // Empty array means: no results. Undefined means: no filter.
+    if (filters.ids.length === 0) {
+      return { students: [], total: 0, page, pageSize };
+    }
+    where.id = { in: filters.ids };
   }
 
   if (filters.classArmId) {
