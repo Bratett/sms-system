@@ -17,6 +17,7 @@ import { StudentAttendanceSection } from "./attendance-section";
 import { StudentDisciplineSection } from "./discipline-section";
 import { StudentHealthSection } from "./health-section";
 import { StudentBoardingSection } from "./boarding-section";
+import { StudentDocumentsSection } from "./documents-section";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -153,7 +154,8 @@ export function StudentProfile({
     { title: "Attendance", index: 4 },
     { title: "Discipline", index: 5 },
     { title: "Health", index: 6 },
-    ...(hasBoarding ? [{ title: "Boarding", index: 7 }] : []),
+    { title: "Documents", index: 7 },
+    ...(hasBoarding ? [{ title: "Boarding", index: 8 }] : []),
   ];
   const defaultTermId = terms.find((t) => t.isCurrent)?.id;
 
@@ -562,8 +564,11 @@ export function StudentProfile({
         {/* ─── Health Tab ────────────────────────────────── */}
         {activeTab === 6 && <StudentHealthSection studentId={student.id} />}
 
+        {/* ─── Documents Tab ─────────────────────────────── */}
+        {activeTab === 7 && <StudentDocumentsSection studentId={student.id} />}
+
         {/* ─── Boarding Tab ──────────────────────────────── */}
-        {activeTab === 7 && hasBoarding && (
+        {activeTab === 8 && hasBoarding && (
           <StudentBoardingSection studentId={student.id} />
         )}
       </div>
