@@ -149,6 +149,52 @@ async function loadKpis(
   };
 }
 
+async function loadEnrollmentTrend(
+  schoolId: string,
+  programmeFilter: Record<string, unknown>,
+): Promise<StudentAnalyticsPayload["enrollmentTrend"]> {
+  // Last 5 academic years, oldest first for chart display.
+  const years = await db.academicYear.findMany({
+    where: { schoolId },
+    orderBy: { startDate: "desc" },
+    take: 5,
+    select: { id: true, name: true, startDate: true },
+  });
+  if (years.length === 0) return [];
+  years.reverse(); // chronological
+
+  const grouped = await Promise.all(
+    years.map((y) =>
+      db.enrollment.groupBy({
+        by: ["status"],
+        where: { schoolId, academicYearId: y.id, ...programmeFilter },
+        _count: { _all: true },
+      }),
+    ),
+  );
+
+  return years.map((year, idx) => {
+    const rows = grouped[idx] ?? [];
+    const by = (status: string) =>
+      rows.find((r) => r.status === status)?._count._all ?? 0;
+    const active = by("ACTIVE");
+    const promoted = by("PROMOTED");
+    const withdrawn = by("WITHDRAWN");
+    const graduated = by("COMPLETED");
+    const transferred = by("TRANSFERRED");
+    return {
+      academicYearId: year.id,
+      academicYearName: year.name,
+      active,
+      promoted,
+      withdrawn,
+      graduated,
+      transferred,
+      total: active + promoted + withdrawn + graduated + transferred,
+    };
+  });
+}
+
 /**
  * @no-audit Read-only analytics aggregation. No side effects.
  */
@@ -175,23 +221,18 @@ export async function getStudentAnalyticsAction(input: {
   const programmeFilter: Record<string, unknown> = parsed.data.programmeId
     ? { classArm: { class: { programmeId: parsed.data.programmeId } } }
     : {};
-  void programmeFilter; // will be used by upcoming loaders — suppresses lint warning
-
   let wasCacheMiss = false;
   const payload = await getCached<StudentAnalyticsPayload>(cacheKey, async () => {
     wasCacheMiss = true;
-    const kpis = await loadKpis(
-      ctx.schoolId,
-      year.id,
-      year.startDate,
-      year.endDate,
-      parsed.data.programmeId,
-    );
+    const [kpis, enrollmentTrend] = await Promise.all([
+      loadKpis(ctx.schoolId, year.id, year.startDate, year.endDate, parsed.data.programmeId),
+      loadEnrollmentTrend(ctx.schoolId, programmeFilter),
+    ]);
     return {
       computedAt: new Date(),
       cached: false,
       kpis,
-      enrollmentTrend: [],
+      enrollmentTrend,
       demographics: { byGender: [], byRegion: [], byReligion: [], total: 0 },
       retention: { cohorts: [] },
       freeShs: { freeShsCount: 0, payingCount: 0, freeShsPct: 0 },

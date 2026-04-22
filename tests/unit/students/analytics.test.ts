@@ -122,3 +122,48 @@ describe("getStudentAnalyticsAction", () => {
     expect(second.data.cached).toBe(true);
   });
 });
+
+describe("loadEnrollmentTrend", () => {
+  beforeEach(() => {
+    __resetCacheForTests();
+    mockAuthenticatedUser();
+  });
+
+  it("returns last 5 academic years with status counts and zero-pad missing statuses", async () => {
+    const current = { id: "ay-1", schoolId: "default-school", isCurrent: true,
+      startDate: new Date("2025-09-01"), endDate: new Date("2026-08-31"), name: "2025/2026" };
+    prismaMock.academicYear.findFirst.mockResolvedValue(current as never);
+    prismaMock.academicYear.findMany.mockResolvedValue([
+      { id: "ay-1", name: "2025/2026", startDate: new Date("2025-09-01") },
+      { id: "ay-0", name: "2024/2025", startDate: new Date("2024-09-01") },
+    ] as never);
+    prismaMock.enrollment.groupBy.mockImplementation(async (args: any) => {
+      if (args.where.academicYearId === "ay-1") {
+        return [
+          { academicYearId: "ay-1", status: "ACTIVE", _count: { _all: 100 } },
+          { academicYearId: "ay-1", status: "PROMOTED", _count: { _all: 10 } },
+        ] as never;
+      }
+      return [
+        { academicYearId: "ay-0", status: "ACTIVE", _count: { _all: 95 } },
+      ] as never;
+    });
+    prismaMock.student.count.mockResolvedValue(0);
+    prismaMock.enrollment.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.count.mockResolvedValue(0);
+    prismaMock.enrollment.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
+
+    const result = await getStudentAnalyticsAction({});
+    if (!("data" in result)) throw new Error("expected data");
+    const trend = result.data.enrollmentTrend;
+    expect(trend).toHaveLength(2);
+    // Chronological order (oldest first)
+    expect(trend[0]!.academicYearName).toBe("2024/2025");
+    expect(trend[1]!.academicYearName).toBe("2025/2026");
+    expect(trend[1]).toMatchObject({ active: 100, promoted: 10, withdrawn: 0, total: 110 });
+    expect(trend[0]).toMatchObject({ active: 95, promoted: 0, total: 95 });
+  });
+});
