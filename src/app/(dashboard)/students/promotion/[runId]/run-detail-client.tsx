@@ -55,6 +55,11 @@ export function RunDetailClient({ run }: { run: PromotionRun }) {
   const withinGrace =
     run.status === "COMMITTED" && committedAt !== null && deadline !== null && deadline.getTime() > now;
 
+  const skippedCount =
+    run.status === "COMMITTED" || run.status === "REVERTED"
+      ? run.items.filter((i) => i.skippedAt != null).length
+      : 0;
+
   const handleRevert = () => {
     const trimmed = reason.trim();
     if (trimmed.length < 5) {
@@ -121,6 +126,17 @@ export function RunDetailClient({ run }: { run: PromotionRun }) {
             </>
           )}
         </dl>
+        {skippedCount > 0 && (
+          <div className="mt-4">
+            <span
+              className="inline-flex items-center rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive"
+              role="status"
+            >
+              {skippedCount} student{skippedCount === 1 ? "" : "s"} skipped
+              {" "}(enrollment no longer active at commit time)
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Items */}
@@ -131,12 +147,18 @@ export function RunDetailClient({ run }: { run: PromotionRun }) {
               <th className="px-3 py-2">Student</th>
               <th className="px-3 py-2">Outcome</th>
               <th className="px-3 py-2">Destination</th>
+              {(run.status === "COMMITTED" || run.status === "REVERTED") && (
+                <th className="px-3 py-2">Status</th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {run.items.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                <td
+                  colSpan={run.status === "COMMITTED" || run.status === "REVERTED" ? 4 : 3}
+                  className="px-3 py-8 text-center text-sm text-muted-foreground"
+                >
                   No items.
                 </td>
               </tr>
@@ -147,8 +169,24 @@ export function RunDetailClient({ run }: { run: PromotionRun }) {
                   showDest && item.destinationClassArm
                     ? `${item.destinationClassArm.class.name} — ${item.destinationClassArm.name}`
                     : "—";
+                const isSkipped = item.skippedAt != null;
+                const showStatus = run.status === "COMMITTED" || run.status === "REVERTED";
+                let statusLabel: string | null = null;
+                let statusClass = "";
+                if (showStatus) {
+                  if (run.status === "REVERTED") {
+                    statusLabel = "Reverted";
+                    statusClass = "text-muted-foreground";
+                  } else if (isSkipped) {
+                    statusLabel = "Skipped";
+                    statusClass = "text-destructive";
+                  } else {
+                    statusLabel = "Applied";
+                    statusClass = "text-foreground";
+                  }
+                }
                 return (
-                  <tr key={item.id}>
+                  <tr key={item.id} className={isSkipped ? "bg-muted/50" : undefined}>
                     <td className="px-3 py-2 font-medium">
                       {item.student.lastName}, {item.student.firstName}
                       <span className="ml-2 text-xs text-muted-foreground">
@@ -157,6 +195,11 @@ export function RunDetailClient({ run }: { run: PromotionRun }) {
                     </td>
                     <td className="px-3 py-2">{outcomeLabel(item.outcome)}</td>
                     <td className="px-3 py-2">{destLabel}</td>
+                    {showStatus && (
+                      <td className={`px-3 py-2 text-xs font-medium ${statusClass}`}>
+                        {statusLabel}
+                      </td>
+                    )}
                   </tr>
                 );
               })
