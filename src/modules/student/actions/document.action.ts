@@ -71,3 +71,84 @@ export async function createDocumentTypeAction(input: {
     throw err;
   }
 }
+
+export async function updateDocumentTypeAction(input: {
+  id: string;
+  name?: string;
+  description?: string | null;
+  isRequired?: boolean;
+  expiryMonths?: number | null;
+  appliesTo?: "ALL" | "BOARDING_ONLY" | "DAY_ONLY";
+  sortOrder?: number;
+}) {
+  const parsed = updateDocumentTypeSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DOCUMENT_TYPES_MANAGE);
+  if (denied) return denied;
+
+  const existing = await db.documentType.findFirst({
+    where: { id: parsed.data.id, schoolId: ctx.schoolId },
+  });
+  if (!existing) return { error: "Document type not found" };
+
+  const data: Record<string, unknown> = {};
+  if (parsed.data.name !== undefined) data.name = parsed.data.name;
+  if (parsed.data.description !== undefined) data.description = parsed.data.description;
+  if (parsed.data.isRequired !== undefined) data.isRequired = parsed.data.isRequired;
+  if (parsed.data.expiryMonths !== undefined) data.expiryMonths = parsed.data.expiryMonths;
+  if (parsed.data.appliesTo !== undefined) data.appliesTo = parsed.data.appliesTo;
+  if (parsed.data.sortOrder !== undefined) data.sortOrder = parsed.data.sortOrder;
+
+  const updated = await db.documentType.update({ where: { id: parsed.data.id }, data });
+
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "UPDATE",
+    entity: "DocumentType",
+    entityId: parsed.data.id,
+    module: "students",
+    description: `Updated document type: ${updated.name}`,
+    previousData: existing as unknown as Record<string, unknown>,
+    newData: data,
+  });
+
+  return { data: updated };
+}
+
+// Hard delete is intentionally not exposed — always soft-delete to preserve FK
+// integrity on historical StudentDocument rows.
+export async function deactivateDocumentTypeAction(id: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.DOCUMENT_TYPES_MANAGE);
+  if (denied) return denied;
+
+  const existing = await db.documentType.findFirst({
+    where: { id, schoolId: ctx.schoolId },
+  });
+  if (!existing) return { error: "Document type not found" };
+
+  // Called for reporting only — still soft-delete even if count > 0.
+  await db.studentDocument.count({ where: { documentTypeId: id } });
+
+  const updated = await db.documentType.update({
+    where: { id },
+    data: { status: "INACTIVE" },
+  });
+
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "UPDATE",
+    entity: "DocumentType",
+    entityId: id,
+    module: "students",
+    description: `Deactivated document type: ${existing.name}`,
+    previousData: { status: existing.status },
+    newData: { status: "INACTIVE" },
+  });
+
+  return { data: updated };
+}
