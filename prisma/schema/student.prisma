@@ -27,6 +27,8 @@ model Student {
   houseAssignment StudentHouse?
   medicalRecords  MedicalRecord[]
 
+  promotionRunItems PromotionRunItem[]
+
   @@index([schoolId])
   @@index([studentId])
   @@index([status])
@@ -408,4 +410,73 @@ enum ApplicationSource {
   PORTAL
   STAFF
   BULK_IMPORT
+}
+
+// ─── Promotion Runs ────────────────────────────────────────────────
+
+model PromotionRun {
+  id                    String              @id @default(cuid())
+  schoolId              String
+  sourceAcademicYearId  String
+  targetAcademicYearId  String
+  sourceClassArmId      String
+  status                PromotionRunStatus  @default(DRAFT)
+  createdBy             String
+  committedAt           DateTime?
+  committedBy           String?
+  revertedAt            DateTime?
+  revertedBy            String?
+  revertReason          String?
+  notes                 String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  school             School             @relation("SchoolPromotionRun", fields: [schoolId], references: [id], onDelete: Cascade)
+  sourceAcademicYear AcademicYear       @relation("SourcePromotionYear", fields: [sourceAcademicYearId], references: [id])
+  targetAcademicYear AcademicYear       @relation("TargetPromotionYear", fields: [targetAcademicYearId], references: [id])
+  sourceClassArm     ClassArm           @relation("SourcePromotionArm", fields: [sourceClassArmId], references: [id])
+  items              PromotionRunItem[]
+
+  @@index([schoolId])
+  @@index([status])
+  @@index([sourceClassArmId])
+  @@index([sourceClassArmId, sourceAcademicYearId])
+  @@index([schoolId, status])
+  @@index([targetAcademicYearId])
+}
+
+model PromotionRunItem {
+  id                     String            @id @default(cuid())
+  runId                  String
+  studentId              String
+  outcome                PromotionOutcome
+  destinationClassArmId  String?
+  previousEnrollmentId   String
+  previousStatus         StudentStatus
+  newEnrollmentId        String?
+  notes                  String?
+  skippedAt              DateTime?
+
+  run                 PromotionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  student             Student      @relation(fields: [studentId], references: [id])
+  destinationClassArm ClassArm?    @relation("DestinationPromotionArm", fields: [destinationClassArmId], references: [id])
+  previousEnrollment  Enrollment   @relation("PreviousPromotionEnrollment", fields: [previousEnrollmentId], references: [id])
+  newEnrollment       Enrollment?  @relation("NewPromotionEnrollment", fields: [newEnrollmentId], references: [id], onDelete: SetNull)
+
+  @@unique([runId, studentId])
+  @@index([runId])
+  @@index([studentId])
+}
+
+enum PromotionRunStatus {
+  DRAFT
+  COMMITTED
+  REVERTED
+}
+
+enum PromotionOutcome {
+  PROMOTE
+  RETAIN
+  GRADUATE
+  WITHDRAW
 }

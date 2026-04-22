@@ -6,13 +6,15 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
-    // RLS + accounting + admissions integration tests need a real Postgres/seeded
-    // DB; they run under dedicated configs (`npm run test:rls`,
-    // `vitest.accounting.config.ts`, `npm run test:admissions`).
+    // RLS + accounting + admissions + students integration tests need a real
+    // Postgres/seeded DB; they run under dedicated configs (`npm run test:rls`,
+    // `vitest.accounting.config.ts`, `npm run test:admissions`,
+    // `npm run test:students`).
     exclude: [
       "tests/integration/rls/**",
       "tests/integration/accounting/**",
       "tests/integration/admissions/**",
+      "tests/integration/students/**",
       "node_modules/**",
     ],
     setupFiles: ["tests/unit/setup.ts"],

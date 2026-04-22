@@ -36,6 +36,9 @@ model ClassArm {
   school      School       @relation("SchoolClassArm", fields: [schoolId], references: [id])
   enrollments Enrollment[]
 
+  sourcePromotionRuns       PromotionRun[]     @relation("SourcePromotionArm")
+  destinationPromotionItems PromotionRunItem[] @relation("DestinationPromotionArm")
+
   @@unique([classId, name])
   @@index([classId])
   @@index([schoolId])
@@ -61,6 +64,9 @@ model Enrollment {
   student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   classArm ClassArm @relation(fields: [classArmId], references: [id], onDelete: Cascade)
   school   School   @relation("SchoolEnrollment", fields: [schoolId], references: [id])
+
+  previousPromotionItems PromotionRunItem[] @relation("PreviousPromotionEnrollment")
+  newPromotionItems      PromotionRunItem[] @relation("NewPromotionEnrollment")
 
   @@unique([studentId, academicYearId])
   @@index([studentId])
