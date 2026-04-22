@@ -152,3 +152,75 @@ export async function deactivateDocumentTypeAction(id: string) {
 
   return { data: updated };
 }
+
+const EXPIRING_SOON_DAYS = 30;
+
+export async function listStudentDocumentsAction(studentId: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_DOCUMENTS_READ);
+  if (denied) return denied;
+
+  const documents = await db.studentDocument.findMany({
+    where: { studentId, schoolId: ctx.schoolId },
+    include: {
+      documentType: { select: { id: true, name: true, isRequired: true, appliesTo: true } },
+    },
+    orderBy: [{ uploadedAt: "desc" }],
+  });
+
+  const now = Date.now();
+  const soonMs = EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000;
+
+  const withFlags = documents.map((d) => {
+    const expTime = d.expiresAt?.getTime();
+    const isExpired = expTime !== undefined && expTime <= now;
+    const isExpiringSoon = !isExpired && expTime !== undefined && expTime - now <= soonMs;
+    return { ...d, isExpired, isExpiringSoon };
+  });
+
+  return { data: withFlags };
+}
+
+export async function getMissingRequiredDocumentsAction(studentId: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_DOCUMENTS_READ);
+  if (denied) return denied;
+
+  const student = await db.student.findFirst({
+    where: { id: studentId, schoolId: ctx.schoolId },
+    select: { id: true, boardingStatus: true },
+  });
+  if (!student) return { error: "Student not found" };
+
+  const requiredTypes = await db.documentType.findMany({
+    where: {
+      schoolId: ctx.schoolId,
+      status: "ACTIVE",
+      isRequired: true,
+      OR: [
+        { appliesTo: "ALL" },
+        { appliesTo: student.boardingStatus === "BOARDING" ? "BOARDING_ONLY" : "DAY_ONLY" },
+      ],
+    },
+  });
+
+  const documents = await db.studentDocument.findMany({
+    where: { studentId, schoolId: ctx.schoolId },
+    select: { documentTypeId: true, verificationStatus: true, expiresAt: true },
+  });
+
+  const now = Date.now();
+  const satisfiedTypeIds = new Set<string>();
+  for (const doc of documents) {
+    if (doc.verificationStatus !== "VERIFIED") continue;
+    const expTime = doc.expiresAt?.getTime();
+    if (expTime !== undefined && expTime <= now) continue;
+    satisfiedTypeIds.add(doc.documentTypeId);
+  }
+
+  const missing = requiredTypes.filter((t) => !satisfiedTypeIds.has(t.id));
+
+  return { data: { required: requiredTypes, missing } };
+}
