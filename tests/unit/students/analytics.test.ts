@@ -167,3 +167,42 @@ describe("loadEnrollmentTrend", () => {
     expect(trend[0]).toMatchObject({ active: 95, promoted: 0, total: 95 });
   });
 });
+
+describe("loadDemographics", () => {
+  beforeEach(() => {
+    __resetCacheForTests();
+    mockAuthenticatedUser();
+  });
+
+  it("aggregates gender/region/religion from active enrollments; rolls rare values into Other", async () => {
+    const current = { id: "ay-1", schoolId: "default-school", isCurrent: true,
+      startDate: new Date("2025-09-01"), endDate: new Date("2026-08-31"), name: "2025/2026" };
+    prismaMock.academicYear.findFirst.mockResolvedValue(current as never);
+    prismaMock.academicYear.findMany.mockResolvedValue([] as never);
+    prismaMock.enrollment.groupBy.mockResolvedValue([] as never);
+    prismaMock.student.count.mockResolvedValue(0);
+    prismaMock.enrollment.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
+    prismaMock.enrollment.findMany.mockResolvedValue([
+      { student: { gender: "MALE",   region: "Greater Accra", religion: "Christianity" } },
+      { student: { gender: "MALE",   region: "Greater Accra", religion: "Islam" } },
+      { student: { gender: "FEMALE", region: "Ashanti",       religion: "Christianity" } },
+      { student: { gender: "FEMALE", region: null,            religion: null } },
+    ] as never);
+
+    const result = await getStudentAnalyticsAction({});
+    if (!("data" in result)) throw new Error("expected data");
+    const d = result.data.demographics;
+    expect(d.total).toBe(4);
+    expect(d.byGender).toEqual(expect.arrayContaining([
+      expect.objectContaining({ gender: "MALE", count: 2, percentage: 50 }),
+      expect.objectContaining({ gender: "FEMALE", count: 2, percentage: 50 }),
+    ]));
+    expect(d.byRegion.find((r) => r.region === "Greater Accra")?.count).toBe(2);
+    expect(d.byRegion.find((r) => r.region === "Unspecified")?.count).toBe(1);
+    expect(d.byReligion.find((r) => r.religion === "Christianity")?.count).toBe(2);
+  });
+});

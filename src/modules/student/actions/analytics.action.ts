@@ -195,6 +195,74 @@ async function loadEnrollmentTrend(
   });
 }
 
+function rollupWithOther<K extends string>(
+  counts: Map<string, number>,
+  total: number,
+  topN: number,
+  keyName: K,
+): Array<Record<K, string> & { count: number; percentage: number }> {
+  const entries = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  const head = entries.slice(0, topN);
+  const tail = entries.slice(topN);
+  const tailCount = tail.reduce((sum, [, c]) => sum + c, 0);
+  const out = head.map(([key, count]) => ({
+    [keyName]: key,
+    count,
+    percentage: total > 0 ? Math.round((count / total) * 1000) / 10 : 0,
+  })) as Array<Record<K, string> & { count: number; percentage: number }>;
+  if (tailCount > 0) {
+    out.push({
+      [keyName]: "Other",
+      count: tailCount,
+      percentage: total > 0 ? Math.round((tailCount / total) * 1000) / 10 : 0,
+    } as Record<K, string> & { count: number; percentage: number });
+  }
+  return out;
+}
+
+async function loadDemographics(
+  schoolId: string,
+  academicYearId: string,
+  programmeFilter: Record<string, unknown>,
+): Promise<StudentAnalyticsPayload["demographics"]> {
+  const enrollments = await db.enrollment.findMany({
+    where: {
+      schoolId,
+      academicYearId,
+      status: "ACTIVE",
+      ...programmeFilter,
+    },
+    select: {
+      student: {
+        select: { gender: true, region: true, religion: true },
+      },
+    },
+  });
+
+  const total = enrollments.length;
+  const genderCounts = new Map<string, number>();
+  const regionCounts = new Map<string, number>();
+  const religionCounts = new Map<string, number>();
+
+  for (const { student } of enrollments) {
+    genderCounts.set(student.gender, (genderCounts.get(student.gender) ?? 0) + 1);
+    const region = student.region ?? "Unspecified";
+    regionCounts.set(region, (regionCounts.get(region) ?? 0) + 1);
+    const religion = student.religion ?? "Unspecified";
+    religionCounts.set(religion, (religionCounts.get(religion) ?? 0) + 1);
+  }
+
+  const byGender = Array.from(genderCounts.entries()).map(([gender, count]) => ({
+    gender: gender as "MALE" | "FEMALE",
+    count,
+    percentage: total > 0 ? Math.round((count / total) * 1000) / 10 : 0,
+  }));
+  const byRegion = rollupWithOther(regionCounts, total, 10, "region");
+  const byReligion = rollupWithOther(religionCounts, total, 8, "religion");
+
+  return { byGender, byRegion, byReligion, total };
+}
+
 /**
  * @no-audit Read-only analytics aggregation. No side effects.
  */
@@ -224,16 +292,17 @@ export async function getStudentAnalyticsAction(input: {
   let wasCacheMiss = false;
   const payload = await getCached<StudentAnalyticsPayload>(cacheKey, async () => {
     wasCacheMiss = true;
-    const [kpis, enrollmentTrend] = await Promise.all([
+    const [kpis, enrollmentTrend, demographics] = await Promise.all([
       loadKpis(ctx.schoolId, year.id, year.startDate, year.endDate, parsed.data.programmeId),
       loadEnrollmentTrend(ctx.schoolId, programmeFilter),
+      loadDemographics(ctx.schoolId, year.id, programmeFilter),
     ]);
     return {
       computedAt: new Date(),
       cached: false,
       kpis,
       enrollmentTrend,
-      demographics: { byGender: [], byRegion: [], byReligion: [], total: 0 },
+      demographics,
       retention: { cohorts: [] },
       freeShs: { freeShsCount: 0, payingCount: 0, freeShsPct: 0 },
       atRisk: { byLevel: [], topStudents: [], hasAnyProfiles: false, computedAt: null },
