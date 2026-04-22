@@ -3,7 +3,11 @@
 import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
-import { createPromotionRunSchema } from "../schemas/promotion.schema";
+import {
+  createPromotionRunSchema,
+  updatePromotionRunItemSchema,
+  bulkUpdatePromotionRunItemsSchema,
+} from "../schemas/promotion.schema";
 import { audit } from "@/lib/audit";
 
 export async function getEligibleSourceArmsAction() {
@@ -220,4 +224,78 @@ export async function seedPromotionRunItemsAction(runId: string) {
   }
 
   return { data: { seeded: toCreate.length, skipped: enrollments.length - toCreate.length } };
+}
+
+export async function updatePromotionRunItemAction(input: {
+  itemId: string;
+  outcome?: "PROMOTE" | "RETAIN" | "GRADUATE" | "WITHDRAW";
+  destinationClassArmId?: string | null;
+  notes?: string;
+}) {
+  const parsed = updatePromotionRunItemSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_PROMOTE);
+  if (denied) return denied;
+
+  const item = await db.promotionRunItem.findFirst({
+    where: { id: parsed.data.itemId },
+    include: { run: { select: { schoolId: true, status: true } } },
+  });
+  if (!item || item.run.schoolId !== ctx.schoolId) return { error: "Item not found" };
+  if (item.run.status !== "DRAFT") return { error: "Run is no longer editable" };
+
+  const data: Record<string, unknown> = {};
+  if (parsed.data.outcome !== undefined) {
+    data.outcome = parsed.data.outcome;
+    if (parsed.data.outcome === "GRADUATE" || parsed.data.outcome === "WITHDRAW") {
+      data.destinationClassArmId = null;
+    }
+  }
+  if (parsed.data.destinationClassArmId !== undefined) {
+    data.destinationClassArmId = parsed.data.destinationClassArmId;
+  }
+  if (parsed.data.notes !== undefined) data.notes = parsed.data.notes;
+
+  const updated = await db.promotionRunItem.update({ where: { id: parsed.data.itemId }, data });
+  return { data: updated };
+}
+
+export async function bulkUpdatePromotionRunItemsAction(input: {
+  runId: string;
+  itemIds: string[];
+  outcome?: "PROMOTE" | "RETAIN" | "GRADUATE" | "WITHDRAW";
+  destinationClassArmId?: string | null;
+}) {
+  const parsed = bulkUpdatePromotionRunItemsSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_PROMOTE);
+  if (denied) return denied;
+
+  const run = await db.promotionRun.findFirst({
+    where: { id: parsed.data.runId, schoolId: ctx.schoolId, status: "DRAFT" },
+  });
+  if (!run) return { error: "Run not found or not editable" };
+
+  const data: Record<string, unknown> = {};
+  if (parsed.data.outcome !== undefined) {
+    data.outcome = parsed.data.outcome;
+    if (parsed.data.outcome === "GRADUATE" || parsed.data.outcome === "WITHDRAW") {
+      data.destinationClassArmId = null;
+    }
+  }
+  if (parsed.data.destinationClassArmId !== undefined) {
+    data.destinationClassArmId = parsed.data.destinationClassArmId;
+  }
+
+  const result = await db.promotionRunItem.updateMany({
+    where: { id: { in: parsed.data.itemIds }, runId: parsed.data.runId },
+    data,
+  });
+  return { data: { updated: result.count } };
 }

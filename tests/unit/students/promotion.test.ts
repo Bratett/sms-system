@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prismaMock, mockAuthenticatedUser, mockUnauthenticated } from "../setup";
 import { getEligibleSourceArmsAction, listPromotionRunsAction, getPromotionRunAction, createPromotionRunAction, seedPromotionRunItemsAction } from "@/modules/student/actions/promotion.action";
+import {
+  updatePromotionRunItemAction,
+  bulkUpdatePromotionRunItemsAction,
+} from "@/modules/student/actions/promotion.action";
 
 describe("getEligibleSourceArmsAction", () => {
   beforeEach(() => mockAuthenticatedUser());
@@ -210,5 +214,51 @@ describe("seedPromotionRunItemsAction", () => {
 
     const result = await seedPromotionRunItemsAction("pr-1");
     expect(result).toEqual({ data: { seeded: 0, skipped: 1 } });
+  });
+});
+
+describe("updatePromotionRunItemAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("clears destination when outcome set to GRADUATE", async () => {
+    prismaMock.promotionRunItem.findFirst.mockResolvedValue({
+      id: "clh0000000000000000000001", runId: "clh0000000000000000000002",
+      run: { schoolId: "default-school", status: "DRAFT" },
+    } as never);
+    prismaMock.promotionRunItem.update.mockResolvedValue({ id: "clh0000000000000000000001" } as never);
+
+    await updatePromotionRunItemAction({ itemId: "clh0000000000000000000001", outcome: "GRADUATE" });
+    expect(prismaMock.promotionRunItem.update).toHaveBeenCalledWith({
+      where: { id: "clh0000000000000000000001" },
+      data: expect.objectContaining({ outcome: "GRADUATE", destinationClassArmId: null }),
+    });
+  });
+
+  it("rejects edits when the run is not DRAFT", async () => {
+    prismaMock.promotionRunItem.findFirst.mockResolvedValue({
+      id: "clh0000000000000000000001", runId: "clh0000000000000000000002",
+      run: { schoolId: "default-school", status: "COMMITTED" },
+    } as never);
+
+    const result = await updatePromotionRunItemAction({ itemId: "clh0000000000000000000001", outcome: "RETAIN" });
+    expect(result).toEqual({ error: "Run is no longer editable" });
+  });
+});
+
+describe("bulkUpdatePromotionRunItemsAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("applies bulk outcome change to selected items", async () => {
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "clh0000000000000000000099", schoolId: "default-school", status: "DRAFT",
+    } as never);
+    prismaMock.promotionRunItem.updateMany.mockResolvedValue({ count: 3 } as never);
+
+    const result = await bulkUpdatePromotionRunItemsAction({
+      runId: "clh0000000000000000000099",
+      itemIds: ["clh0000000000000000000001", "clh0000000000000000000002", "clh0000000000000000000003"],
+      outcome: "RETAIN",
+    });
+    expect(result).toEqual({ data: { updated: 3 } });
   });
 });
