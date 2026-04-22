@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
@@ -68,8 +69,43 @@ async function loadKpis(
   academicYearId: string,
   academicYearStart: Date,
   academicYearEnd: Date,
-  programmeFilter: Record<string, unknown>,
+  programmeId?: string,
 ): Promise<StudentAnalyticsPayload["kpis"]> {
+  // When a programme is selected, scope student-level counts to students
+  // currently enrolled in that programme for the given academic year.
+  const studentProgrammeFilter: Prisma.StudentWhereInput = programmeId
+    ? {
+        enrollments: {
+          some: {
+            academicYearId,
+            classArm: { class: { programmeId } },
+          },
+        },
+      }
+    : {};
+
+  // Scope enrollment-level counts (Free SHS) to the selected programme.
+  const enrollmentProgrammeFilter: Prisma.EnrollmentWhereInput = programmeId
+    ? { classArm: { class: { programmeId } } }
+    : {};
+
+  // When a programme is selected, resolve the set of student IDs enrolled in
+  // that programme for the year upfront, so risk profiles (which have no
+  // Prisma relation back to Student) can be scoped by studentId.
+  let programmeScopedStudentIds: string[] | undefined;
+  if (programmeId) {
+    const enrollments = await db.enrollment.findMany({
+      where: { schoolId, academicYearId, classArm: { class: { programmeId } } },
+      select: { studentId: true },
+    });
+    programmeScopedStudentIds = enrollments.map((e) => e.studentId);
+  }
+
+  const riskProgrammeFilter: Prisma.StudentRiskProfileWhereInput =
+    programmeScopedStudentIds !== undefined
+      ? { studentId: { in: programmeScopedStudentIds } }
+      : {};
+
   const [
     totalActive,
     dayStudents,
@@ -79,14 +115,14 @@ async function loadKpis(
     freeShsCount,
     atRiskCount,
   ] = await Promise.all([
-    db.student.count({ where: { schoolId, status: "ACTIVE" } }),
-    db.student.count({ where: { schoolId, status: "ACTIVE", boardingStatus: "DAY" } }),
-    db.student.count({ where: { schoolId, status: "ACTIVE", boardingStatus: "BOARDING" } }),
+    db.student.count({ where: { schoolId, status: "ACTIVE", ...studentProgrammeFilter } }),
+    db.student.count({ where: { schoolId, status: "ACTIVE", boardingStatus: "DAY", ...studentProgrammeFilter } }),
+    db.student.count({ where: { schoolId, status: "ACTIVE", boardingStatus: "BOARDING", ...studentProgrammeFilter } }),
     db.student.count({
-      where: { schoolId, status: "GRADUATED", updatedAt: { gte: academicYearStart, lte: academicYearEnd } },
+      where: { schoolId, status: "GRADUATED", updatedAt: { gte: academicYearStart, lte: academicYearEnd }, ...studentProgrammeFilter },
     }),
     db.student.count({
-      where: { schoolId, status: "WITHDRAWN", updatedAt: { gte: academicYearStart, lte: academicYearEnd } },
+      where: { schoolId, status: "WITHDRAWN", updatedAt: { gte: academicYearStart, lte: academicYearEnd }, ...studentProgrammeFilter },
     }),
     db.enrollment.count({
       where: {
@@ -94,11 +130,11 @@ async function loadKpis(
         academicYearId,
         isFreeShsPlacement: true,
         status: "ACTIVE",
-        ...programmeFilter,
+        ...enrollmentProgrammeFilter,
       },
     }),
     db.studentRiskProfile.count({
-      where: { schoolId, academicYearId, riskLevel: { in: ["HIGH", "CRITICAL"] } },
+      where: { schoolId, academicYearId, riskLevel: { in: ["HIGH", "CRITICAL"] }, ...riskProgrammeFilter },
     }),
   ]);
 
@@ -134,9 +170,12 @@ export async function getStudentAnalyticsAction(input: {
   if (!year) return { error: "No current academic year set" };
 
   const cacheKey = `analytics:${ctx.schoolId}:${year.id}:${parsed.data.programmeId ?? "all"}`;
+  // programmeFilter (enrollment-side shape) is kept for future loaders such as
+  // loadEnrollmentTrend and loadDemographics which receive it directly.
   const programmeFilter: Record<string, unknown> = parsed.data.programmeId
     ? { classArm: { class: { programmeId: parsed.data.programmeId } } }
     : {};
+  void programmeFilter; // will be used by upcoming loaders — suppresses lint warning
 
   let wasCacheMiss = false;
   const payload = await getCached<StudentAnalyticsPayload>(cacheKey, async () => {
@@ -146,7 +185,7 @@ export async function getStudentAnalyticsAction(input: {
       year.id,
       year.startDate,
       year.endDate,
-      programmeFilter,
+      parsed.data.programmeId,
     );
     return {
       computedAt: new Date(),

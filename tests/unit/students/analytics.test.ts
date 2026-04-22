@@ -64,6 +64,39 @@ describe("getStudentAnalyticsAction", () => {
     expect(result.data.cached).toBe(false);
   });
 
+  it("applies programme filter to student-level counts when programmeId given", async () => {
+    const validCuid = "cjld2cyuq0000t3rmniod1foy";
+    const progCuid  = "cjld2cyuq0001t3rmniod1foz";
+    prismaMock.academicYear.findFirst.mockResolvedValue({
+      id: validCuid, schoolId: "default-school", startDate: new Date("2025-09-01"),
+      endDate: new Date("2026-08-31"), isCurrent: true,
+    } as never);
+    prismaMock.student.count.mockResolvedValue(0);
+    prismaMock.enrollment.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.count.mockResolvedValue(0);
+    prismaMock.academicYear.findMany.mockResolvedValue([] as never);
+    prismaMock.enrollment.groupBy.mockResolvedValue([] as never);
+    prismaMock.enrollment.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
+
+    await getStudentAnalyticsAction({ academicYearId: validCuid, programmeId: progCuid });
+
+    // totalActive query (first call) should include the enrollments -> classArm -> class -> programmeId filter
+    const firstCall = prismaMock.student.count.mock.calls[0]![0];
+    expect(firstCall.where).toMatchObject({
+      schoolId: "default-school",
+      status: "ACTIVE",
+      enrollments: {
+        some: {
+          academicYearId: validCuid,
+          classArm: { class: { programmeId: progCuid } },
+        },
+      },
+    });
+  });
+
   it("second call with same filters returns cached: true", async () => {
     // Must be a valid CUID (zod validates it)
     const validYearId = "cjld2cyuq0000t3rmniod1foy";
