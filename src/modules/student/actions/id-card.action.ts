@@ -9,7 +9,7 @@ import { renderPdfToBuffer, PDF_SYNC_THRESHOLD } from "@/lib/pdf/generator";
 import { generateQrDataUrl } from "@/lib/pdf/qr";
 import { IdCardTemplate, type IdCardData } from "@/lib/pdf/templates/id-card";
 import { enqueuePdfJob } from "@/modules/common/pdf-job-dispatcher";
-import { PDFDocument } from "pdf-lib";
+import { stitchPdfsFromUrls } from "@/lib/pdf/stitch";
 import { resolveStudentPhotoUrl } from "./photo";
 
 function isCacheFresh(pdfKey: string | null, cachedAt: Date | null, invalidatedAt: Date | null) {
@@ -142,14 +142,7 @@ export async function renderClassIdCardsAction(input: { classArmId: string }) {
     const res = await renderStudentIdCardAction(e.studentId);
     if ("data" in res) urls.push(res.data.url);
   }
-  const stitched = await PDFDocument.create();
-  for (const url of urls) {
-    const resp = await fetch(url);
-    const doc = await PDFDocument.load(await resp.arrayBuffer());
-    const pages = await stitched.copyPages(doc, doc.getPageIndices());
-    pages.forEach((p) => stitched.addPage(p));
-  }
-  const buffer = Buffer.from(await stitched.save());
+  const buffer = await stitchPdfsFromUrls(urls);
   const initialKey = generateFileKey("id-card-batches", input.classArmId, `batch-${Date.now()}.pdf`);
   const uploaded = await uploadFile(initialKey, buffer, "application/pdf");
   const url = await getSignedDownloadUrl(uploaded.key);

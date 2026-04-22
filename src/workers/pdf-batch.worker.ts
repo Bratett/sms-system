@@ -1,25 +1,13 @@
-import { PDFDocument } from "pdf-lib";
 import { createWorker, QUEUE_NAMES, type PdfBatchJobData } from "@/lib/queue";
 import { logger } from "@/lib/logger";
 import { db } from "@/lib/db";
 import { uploadFile, generateFileKey } from "@/lib/storage/r2";
+import { stitchPdfsFromUrls } from "@/lib/pdf/stitch";
 import { renderStudentIdCardAction } from "@/modules/student/actions/id-card.action";
 import { renderReportCardPdfAction } from "@/modules/academics/actions/report-card.action";
 import { renderTranscriptPdfAction } from "@/modules/academics/actions/transcript.action";
 
 const log = logger.child({ worker: "pdf-batch" });
-
-async function stitchPdfs(urls: string[]): Promise<Buffer> {
-  const stitched = await PDFDocument.create();
-  for (const url of urls) {
-    const resp = await fetch(url);
-    const bytes = await resp.arrayBuffer();
-    const doc = await PDFDocument.load(bytes);
-    const pages = await stitched.copyPages(doc, doc.getPageIndices());
-    pages.forEach((p) => stitched.addPage(p));
-  }
-  return Buffer.from(await stitched.save());
-}
 
 export function startPdfBatchWorker() {
   const worker = createWorker<PdfBatchJobData>(
@@ -84,7 +72,7 @@ export function startPdfBatchWorker() {
           }
         }
 
-        const stitched = await stitchPdfs(urls);
+        const stitched = await stitchPdfsFromUrls(urls);
         const initialKey = generateFileKey(
           "pdf-jobs",
           pdfJob.id,

@@ -16,7 +16,7 @@ import {
   type SubjectRow,
 } from "@/lib/pdf/templates/report-card";
 import { enqueuePdfJob } from "@/modules/common/pdf-job-dispatcher";
-import { PDFDocument } from "pdf-lib";
+import { stitchPdfsFromUrls } from "@/lib/pdf/stitch";
 
 // ─── Generate Report Card Data for a Single Student ───────────────────
 
@@ -443,14 +443,7 @@ export async function renderClassReportCardsPdfAction(input: { classArmId: strin
     const res = await renderReportCardPdfAction({ studentId: e.studentId, termId: input.termId });
     if ("data" in res) urls.push(res.data.url);
   }
-  const stitched = await PDFDocument.create();
-  for (const url of urls) {
-    const resp = await fetch(url);
-    const doc = await PDFDocument.load(await resp.arrayBuffer());
-    const pages = await stitched.copyPages(doc, doc.getPageIndices());
-    pages.forEach((p) => stitched.addPage(p));
-  }
-  const buffer = Buffer.from(await stitched.save());
+  const buffer = await stitchPdfsFromUrls(urls);
   const initialKey = generateFileKey(
     "report-card-batches",
     `${input.classArmId}-${input.termId}`,

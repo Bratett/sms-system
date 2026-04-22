@@ -8,7 +8,7 @@ import { uploadFile, getSignedDownloadUrl, generateFileKey, deleteFile } from "@
 import { renderPdfToBuffer, PDF_SYNC_THRESHOLD } from "@/lib/pdf/generator";
 import { TranscriptTemplate, type TranscriptData } from "@/lib/pdf/templates/transcript";
 import { enqueuePdfJob } from "@/modules/common/pdf-job-dispatcher";
-import { PDFDocument } from "pdf-lib";
+import { stitchPdfsFromUrls } from "@/lib/pdf/stitch";
 
 // ─── Generate Transcript ───────────────────────────────────────────
 
@@ -409,14 +409,7 @@ export async function renderBatchTranscriptsAction(input: { studentIds: string[]
     const res = await renderTranscriptPdfAction(latest.id);
     if ("data" in res) urls.push(res.data.url);
   }
-  const stitched = await PDFDocument.create();
-  for (const url of urls) {
-    const resp = await fetch(url);
-    const doc = await PDFDocument.load(await resp.arrayBuffer());
-    const pages = await stitched.copyPages(doc, doc.getPageIndices());
-    pages.forEach((p) => stitched.addPage(p));
-  }
-  const buffer = Buffer.from(await stitched.save());
+  const buffer = await stitchPdfsFromUrls(urls);
   const initialKey = generateFileKey("transcript-batches", ctx.schoolId, `batch-${Date.now()}.pdf`);
   const uploaded = await uploadFile(initialKey, buffer, "application/pdf");
   const url = await getSignedDownloadUrl(uploaded.key);
