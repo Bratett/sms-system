@@ -88,6 +88,12 @@ export function StudentsClient({
   const [missingCount, setMissingCount] = useState<number | null>(null);
   const [expiringCount, setExpiringCount] = useState<number | null>(null);
 
+  // Cached cohort IDs — populated when a chip toggles ON, reused across
+  // pagination / filter changes to avoid refetching the (expensive) cohort
+  // on every click. Cleared when the chip toggles OFF.
+  const [missingDocIds, setMissingDocIds] = useState<string[] | null>(null);
+  const [expiringDocIds, setExpiringDocIds] = useState<string[] | null>(null);
+
   // Load chip counts on mount
   useEffect(() => {
     let cancelled = false;
@@ -115,16 +121,22 @@ export function StudentsClient({
     filterBoarding ||
     docChip;
 
-  function fetchStudents(newPage: number, overrideChip?: DocChip) {
+  function fetchStudents(
+    newPage: number,
+    overrideChip?: DocChip,
+    overrideIds?: { missing?: string[] | null; expiring?: string[] | null },
+  ) {
     const activeChip = overrideChip !== undefined ? overrideChip : docChip;
+    const effectiveMissing =
+      overrideIds?.missing !== undefined ? overrideIds.missing : missingDocIds;
+    const effectiveExpiring =
+      overrideIds?.expiring !== undefined ? overrideIds.expiring : expiringDocIds;
     startTransition(async () => {
       let idsFilter: string[] | undefined;
       if (activeChip === "missing") {
-        const res = await listStudentsWithMissingDocsAction();
-        idsFilter = "data" in res ? res.data.map((s) => s.id) : [];
+        idsFilter = effectiveMissing ?? [];
       } else if (activeChip === "expiring") {
-        const res = await listStudentsWithExpiringDocsAction();
-        idsFilter = "data" in res ? res.data.map((s) => s.id) : [];
+        idsFilter = effectiveExpiring ?? [];
       }
 
       const result = await getStudentsAction({
@@ -146,10 +158,40 @@ export function StudentsClient({
     });
   }
 
-  function toggleChip(chip: Exclude<DocChip, null>) {
+  async function toggleChip(chip: Exclude<DocChip, null>) {
     const next: DocChip = docChip === chip ? null : chip;
     setDocChip(next);
-    fetchStudents(1, next);
+
+    if (next === null) {
+      // Toggling OFF — clear caches and refetch without cohort filter.
+      setMissingDocIds(null);
+      setExpiringDocIds(null);
+      fetchStudents(1, next, { missing: null, expiring: null });
+      return;
+    }
+
+    // Toggling ON — fetch cohort IDs once, cache them, then fetch students.
+    if (next === "missing") {
+      if (missingDocIds !== null) {
+        fetchStudents(1, next);
+        return;
+      }
+      const res = await listStudentsWithMissingDocsAction();
+      const ids = "data" in res ? res.data.map((s) => s.id) : [];
+      setMissingDocIds(ids);
+      setMissingCount(ids.length);
+      fetchStudents(1, next, { missing: ids });
+    } else {
+      if (expiringDocIds !== null) {
+        fetchStudents(1, next);
+        return;
+      }
+      const res = await listStudentsWithExpiringDocsAction();
+      const ids = "data" in res ? res.data.map((s) => s.id) : [];
+      setExpiringDocIds(ids);
+      setExpiringCount(ids.length);
+      fetchStudents(1, next, { expiring: ids });
+    }
   }
 
   function handleSearch() {
@@ -170,6 +212,8 @@ export function StudentsClient({
     setFilterGender("");
     setFilterBoarding("");
     setDocChip(null);
+    setMissingDocIds(null);
+    setExpiringDocIds(null);
     startTransition(async () => {
       const result = await getStudentsAction({ page: 1, pageSize });
       if ("students" in result) {
@@ -312,6 +356,11 @@ export function StudentsClient({
           onClick={() => toggleChip("missing")}
           disabled={isPending}
           aria-pressed={docChip === "missing"}
+          title={
+            docChip === "missing" && missingCount !== null && total !== missingCount
+              ? `${total} of ${missingCount} cohort students match the current filters`
+              : undefined
+          }
           className={`flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors ${
             docChip === "missing"
               ? "bg-primary text-primary-foreground"
@@ -327,7 +376,9 @@ export function StudentsClient({
                   : "bg-muted text-muted-foreground"
               }`}
             >
-              {missingCount}
+              {docChip === "missing" && total !== missingCount
+                ? `${total} of ${missingCount}`
+                : missingCount}
             </span>
           )}
         </button>
@@ -336,6 +387,11 @@ export function StudentsClient({
           onClick={() => toggleChip("expiring")}
           disabled={isPending}
           aria-pressed={docChip === "expiring"}
+          title={
+            docChip === "expiring" && expiringCount !== null && total !== expiringCount
+              ? `${total} of ${expiringCount} cohort students match the current filters`
+              : undefined
+          }
           className={`flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors ${
             docChip === "expiring"
               ? "bg-primary text-primary-foreground"
@@ -351,7 +407,9 @@ export function StudentsClient({
                   : "bg-muted text-muted-foreground"
               }`}
             >
-              {expiringCount}
+              {docChip === "expiring" && total !== expiringCount
+                ? `${total} of ${expiringCount}`
+                : expiringCount}
             </span>
           )}
         </button>
