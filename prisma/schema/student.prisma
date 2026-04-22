@@ -455,6 +455,7 @@ model PromotionRunItem {
   previousStatus         StudentStatus
   newEnrollmentId        String?
   notes                  String?
+  skippedAt              DateTime?
 
   run                 PromotionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   student             Student      @relation(fields: [studentId], references: [id])
