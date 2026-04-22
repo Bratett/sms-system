@@ -299,3 +299,26 @@ export async function bulkUpdatePromotionRunItemsAction(input: {
   });
   return { data: { updated: result.count } };
 }
+
+export async function deletePromotionRunAction(runId: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_PROMOTE);
+  if (denied) return denied;
+
+  const run = await db.promotionRun.findFirst({ where: { id: runId, schoolId: ctx.schoolId } });
+  if (!run) return { error: "Run not found" };
+  if (run.status !== "DRAFT") return { error: "Only DRAFT runs can be deleted" };
+
+  await db.promotionRun.delete({ where: { id: runId } });
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "DELETE",
+    entity: "PromotionRun",
+    entityId: runId,
+    module: "students",
+    description: `Deleted draft promotion run`,
+  });
+
+  return { data: { deleted: true } };
+}

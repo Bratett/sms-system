@@ -4,6 +4,7 @@ import { getEligibleSourceArmsAction, listPromotionRunsAction, getPromotionRunAc
 import {
   updatePromotionRunItemAction,
   bulkUpdatePromotionRunItemsAction,
+  deletePromotionRunAction,
 } from "@/modules/student/actions/promotion.action";
 
 describe("getEligibleSourceArmsAction", () => {
@@ -260,5 +261,23 @@ describe("bulkUpdatePromotionRunItemsAction", () => {
       outcome: "RETAIN",
     });
     expect(result).toEqual({ data: { updated: 3 } });
+  });
+});
+
+describe("deletePromotionRunAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("deletes a DRAFT run", async () => {
+    prismaMock.promotionRun.findFirst.mockResolvedValue({ id: "pr-1", status: "DRAFT", schoolId: "default-school" } as never);
+    prismaMock.promotionRun.delete.mockResolvedValue({ id: "pr-1" } as never);
+
+    const result = await deletePromotionRunAction("pr-1");
+    expect(result).toEqual({ data: { deleted: true } });
+  });
+
+  it("refuses to delete a COMMITTED run", async () => {
+    prismaMock.promotionRun.findFirst.mockResolvedValue({ id: "pr-1", status: "COMMITTED", schoolId: "default-school" } as never);
+    const result = await deletePromotionRunAction("pr-1");
+    expect(result).toEqual({ error: "Only DRAFT runs can be deleted" });
   });
 });
