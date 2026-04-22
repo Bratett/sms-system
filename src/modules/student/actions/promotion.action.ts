@@ -152,6 +152,16 @@ async function applyRevert(tx: Tx, run: PromotionRunWithItems): Promise<void> {
       data: { skippedAt: null },
     });
   }
+
+  // Revert restores pre-commit enrollment / status — the rendered ID card for
+  // every touched student no longer reflects reality, so mirror applyCommit
+  // and invalidate the cached card. Single bulk write keeps the cost minimal.
+  if (run.items.length > 0) {
+    await tx.student.updateMany({
+      where: { id: { in: run.items.map((i) => i.studentId) } },
+      data: { idCardCacheInvalidatedAt: new Date() },
+    });
+  }
 }
 
 export async function getEligibleSourceArmsAction() {

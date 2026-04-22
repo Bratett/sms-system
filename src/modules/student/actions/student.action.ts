@@ -409,12 +409,32 @@ export async function updateStudentAction(id: string, data: UpdateStudentInput) 
   if (parsed.data.status !== undefined) updateData.status = parsed.data.status;
   if (parsed.data.photoUrl !== undefined) updateData.photoUrl = parsed.data.photoUrl;
 
-  // Invalidate ID card cache if the photo has actually changed. The field is
-  // set in the same update call so the invalidation is atomic with the write.
-  if (
-    parsed.data.photoUrl !== undefined &&
-    (parsed.data.photoUrl ?? null) !== (existing.photoUrl ?? null)
-  ) {
+  // Invalidate ID card cache if any field rendered on the card changes. The
+  // card shows first/last/other names, gender, blood group, boarding status,
+  // and photo — so any mutation to those must stale the cached PDF. House and
+  // class come from related rows (houseAssignment / enrollment) and are
+  // invalidated from those mutation paths instead. The field is set in the
+  // same update call so the invalidation is atomic with the write.
+  const idCardRenderedFields = [
+    "firstName",
+    "lastName",
+    "otherNames",
+    "gender",
+    "bloodGroup",
+    "boardingStatus",
+    "photoUrl",
+  ] as const;
+  const invalidatesIdCard = idCardRenderedFields.some((f) => {
+    const next = parsed.data[f];
+    if (next === undefined) return false;
+    // Normalise empty-string-to-null (the updateData above already does this for
+    // nullable fields) so "unchanged null" doesn't trigger a spurious invalidate.
+    const nextNorm =
+      (f === "otherNames" || f === "bloodGroup") && !next ? null : next;
+    const prev = existing[f] ?? null;
+    return (nextNorm ?? null) !== (prev ?? null);
+  });
+  if (invalidatesIdCard) {
     updateData.idCardCacheInvalidatedAt = new Date();
   }
 
