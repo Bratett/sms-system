@@ -32,6 +32,12 @@ describe("listPdfJobsAction", () => {
       }),
     }));
   });
+
+  it("rejects callers without any PDF generator permission", async () => {
+    mockAuthenticatedUser({ permissions: [] });
+    const result = await listPdfJobsAction();
+    expect(result).toEqual({ error: "Unauthorized" });
+  });
 });
 
 describe("getPdfJobAction", () => {
@@ -50,6 +56,12 @@ describe("getPdfJobAction", () => {
     prismaMock.pdfJob.findFirst.mockResolvedValue(null);
     const result = await getPdfJobAction("job-x");
     expect(result).toEqual({ error: "Job not found" });
+  });
+
+  it("rejects callers without any PDF generator permission", async () => {
+    mockAuthenticatedUser({ permissions: [] });
+    const result = await getPdfJobAction("job-1");
+    expect(result).toEqual({ error: "Unauthorized" });
   });
 });
 
@@ -73,5 +85,11 @@ describe("cancelPdfJobAction", () => {
 
     const result = await cancelPdfJobAction("job-1");
     expect(result).toEqual({ error: "Cannot cancel a running job" });
+  });
+
+  it("rejects callers without any PDF generator permission", async () => {
+    mockAuthenticatedUser({ permissions: [] });
+    const result = await cancelPdfJobAction("job-1");
+    expect(result).toEqual({ error: "Unauthorized" });
   });
 });
