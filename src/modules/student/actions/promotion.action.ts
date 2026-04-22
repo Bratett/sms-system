@@ -3,6 +3,8 @@
 import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
+import { createPromotionRunSchema } from "../schemas/promotion.schema";
+import { audit } from "@/lib/audit";
 
 export async function getEligibleSourceArmsAction() {
   const ctx = await requireSchoolContext();
@@ -102,4 +104,57 @@ export async function getPromotionRunAction(runId: string) {
   }
 
   return { data: { ...run, capacityByArm } };
+}
+
+export async function createPromotionRunAction(input: { sourceClassArmId: string }) {
+  const parsed = createPromotionRunSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_PROMOTE);
+  if (denied) return denied;
+
+  const sourceArm = await db.classArm.findFirst({
+    where: { id: parsed.data.sourceClassArmId, schoolId: ctx.schoolId },
+    include: { class: { select: { academicYearId: true, yearGroup: true } } },
+  });
+  if (!sourceArm) return { error: "Source class arm not found in the current academic year" };
+
+  const currentYear = await db.academicYear.findFirst({
+    where: { id: sourceArm.class.academicYearId, schoolId: ctx.schoolId },
+  });
+  if (!currentYear) return { error: "Source class arm not found in the current academic year" };
+
+  const targetYear = await db.academicYear.findFirst({
+    where: { schoolId: ctx.schoolId, startDate: { gt: currentYear.startDate } },
+    orderBy: { startDate: "asc" },
+  });
+  if (!targetYear) return { error: "No target academic year found. Create the next academic year first." };
+
+  const existing = await db.promotionRun.findFirst({
+    where: { sourceClassArmId: sourceArm.id, sourceAcademicYearId: currentYear.id, status: "DRAFT" },
+  });
+  if (existing) return { error: "A draft promotion run already exists for this class arm" };
+
+  const run = await db.promotionRun.create({
+    data: {
+      schoolId: ctx.schoolId,
+      sourceAcademicYearId: currentYear.id,
+      targetAcademicYearId: targetYear.id,
+      sourceClassArmId: sourceArm.id,
+      createdBy: ctx.session.user.id!,
+    },
+  });
+
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "CREATE",
+    entity: "PromotionRun",
+    entityId: run.id,
+    module: "students",
+    description: `Created promotion run for classArm ${sourceArm.id}`,
+  });
+
+  return { data: run };
 }

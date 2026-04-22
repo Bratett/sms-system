@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prismaMock, mockAuthenticatedUser, mockUnauthenticated } from "../setup";
-import { getEligibleSourceArmsAction, listPromotionRunsAction, getPromotionRunAction } from "@/modules/student/actions/promotion.action";
+import { getEligibleSourceArmsAction, listPromotionRunsAction, getPromotionRunAction, createPromotionRunAction } from "@/modules/student/actions/promotion.action";
 
 describe("getEligibleSourceArmsAction", () => {
   beforeEach(() => mockAuthenticatedUser());
@@ -81,5 +81,57 @@ describe("getPromotionRunAction", () => {
     prismaMock.promotionRun.findFirst.mockResolvedValue(null);
     const result = await getPromotionRunAction("pr-x");
     expect(result).toEqual({ error: "Promotion run not found" });
+  });
+});
+
+describe("createPromotionRunAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("rejects when source arm does not exist in current year", async () => {
+    prismaMock.classArm.findFirst.mockResolvedValue(null);
+    const result = await createPromotionRunAction({ sourceClassArmId: "clh1234567890abcdefghijkl" });
+    expect(result).toEqual({ error: "Source class arm not found in the current academic year" });
+  });
+
+  it("rejects when target academic year does not exist", async () => {
+    prismaMock.classArm.findFirst.mockResolvedValue({
+      id: "clh1234567890abcdefghijkl",
+      class: { academicYearId: "ay-1", yearGroup: 1 },
+    } as never);
+    prismaMock.academicYear.findFirst
+      .mockResolvedValueOnce({ id: "ay-1", startDate: new Date("2025-09-01") } as never)
+      .mockResolvedValueOnce(null);
+
+    const result = await createPromotionRunAction({ sourceClassArmId: "clh1234567890abcdefghijkl" });
+    expect(result).toEqual({ error: "No target academic year found. Create the next academic year first." });
+  });
+
+  it("rejects duplicate draft on the same arm", async () => {
+    prismaMock.classArm.findFirst.mockResolvedValue({
+      id: "clh1234567890abcdefghijkl",
+      class: { academicYearId: "ay-1", yearGroup: 1 },
+    } as never);
+    prismaMock.academicYear.findFirst
+      .mockResolvedValueOnce({ id: "ay-1", startDate: new Date("2025-09-01") } as never)
+      .mockResolvedValueOnce({ id: "ay-2", startDate: new Date("2026-09-01") } as never);
+    prismaMock.promotionRun.findFirst.mockResolvedValue({ id: "pr-existing", status: "DRAFT" } as never);
+
+    const result = await createPromotionRunAction({ sourceClassArmId: "clh1234567890abcdefghijkl" });
+    expect(result).toEqual({ error: "A draft promotion run already exists for this class arm" });
+  });
+
+  it("creates a new DRAFT run when valid", async () => {
+    prismaMock.classArm.findFirst.mockResolvedValue({
+      id: "clh1234567890abcdefghijkl",
+      class: { academicYearId: "ay-1", yearGroup: 1 },
+    } as never);
+    prismaMock.academicYear.findFirst
+      .mockResolvedValueOnce({ id: "ay-1", startDate: new Date("2025-09-01") } as never)
+      .mockResolvedValueOnce({ id: "ay-2", startDate: new Date("2026-09-01") } as never);
+    prismaMock.promotionRun.findFirst.mockResolvedValue(null);
+    prismaMock.promotionRun.create.mockResolvedValue({ id: "pr-new", status: "DRAFT" } as never);
+
+    const result = await createPromotionRunAction({ sourceClassArmId: "clh1234567890abcdefghijkl" });
+    expect(result).toEqual({ data: expect.objectContaining({ id: "pr-new", status: "DRAFT" }) });
   });
 });
