@@ -47,12 +47,13 @@ export function RunDetailClient({ run }: { run: PromotionRun }) {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [now] = useState(() => Date.now());
 
   const committedAt = run.committedAt ? new Date(run.committedAt) : null;
   const revertedAt = run.revertedAt ? new Date(run.revertedAt) : null;
   const deadline = committedAt ? addDays(committedAt, REVERT_GRACE_DAYS) : null;
   const withinGrace =
-    run.status === "COMMITTED" && committedAt !== null && deadline !== null && deadline.getTime() > Date.now();
+    run.status === "COMMITTED" && committedAt !== null && deadline !== null && deadline.getTime() > now;
 
   const handleRevert = () => {
     const trimmed = reason.trim();
