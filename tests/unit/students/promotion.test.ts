@@ -377,3 +377,56 @@ describe("commitPromotionRunAction", () => {
     expect(prismaMock.enrollment.create).not.toHaveBeenCalled();
   });
 });
+
+import { revertPromotionRunAction } from "@/modules/student/actions/promotion.action";
+
+describe("revertPromotionRunAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("refuses to revert outside the 14-day grace window", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: any) => await fn(prismaMock));
+    const oldDate = new Date();
+    oldDate.setDate(oldDate.getDate() - 15);
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "clh0000000000000000000001", status: "COMMITTED", schoolId: "default-school", committedAt: oldDate, items: [],
+    } as never);
+
+    const result = await revertPromotionRunAction({ runId: "clh0000000000000000000001", reason: "mistake made" });
+    expect(result).toEqual({ error: "Revert window has expired (14 days)" });
+  });
+
+  it("deletes new enrollments and restores previous state", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: any) => await fn(prismaMock));
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "clh0000000000000000000001", status: "COMMITTED", schoolId: "default-school", committedAt: new Date(),
+      items: [
+        { id: "pri-1", studentId: "s-1", outcome: "PROMOTE",
+          previousEnrollmentId: "e-1", previousStatus: "ACTIVE", newEnrollmentId: "e-new" },
+        { id: "pri-2", studentId: "s-2", outcome: "GRADUATE",
+          previousEnrollmentId: "e-2", previousStatus: "ACTIVE", newEnrollmentId: null },
+      ],
+    } as never);
+    prismaMock.promotionRun.update.mockResolvedValue({ id: "clh0000000000000000000001", status: "REVERTED" } as never);
+
+    const result = await revertPromotionRunAction({ runId: "clh0000000000000000000001", reason: "wrong class selection" });
+
+    expect(result).toMatchObject({ data: { status: "REVERTED" } });
+    expect(prismaMock.enrollment.delete).toHaveBeenCalledWith({ where: { id: "e-new" } });
+    expect(prismaMock.enrollment.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "e-1" }, data: expect.objectContaining({ status: "ACTIVE" }),
+    }));
+    expect(prismaMock.student.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "s-2" }, data: expect.objectContaining({ status: "ACTIVE" }),
+    }));
+  });
+
+  it("refuses to revert a DRAFT or already-REVERTED run", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: any) => await fn(prismaMock));
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "clh0000000000000000000001", status: "DRAFT", schoolId: "default-school", committedAt: null, items: [],
+    } as never);
+
+    const result = await revertPromotionRunAction({ runId: "clh0000000000000000000001", reason: "oops oops" });
+    expect(result).toEqual({ error: "Only COMMITTED runs can be reverted" });
+  });
+});

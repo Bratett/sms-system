@@ -7,6 +7,7 @@ import {
   createPromotionRunSchema,
   updatePromotionRunItemSchema,
   bulkUpdatePromotionRunItemsSchema,
+  revertPromotionRunSchema,
 } from "../schemas/promotion.schema";
 import { audit } from "@/lib/audit";
 
@@ -428,4 +429,74 @@ export async function deletePromotionRunAction(runId: string) {
   });
 
   return { data: { deleted: true } };
+}
+
+const REVERT_GRACE_DAYS = 14;
+
+export async function revertPromotionRunAction(input: { runId: string; reason: string }) {
+  const parsed = revertPromotionRunSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_PROMOTE);
+  if (denied) return denied;
+
+  const result = await db.$transaction(async (tx) => {
+    const run = await tx.promotionRun.findFirst({
+      where: { id: parsed.data.runId, schoolId: ctx.schoolId },
+      include: { items: true },
+    });
+    if (!run) return { error: "Run not found" as string };
+    if (run.status !== "COMMITTED") return { error: "Only COMMITTED runs can be reverted" as string };
+    if (!run.committedAt) return { error: "Run missing commit timestamp" as string };
+
+    const ageDays = (Date.now() - run.committedAt.getTime()) / (1000 * 60 * 60 * 24);
+    if (ageDays > REVERT_GRACE_DAYS) {
+      return { error: `Revert window has expired (${REVERT_GRACE_DAYS} days)` as string };
+    }
+
+    for (const item of run.items) {
+      if (item.newEnrollmentId) {
+        try {
+          await tx.enrollment.delete({ where: { id: item.newEnrollmentId } });
+        } catch {
+          // enrollment may already be gone; proceed to restore previous state
+        }
+      }
+      await tx.enrollment.update({
+        where: { id: item.previousEnrollmentId },
+        data: { status: "ACTIVE" },
+      });
+      await tx.student.update({
+        where: { id: item.studentId },
+        data: { status: item.previousStatus },
+      });
+    }
+
+    const reverted = await tx.promotionRun.update({
+      where: { id: parsed.data.runId },
+      data: {
+        status: "REVERTED",
+        revertedAt: new Date(),
+        revertedBy: ctx.session.user.id!,
+        revertReason: parsed.data.reason,
+      },
+    });
+    return { data: reverted };
+  });
+
+  if ("error" in result) return result;
+
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "UPDATE",
+    entity: "PromotionRun",
+    entityId: parsed.data.runId,
+    module: "students",
+    description: `Reverted promotion run: ${parsed.data.reason}`,
+    newData: { status: "REVERTED" },
+  });
+
+  return result;
 }
