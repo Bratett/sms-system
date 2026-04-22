@@ -518,6 +518,86 @@ export async function portAdmissionDocumentsToStudentAction(input: {
   return { data: { ported: toCreate.length, skipped: existingKeys.size } };
 }
 
+export async function listStudentsWithMissingDocsAction(opts?: { page?: number; limit?: number }) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_DOCUMENTS_READ);
+  if (denied) return denied;
+
+  const requiredTypes = await db.documentType.findMany({
+    where: { schoolId: ctx.schoolId, status: "ACTIVE", isRequired: true },
+  });
+  if (requiredTypes.length === 0) return { data: [] };
+
+  const students = await db.student.findMany({
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
+    include: {
+      studentDocuments: {
+        where: {
+          verificationStatus: "VERIFIED",
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          documentTypeId: { in: requiredTypes.map((t) => t.id) },
+        },
+        select: { documentTypeId: true },
+      },
+    },
+    take: opts?.limit ?? 100,
+    skip: ((opts?.page ?? 1) - 1) * (opts?.limit ?? 100),
+  });
+
+  const missing = students.filter((s) => {
+    const ownedTypeIds = new Set(s.studentDocuments.map((d) => d.documentTypeId));
+    const applicableRequired = requiredTypes.filter((t) =>
+      t.appliesTo === "ALL" ||
+      (t.appliesTo === "BOARDING_ONLY" && s.boardingStatus === "BOARDING") ||
+      (t.appliesTo === "DAY_ONLY" && s.boardingStatus === "DAY")
+    );
+    return applicableRequired.some((t) => !ownedTypeIds.has(t.id));
+  });
+
+  return { data: missing };
+}
+
+export async function listStudentsWithExpiringDocsAction(opts?: {
+  withinDays?: number;
+  page?: number;
+  limit?: number;
+}) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_DOCUMENTS_READ);
+  if (denied) return denied;
+
+  const within = opts?.withinDays ?? EXPIRING_SOON_DAYS;
+  const windowEnd = new Date(Date.now() + within * 24 * 60 * 60 * 1000);
+
+  const students = await db.student.findMany({
+    where: {
+      schoolId: ctx.schoolId,
+      status: "ACTIVE",
+      studentDocuments: {
+        some: {
+          verificationStatus: "VERIFIED",
+          expiresAt: { gt: new Date(), lte: windowEnd },
+        },
+      },
+    },
+    include: {
+      studentDocuments: {
+        where: {
+          verificationStatus: "VERIFIED",
+          expiresAt: { gt: new Date(), lte: windowEnd },
+        },
+        include: { documentType: { select: { id: true, name: true } } },
+      },
+    },
+    take: opts?.limit ?? 100,
+    skip: ((opts?.page ?? 1) - 1) * (opts?.limit ?? 100),
+  });
+
+  return { data: students };
+}
+
 export async function reopenStudentDocumentAction(id: string) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;

@@ -478,3 +478,45 @@ describe("portAdmissionDocumentsToStudentAction", () => {
     expect(result).toEqual({ data: { ported: 0, skipped: 1 } });
   });
 });
+
+import {
+  listStudentsWithMissingDocsAction,
+  listStudentsWithExpiringDocsAction,
+} from "@/modules/student/actions/document.action";
+
+describe("listStudentsWithMissingDocsAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("returns students whose valid-verified doc set misses a required type", async () => {
+    prismaMock.documentType.findMany.mockResolvedValue([
+      { id: "dt-1", name: "Birth Cert", isRequired: true, appliesTo: "ALL", status: "ACTIVE" },
+    ] as never);
+    prismaMock.student.findMany.mockResolvedValue([
+      { id: "s-1", firstName: "A", lastName: "B", studentId: "S/1", boardingStatus: "DAY", studentDocuments: [] },
+      { id: "s-2", firstName: "C", lastName: "D", studentId: "S/2", boardingStatus: "DAY", studentDocuments: [
+        { documentTypeId: "dt-1", verificationStatus: "VERIFIED", expiresAt: null },
+      ] },
+    ] as never);
+
+    const result = await listStudentsWithMissingDocsAction();
+    if (!("data" in result)) throw new Error(result.error);
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0]).toMatchObject({ id: "s-1" });
+  });
+});
+
+describe("listStudentsWithExpiringDocsAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("returns students with docs expiring inside the window", async () => {
+    const soon = new Date(Date.now() + 1000 * 60 * 60 * 24 * 10);
+    prismaMock.student.findMany.mockResolvedValue([
+      { id: "s-1", firstName: "A", lastName: "B", studentId: "S/1",
+        studentDocuments: [{ id: "sd-1", expiresAt: soon, documentType: { name: "NHIS" } }] },
+    ] as never);
+
+    const result = await listStudentsWithExpiringDocsAction();
+    if (!("data" in result)) throw new Error(result.error);
+    expect(result.data).toHaveLength(1);
+  });
+});
