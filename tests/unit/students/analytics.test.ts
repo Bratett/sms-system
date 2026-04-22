@@ -206,3 +206,87 @@ describe("loadDemographics", () => {
     expect(d.byReligion.find((r) => r.religion === "Christianity")?.count).toBe(2);
   });
 });
+
+describe("loadRetention", () => {
+  beforeEach(() => {
+    __resetCacheForTests();
+    mockAuthenticatedUser();
+  });
+
+  it("computes per-cohort retention from consecutive academic year enrollments", async () => {
+    const current = { id: "ay-2", schoolId: "default-school", isCurrent: true,
+      startDate: new Date("2026-09-01"), endDate: new Date("2027-08-31"), name: "2026/2027" };
+    prismaMock.academicYear.findFirst.mockResolvedValue(current as never);
+    prismaMock.academicYear.findMany.mockResolvedValue([
+      { id: "ay-2", name: "2026/2027", startDate: new Date("2026-09-01") },
+      { id: "ay-1", name: "2025/2026", startDate: new Date("2025-09-01") },
+    ] as never);
+    prismaMock.enrollment.groupBy.mockResolvedValue([] as never);
+    prismaMock.student.count.mockResolvedValue(0);
+    prismaMock.enrollment.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
+    prismaMock.enrollment.findMany.mockImplementation(async (args: any) => {
+      // Retention retained-check: where has studentId.in array
+      if (args?.where?.studentId?.in) {
+        return [
+          { studentId: "s-1" }, { studentId: "s-2" }, { studentId: "s-3" },
+          { studentId: "s-4" }, { studentId: "s-5" }, { studentId: "s-6" },
+          { studentId: "s-7" }, { studentId: "s-8" },
+        ];
+      }
+      // Retention base-year query: select includes classArm
+      if (args?.select?.classArm) {
+        return [
+          { studentId: "s-1", classArm: { class: { yearGroup: 1 } } },
+          { studentId: "s-2", classArm: { class: { yearGroup: 1 } } },
+          { studentId: "s-3", classArm: { class: { yearGroup: 1 } } },
+          { studentId: "s-4", classArm: { class: { yearGroup: 1 } } },
+          { studentId: "s-5", classArm: { class: { yearGroup: 1 } } },
+          { studentId: "s-6", classArm: { class: { yearGroup: 1 } } },
+          { studentId: "s-7", classArm: { class: { yearGroup: 1 } } },
+          { studentId: "s-8", classArm: { class: { yearGroup: 1 } } },
+          { studentId: "s-9", classArm: { class: { yearGroup: 1 } } },
+          { studentId: "s-10", classArm: { class: { yearGroup: 1 } } },
+        ];
+      }
+      // Demographics query: select includes student
+      return [];
+    });
+
+    const result = await getStudentAnalyticsAction({});
+    if (!("data" in result)) throw new Error("expected data");
+    const cohorts = result.data.retention.cohorts;
+    expect(cohorts).toHaveLength(1);
+    expect(cohorts[0]).toMatchObject({
+      yearGroup: 1,
+      academicYearName: "2025/2026",
+      startingCount: 10,
+      retainedCount: 8,
+      retentionPct: 80,
+    });
+  });
+
+  it("returns empty cohorts when only one academic year exists (no next year to compare)", async () => {
+    const current = { id: "ay-1", schoolId: "default-school", isCurrent: true,
+      startDate: new Date("2025-09-01"), endDate: new Date("2026-08-31"), name: "2025/2026" };
+    prismaMock.academicYear.findFirst.mockResolvedValue(current as never);
+    prismaMock.academicYear.findMany.mockResolvedValue([
+      { id: "ay-1", name: "2025/2026", startDate: new Date("2025-09-01") },
+    ] as never);
+    prismaMock.enrollment.groupBy.mockResolvedValue([] as never);
+    prismaMock.student.count.mockResolvedValue(0);
+    prismaMock.enrollment.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
+    prismaMock.enrollment.findMany.mockResolvedValue([] as never);
+
+    const result = await getStudentAnalyticsAction({});
+    if (!("data" in result)) throw new Error("expected data");
+    expect(result.data.retention.cohorts).toHaveLength(0);
+  });
+});

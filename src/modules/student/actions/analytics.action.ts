@@ -161,10 +161,10 @@ async function loadEnrollmentTrend(
     select: { id: true, name: true, startDate: true },
   });
   if (years.length === 0) return [];
-  years.reverse(); // chronological
+  const chronologicalYears = [...years].reverse(); // chronological copy — avoids mutating shared mock reference
 
   const grouped = await Promise.all(
-    years.map((y) =>
+    chronologicalYears.map((y) =>
       db.enrollment.groupBy({
         by: ["status"],
         where: { schoolId, academicYearId: y.id, ...programmeFilter },
@@ -173,7 +173,7 @@ async function loadEnrollmentTrend(
     ),
   );
 
-  return years.map((year, idx) => {
+  return chronologicalYears.map((year, idx) => {
     const rows = grouped[idx] ?? [];
     const by = (status: string) =>
       rows.find((r) => r.status === status)?._count._all ?? 0;
@@ -263,6 +263,77 @@ async function loadDemographics(
   return { byGender, byRegion, byReligion, total };
 }
 
+async function loadRetention(
+  schoolId: string,
+  programmeFilter: Record<string, unknown>,
+): Promise<StudentAnalyticsPayload["retention"]> {
+  // Load last 4 academic years (need pairs — so up to 3 cohort transitions).
+  const years = await db.academicYear.findMany({
+    where: { schoolId },
+    orderBy: { startDate: "desc" },
+    take: 4,
+    select: { id: true, name: true, startDate: true },
+  });
+  if (years.length < 2) return { cohorts: [] };
+  const chronological = [...years].reverse(); // chronological copy
+
+  const cohorts: StudentAnalyticsPayload["retention"]["cohorts"] = [];
+
+  for (let i = 0; i < chronological.length - 1; i++) {
+    const baseYear = chronological[i]!;
+    const nextYear = chronological[i + 1]!;
+    const baseEnrollments = await db.enrollment.findMany({
+      where: {
+        schoolId,
+        academicYearId: baseYear.id,
+        status: "ACTIVE",
+        ...programmeFilter,
+      },
+      select: {
+        studentId: true,
+        classArm: { select: { class: { select: { yearGroup: true } } } },
+      },
+    });
+    if (baseEnrollments.length === 0) continue;
+
+    const byYearGroup = new Map<number, string[]>();
+    for (const e of baseEnrollments) {
+      const yg = e.classArm.class.yearGroup;
+      if (!byYearGroup.has(yg)) byYearGroup.set(yg, []);
+      byYearGroup.get(yg)!.push(e.studentId);
+    }
+
+    for (const [yearGroup, studentIds] of byYearGroup) {
+      const retained = await db.enrollment.findMany({
+        where: {
+          schoolId,
+          academicYearId: nextYear.id,
+          status: "ACTIVE",
+          studentId: { in: studentIds },
+        },
+        select: { studentId: true },
+      });
+      const startingCount = studentIds.length;
+      const retainedCount = retained.length;
+      cohorts.push({
+        yearGroup,
+        academicYearName: baseYear.name,
+        startingCount,
+        retainedCount,
+        retentionPct: startingCount > 0
+          ? Math.round((retainedCount / startingCount) * 1000) / 10
+          : 0,
+      });
+    }
+  }
+
+  cohorts.sort((a, b) =>
+    a.academicYearName.localeCompare(b.academicYearName) || a.yearGroup - b.yearGroup,
+  );
+
+  return { cohorts };
+}
+
 /**
  * @no-audit Read-only analytics aggregation. No side effects.
  */
@@ -292,10 +363,11 @@ export async function getStudentAnalyticsAction(input: {
   let wasCacheMiss = false;
   const payload = await getCached<StudentAnalyticsPayload>(cacheKey, async () => {
     wasCacheMiss = true;
-    const [kpis, enrollmentTrend, demographics] = await Promise.all([
+    const [kpis, enrollmentTrend, demographics, retention] = await Promise.all([
       loadKpis(ctx.schoolId, year.id, year.startDate, year.endDate, parsed.data.programmeId),
       loadEnrollmentTrend(ctx.schoolId, programmeFilter),
       loadDemographics(ctx.schoolId, year.id, programmeFilter),
+      loadRetention(ctx.schoolId, programmeFilter),
     ]);
     return {
       computedAt: new Date(),
@@ -303,7 +375,7 @@ export async function getStudentAnalyticsAction(input: {
       kpis,
       enrollmentTrend,
       demographics,
-      retention: { cohorts: [] },
+      retention,
       freeShs: { freeShsCount: 0, payingCount: 0, freeShsPct: 0 },
       atRisk: { byLevel: [], topStudents: [], hasAnyProfiles: false, computedAt: null },
     };
