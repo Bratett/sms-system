@@ -134,7 +134,9 @@ export async function verifyTranscriptAction(id: string) {
   const denied = assertPermission(ctx.session, PERMISSIONS.TRANSCRIPTS_VERIFY);
   if (denied) return denied;
 
-  const transcript = await db.transcript.findUnique({ where: { id } });
+  const transcript = await db.transcript.findFirst({
+    where: { id, schoolId: ctx.schoolId },
+  });
   if (!transcript) return { error: "Transcript not found" };
   if (transcript.status !== "GENERATED") {
     return { error: "Transcript is not in GENERATED status" };
@@ -303,15 +305,9 @@ export async function renderTranscriptPdfAction(transcriptId: string) {
   const dataResult = await loadTranscriptData(transcriptId);
   if ("error" in dataResult) return dataResult;
 
-  // Delete old preview if any (best-effort; a stray orphan is one file).
-  if (transcript.previewKey) {
-    try {
-      await deleteFile(transcript.previewKey);
-    } catch {
-      // best-effort; orphan is one file
-    }
-  }
-
+  // Render + upload + update the DB row FIRST. Only once the new preview is
+  // safely stored do we delete the old one — otherwise a failure partway
+  // through would leave the user with no preview at all.
   const buffer = await renderPdfToBuffer(TranscriptTemplate({ data: dataResult.data }));
   const initialKey = generateFileKey(
     "transcript-previews",
@@ -325,6 +321,16 @@ export async function renderTranscriptPdfAction(transcriptId: string) {
     data: { previewKey: uploaded.key, previewRenderedAt: new Date() },
   });
 
+  // New preview is in place — best-effort delete the previous one. A stray
+  // orphan is just one small file; tolerate any failure here.
+  if (transcript.previewKey && transcript.previewKey !== uploaded.key) {
+    try {
+      await deleteFile(transcript.previewKey);
+    } catch {
+      // best-effort
+    }
+  }
+
   const url = await getSignedDownloadUrl(uploaded.key);
   return { data: { url, cached: false } };
 }
@@ -337,9 +343,10 @@ export async function issueTranscriptAction(transcriptId: string) {
   const denied = assertPermission(ctx.session, PERMISSIONS.TRANSCRIPTS_ISSUE);
   if (denied) return denied;
 
-  const transcript = await db.transcript.findUnique({ where: { id: transcriptId } });
+  const transcript = await db.transcript.findFirst({
+    where: { id: transcriptId, schoolId: ctx.schoolId },
+  });
   if (!transcript) return { error: "Transcript not found" };
-  if (transcript.schoolId !== ctx.schoolId) return { error: "Transcript not found" };
   if (transcript.status !== "VERIFIED") {
     return { error: "Transcript is not in VERIFIED status" };
   }
@@ -355,8 +362,12 @@ export async function issueTranscriptAction(transcriptId: string) {
   );
   const uploaded = await uploadFile(initialKey, buffer, "application/pdf");
 
-  const updated = await db.transcript.update({
-    where: { id: transcriptId },
+  // Atomic conditional transition: only flip VERIFIED -> ISSUED. If a concurrent
+  // caller already issued (or the status changed out from under us between the
+  // initial read and this write), count will be 0 and we must clean up the
+  // freshly uploaded PDF so it doesn't become an orphan.
+  const transition = await db.transcript.updateMany({
+    where: { id: transcriptId, status: "VERIFIED", schoolId: ctx.schoolId },
     data: {
       status: "ISSUED",
       pdfKey: uploaded.key,
@@ -365,6 +376,17 @@ export async function issueTranscriptAction(transcriptId: string) {
       issuedAt: new Date(),
     },
   });
+
+  if (transition.count === 0) {
+    try {
+      await deleteFile(uploaded.key);
+    } catch {
+      // best-effort
+    }
+    return { error: "Transcript is no longer in VERIFIED status" };
+  }
+
+  const updated = await db.transcript.findUnique({ where: { id: transcriptId } });
 
   // Preview is now superseded by the issued PDF; delete it best-effort.
   if (transcript.previewKey) {
@@ -412,19 +434,33 @@ export async function renderBatchTranscriptsAction(input: { studentIds: string[]
   }
 
   const urls: string[] = [];
+  const missing: string[] = [];
+  const failures: Array<{ studentId: string; error: string }> = [];
   for (const sid of studentIds) {
     const latest = await db.transcript.findFirst({
       where: { studentId: sid, schoolId: ctx.schoolId },
       orderBy: { generatedAt: "desc" },
     });
-    if (!latest) continue;
+    if (!latest) {
+      missing.push(sid);
+      continue;
+    }
     const res = await renderTranscriptPdfAction(latest.id);
     if ("data" in res) urls.push(res.data.url);
+    else failures.push({ studentId: sid, error: res.error });
+  }
+  if (urls.length === 0) {
+    return {
+      error:
+        studentIds.length === missing.length
+          ? "None of the selected students have a transcript"
+          : `All ${studentIds.length} transcripts failed to render${failures[0] ? ` (first error: ${failures[0].error})` : ""}`,
+    };
   }
   const buffer = await stitchPdfsFromUrls(urls);
   const initialKey = generateFileKey("transcript-batches", ctx.schoolId, `batch-${Date.now()}.pdf`);
   const uploaded = await uploadFile(initialKey, buffer, "application/pdf");
   const url = await getSignedDownloadUrl(uploaded.key);
 
-  return { data: { url, queued: false } };
+  return { data: { url, queued: false, missing, failures } };
 }

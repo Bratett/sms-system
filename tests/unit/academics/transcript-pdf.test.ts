@@ -112,7 +112,7 @@ describe("renderTranscriptPdfAction", () => {
 describe("verifyTranscriptAction (re-gated)", () => {
   it("GENERATED -> VERIFIED when caller has TRANSCRIPTS_VERIFY", async () => {
     mockAuthenticatedUser({ permissions: ["academics:transcripts:verify"] });
-    prismaMock.transcript.findUnique.mockResolvedValue({
+    prismaMock.transcript.findFirst.mockResolvedValue({
       id: "tr-1", schoolId: "default-school", status: "GENERATED", transcriptNumber: "TRN/1",
     } as never);
     prismaMock.transcript.update.mockResolvedValue({ id: "tr-1", status: "VERIFIED" } as never);
@@ -123,7 +123,7 @@ describe("verifyTranscriptAction (re-gated)", () => {
 
   it("refuses when status is not GENERATED", async () => {
     mockAuthenticatedUser({ permissions: ["academics:transcripts:verify"] });
-    prismaMock.transcript.findUnique.mockResolvedValue({
+    prismaMock.transcript.findFirst.mockResolvedValue({
       id: "tr-1", schoolId: "default-school", status: "VERIFIED", transcriptNumber: "TRN/1",
     } as never);
 
@@ -140,11 +140,14 @@ describe("issueTranscriptAction", () => {
   });
 
   it("VERIFIED -> ISSUED, renders PDF, caches pdfKey", async () => {
-    prismaMock.transcript.findUnique.mockResolvedValue({
+    prismaMock.transcript.findFirst.mockResolvedValue({
       id: "tr-1", schoolId: "default-school", status: "VERIFIED",
       transcriptNumber: "TRN/2026/0001", coveringFrom: "2024/2025", coveringTo: "2025/2026",
       cumulativeGPA: 3.4, pdfKey: null, previewKey: null, previewRenderedAt: null,
       studentId: "s-1",
+    } as never);
+    prismaMock.transcript.findUnique.mockResolvedValue({
+      id: "tr-1", status: "ISSUED", pdfKey: "transcripts/tr-1.pdf",
     } as never);
     prismaMock.student.findUnique.mockResolvedValue({
       id: "s-1", studentId: "SCH/1", firstName: "A", lastName: "B",
@@ -156,14 +159,13 @@ describe("issueTranscriptAction", () => {
     } as never);
     prismaMock.terminalResult.findMany.mockResolvedValue([] as never);
     vi.mocked(r2.uploadFile).mockResolvedValue({ key: "transcripts/tr-1.pdf", url: "" } as never);
-    prismaMock.transcript.update.mockResolvedValue({
-      id: "tr-1", status: "ISSUED", pdfKey: "transcripts/tr-1.pdf",
-    } as never);
+    prismaMock.transcript.updateMany.mockResolvedValue({ count: 1 } as never);
 
     const result = await issueTranscriptAction("tr-1");
     expect(result).toMatchObject({ data: { status: "ISSUED" } });
     expect(vi.mocked(generator.renderPdfToBuffer)).toHaveBeenCalled();
-    expect(prismaMock.transcript.update).toHaveBeenCalledWith(expect.objectContaining({
+    expect(prismaMock.transcript.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "tr-1", status: "VERIFIED", schoolId: "default-school" },
       data: expect.objectContaining({
         status: "ISSUED",
         pdfKey: "transcripts/tr-1.pdf",
@@ -174,7 +176,7 @@ describe("issueTranscriptAction", () => {
   });
 
   it("refuses when status is not VERIFIED", async () => {
-    prismaMock.transcript.findUnique.mockResolvedValue({
+    prismaMock.transcript.findFirst.mockResolvedValue({
       id: "tr-1", schoolId: "default-school", status: "GENERATED", transcriptNumber: "TRN/1",
     } as never);
 
