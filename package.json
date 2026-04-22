@@ -53,6 +53,7 @@
     "nodemailer": "^7.0.13",
     "nuqs": "^2.8.9",
     "papaparse": "^5.5.3",
+    "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
