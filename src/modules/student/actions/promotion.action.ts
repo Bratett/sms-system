@@ -44,6 +44,46 @@ export async function getEligibleSourceArmsAction() {
   return { data: arms.filter((a) => !draftArmIds.has(a.id)) };
 }
 
+export async function getTargetArmsForRunAction(runId: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_PROMOTE);
+  if (denied) return denied;
+
+  const run = await db.promotionRun.findFirst({
+    where: { id: runId, schoolId: ctx.schoolId },
+    include: {
+      sourceClassArm: { include: { class: { select: { programmeId: true, yearGroup: true } } } },
+    },
+  });
+  if (!run) return { error: "Run not found" };
+
+  const sourceYearGroup = run.sourceClassArm.class.yearGroup;
+  const programmeId = run.sourceClassArm.class.programmeId;
+
+  // Candidate target year groups: sourceYearGroup (for RETAIN) and sourceYearGroup+1 (for PROMOTE).
+  // Final-year students (sourceYearGroup >= 3) only need same-year arms for RETAIN — promotion goes to GRADUATE.
+  const yearGroups = sourceYearGroup >= 3 ? [sourceYearGroup] : [sourceYearGroup, sourceYearGroup + 1];
+
+  const arms = await db.classArm.findMany({
+    where: {
+      schoolId: ctx.schoolId,
+      status: "ACTIVE",
+      class: {
+        academicYearId: run.targetAcademicYearId,
+        programmeId,
+        yearGroup: { in: yearGroups },
+      },
+    },
+    include: {
+      class: { select: { id: true, name: true, yearGroup: true } },
+    },
+    orderBy: [{ class: { yearGroup: "asc" } }, { name: "asc" }],
+  });
+
+  return { data: arms };
+}
+
 export async function listPromotionRunsAction(opts?: { status?: "DRAFT" | "COMMITTED" | "REVERTED"; academicYearId?: string }) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;

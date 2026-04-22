@@ -6,6 +6,7 @@ import {
   bulkUpdatePromotionRunItemsAction,
   deletePromotionRunAction,
   commitPromotionRunAction,
+  getTargetArmsForRunAction,
 } from "@/modules/student/actions/promotion.action";
 
 describe("getEligibleSourceArmsAction", () => {
@@ -497,5 +498,59 @@ describe("revertPromotionRunAction", () => {
 
     const result = await revertPromotionRunAction({ runId: "clh0000000000000000000001", reason: "already cleaned up" });
     expect(result).toMatchObject({ data: { status: "REVERTED" } });
+  });
+});
+
+describe("getTargetArmsForRunAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("returns arms for source and next yearGroup when source is non-final", async () => {
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "pr-1", schoolId: "default-school", targetAcademicYearId: "ay-2",
+      sourceClassArm: { class: { programmeId: "prg-sci", yearGroup: 1 } },
+    } as never);
+    prismaMock.classArm.findMany.mockResolvedValue([
+      { id: "ca-1a", name: "A", class: { id: "cl-1", name: "SHS 1 Sci", yearGroup: 1 } },
+      { id: "ca-2a", name: "A", class: { id: "cl-2", name: "SHS 2 Sci", yearGroup: 2 } },
+      { id: "ca-2b", name: "B", class: { id: "cl-2", name: "SHS 2 Sci", yearGroup: 2 } },
+    ] as never);
+
+    const result = await getTargetArmsForRunAction("pr-1");
+    expect(result).toEqual({ data: expect.arrayContaining([
+      expect.objectContaining({ id: "ca-1a" }),
+      expect.objectContaining({ id: "ca-2a" }),
+      expect.objectContaining({ id: "ca-2b" }),
+    ]) });
+    // Confirm the where clause filtered to both year groups
+    expect(prismaMock.classArm.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        class: expect.objectContaining({
+          yearGroup: { in: [1, 2] },
+        }),
+      }),
+    }));
+  });
+
+  it("returns only source yearGroup when source is final year (sourceYearGroup=3)", async () => {
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "pr-1", schoolId: "default-school", targetAcademicYearId: "ay-2",
+      sourceClassArm: { class: { programmeId: "prg-sci", yearGroup: 3 } },
+    } as never);
+    prismaMock.classArm.findMany.mockResolvedValue([] as never);
+
+    await getTargetArmsForRunAction("pr-1");
+    expect(prismaMock.classArm.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        class: expect.objectContaining({
+          yearGroup: { in: [3] },
+        }),
+      }),
+    }));
+  });
+
+  it("returns error when run not found", async () => {
+    prismaMock.promotionRun.findFirst.mockResolvedValue(null);
+    const result = await getTargetArmsForRunAction("pr-missing");
+    expect(result).toEqual({ error: "Run not found" });
   });
 });
