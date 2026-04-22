@@ -8,6 +8,7 @@ import { uploadFile, getSignedDownloadUrl, generateFileKey, deleteFile } from "@
 import { renderPdfToBuffer, PDF_SYNC_THRESHOLD } from "@/lib/pdf/generator";
 import { TranscriptTemplate, type TranscriptData } from "@/lib/pdf/templates/transcript";
 import { enqueuePdfJob } from "@/modules/common/pdf-job-dispatcher";
+import { createTranscriptBatchJobSchema } from "@/modules/common/schemas/pdf-job.schema";
 import { stitchPdfsFromUrls } from "@/lib/pdf/stitch";
 
 // ─── Generate Transcript ───────────────────────────────────────────
@@ -273,6 +274,15 @@ async function loadTranscriptData(
 
 // ─── Render Transcript PDF ─────────────────────────────────────────
 
+/**
+ * Renders a transcript PDF on demand. For ISSUED transcripts the cached
+ * `pdfKey` is returned. For non-ISSUED (preview) cases, a fresh preview is
+ * rendered and stored as `previewKey` (replacing any prior preview).
+ *
+ * @no-audit Preview rendering is a transient cache operation with no
+ * user-facing event to audit; the initial generate / verify / issue
+ * transitions each have their own audit entries.
+ */
 export async function renderTranscriptPdfAction(transcriptId: string) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
@@ -386,21 +396,23 @@ export async function renderBatchTranscriptsAction(input: { studentIds: string[]
   const denied = assertPermission(ctx.session, PERMISSIONS.TRANSCRIPTS_CREATE);
   if (denied) return denied;
 
-  if (input.studentIds.length === 0) return { error: "No students provided" };
+  const parsed = createTranscriptBatchJobSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const { studentIds } = parsed.data;
 
-  if (input.studentIds.length > PDF_SYNC_THRESHOLD) {
+  if (studentIds.length > PDF_SYNC_THRESHOLD) {
     const jobId = await enqueuePdfJob({
       schoolId: ctx.schoolId,
       kind: "TRANSCRIPT_BATCH",
-      params: { studentIds: input.studentIds },
-      totalItems: input.studentIds.length,
+      params: { studentIds },
+      totalItems: studentIds.length,
       requestedBy: ctx.session.user.id!,
     });
     return { data: { jobId, queued: true } };
   }
 
   const urls: string[] = [];
-  for (const sid of input.studentIds) {
+  for (const sid of studentIds) {
     const latest = await db.transcript.findFirst({
       where: { studentId: sid, schoolId: ctx.schoolId },
       orderBy: { generatedAt: "desc" },

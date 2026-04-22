@@ -9,6 +9,7 @@ import { renderPdfToBuffer, PDF_SYNC_THRESHOLD } from "@/lib/pdf/generator";
 import { generateQrDataUrl } from "@/lib/pdf/qr";
 import { IdCardTemplate, type IdCardData } from "@/lib/pdf/templates/id-card";
 import { enqueuePdfJob } from "@/modules/common/pdf-job-dispatcher";
+import { createIdCardBatchJobSchema } from "@/modules/common/schemas/pdf-job.schema";
 import { stitchPdfsFromUrls } from "@/lib/pdf/stitch";
 import { resolveStudentPhotoUrl } from "./photo";
 
@@ -120,8 +121,12 @@ export async function renderClassIdCardsAction(input: { classArmId: string }) {
   const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_ID_CARD_GENERATE);
   if (denied) return denied;
 
+  const parsed = createIdCardBatchJobSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const { classArmId } = parsed.data;
+
   const enrollments = await db.enrollment.findMany({
-    where: { classArmId: input.classArmId, status: "ACTIVE" },
+    where: { classArmId, status: "ACTIVE" },
     select: { studentId: true },
   });
   if (enrollments.length === 0) return { error: "No active students in this class arm" };
@@ -130,7 +135,7 @@ export async function renderClassIdCardsAction(input: { classArmId: string }) {
     const jobId = await enqueuePdfJob({
       schoolId: ctx.schoolId,
       kind: "ID_CARD_BATCH",
-      params: { classArmId: input.classArmId },
+      params: { classArmId: classArmId },
       totalItems: enrollments.length,
       requestedBy: ctx.session.user.id!,
     });
@@ -143,7 +148,7 @@ export async function renderClassIdCardsAction(input: { classArmId: string }) {
     if ("data" in res) urls.push(res.data.url);
   }
   const buffer = await stitchPdfsFromUrls(urls);
-  const initialKey = generateFileKey("id-card-batches", input.classArmId, `batch-${Date.now()}.pdf`);
+  const initialKey = generateFileKey("id-card-batches", classArmId, `batch-${Date.now()}.pdf`);
   const uploaded = await uploadFile(initialKey, buffer, "application/pdf");
   const url = await getSignedDownloadUrl(uploaded.key);
 
@@ -151,7 +156,7 @@ export async function renderClassIdCardsAction(input: { classArmId: string }) {
     userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "IdCardBatch",
-    entityId: input.classArmId,
+    entityId: classArmId,
     module: "students",
     description: `Generated ${enrollments.length} ID cards inline`,
     metadata: { fileKey: uploaded.key },

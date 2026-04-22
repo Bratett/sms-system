@@ -16,6 +16,7 @@ import {
   type SubjectRow,
 } from "@/lib/pdf/templates/report-card";
 import { enqueuePdfJob } from "@/modules/common/pdf-job-dispatcher";
+import { createReportCardBatchJobSchema } from "@/modules/common/schemas/pdf-job.schema";
 import { stitchPdfsFromUrls } from "@/lib/pdf/stitch";
 
 // ─── Generate Report Card Data for a Single Student ───────────────────
@@ -421,8 +422,12 @@ export async function renderClassReportCardsPdfAction(input: { classArmId: strin
   const denied = assertPermission(ctx.session, PERMISSIONS.REPORT_CARDS_GENERATE);
   if (denied) return denied;
 
+  const parsed = createReportCardBatchJobSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const { classArmId, termId } = parsed.data;
+
   const enrollments = await db.enrollment.findMany({
-    where: { classArmId: input.classArmId, status: "ACTIVE" },
+    where: { classArmId, status: "ACTIVE" },
     select: { studentId: true },
   });
   if (enrollments.length === 0) return { error: "No active students in this class arm" };
@@ -431,7 +436,7 @@ export async function renderClassReportCardsPdfAction(input: { classArmId: strin
     const jobId = await enqueuePdfJob({
       schoolId: ctx.schoolId,
       kind: "REPORT_CARD_BATCH",
-      params: { classArmId: input.classArmId, termId: input.termId },
+      params: { classArmId, termId },
       totalItems: enrollments.length,
       requestedBy: ctx.session.user.id!,
     });
@@ -440,13 +445,13 @@ export async function renderClassReportCardsPdfAction(input: { classArmId: strin
 
   const urls: string[] = [];
   for (const e of enrollments) {
-    const res = await renderReportCardPdfAction({ studentId: e.studentId, termId: input.termId });
+    const res = await renderReportCardPdfAction({ studentId: e.studentId, termId });
     if ("data" in res) urls.push(res.data.url);
   }
   const buffer = await stitchPdfsFromUrls(urls);
   const initialKey = generateFileKey(
     "report-card-batches",
-    `${input.classArmId}-${input.termId}`,
+    `${classArmId}-${termId}`,
     `batch-${Date.now()}.pdf`
   );
   const uploaded = await uploadFile(initialKey, buffer, "application/pdf");
@@ -456,7 +461,7 @@ export async function renderClassReportCardsPdfAction(input: { classArmId: strin
     userId: ctx.session.user.id!,
     action: "CREATE",
     entity: "ReportCardBatch",
-    entityId: `${input.classArmId}-${input.termId}`,
+    entityId: `${classArmId}-${termId}`,
     module: "academics",
     description: `Generated ${enrollments.length} report cards inline`,
     metadata: { fileKey: uploaded.key },
