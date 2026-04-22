@@ -288,6 +288,18 @@ export async function bulkUpdatePromotionRunItemsAction(input: {
   const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_PROMOTE);
   if (denied) return denied;
 
+  // Bulk PROMOTE/RETAIN without a destination would leave targeted items invalid
+  // (destinationClassArmId stays null, blocking commit). Refuse the call so the
+  // UI either sets the destination first or falls back to per-row update.
+  if (
+    (parsed.data.outcome === "PROMOTE" || parsed.data.outcome === "RETAIN") &&
+    parsed.data.destinationClassArmId === undefined
+  ) {
+    return {
+      error: "Bulk PROMOTE/RETAIN requires a destination arm. Set per-row or include destinationClassArmId in the bulk call.",
+    };
+  }
+
   const run = await db.promotionRun.findFirst({
     where: { id: parsed.data.runId, schoolId: ctx.schoolId, status: "DRAFT" },
   });

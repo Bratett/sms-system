@@ -250,7 +250,7 @@ describe("updatePromotionRunItemAction", () => {
 describe("bulkUpdatePromotionRunItemsAction", () => {
   beforeEach(() => mockAuthenticatedUser());
 
-  it("applies bulk outcome change to selected items", async () => {
+  it("applies bulk outcome change to selected items when destination is provided", async () => {
     prismaMock.promotionRun.findFirst.mockResolvedValue({
       id: "clh0000000000000000000099", schoolId: "default-school", status: "DRAFT",
     } as never);
@@ -260,8 +260,27 @@ describe("bulkUpdatePromotionRunItemsAction", () => {
       runId: "clh0000000000000000000099",
       itemIds: ["clh0000000000000000000001", "clh0000000000000000000002", "clh0000000000000000000003"],
       outcome: "RETAIN",
+      destinationClassArmId: "clh0000000000000000000abc",
     });
     expect(result).toEqual({ data: { updated: 3 } });
+  });
+
+  it("refuses bulk PROMOTE without a destination arm", async () => {
+    const result = await bulkUpdatePromotionRunItemsAction({
+      runId: "clh0000000000000000000099",
+      itemIds: ["clh0000000000000000000001"],
+      outcome: "PROMOTE",
+    });
+    expect(result).toMatchObject({ error: expect.stringContaining("destination arm") });
+  });
+
+  it("refuses bulk RETAIN without a destination arm", async () => {
+    const result = await bulkUpdatePromotionRunItemsAction({
+      runId: "clh0000000000000000000099",
+      itemIds: ["clh0000000000000000000001"],
+      outcome: "RETAIN",
+    });
+    expect(result).toMatchObject({ error: expect.stringContaining("destination arm") });
   });
 });
 
