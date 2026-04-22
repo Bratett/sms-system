@@ -6,7 +6,7 @@ import {
   bulkUpdatePromotionRunItemsAction,
   updatePromotionRunItemAction,
 } from "@/modules/student/actions/promotion.action";
-import type { PromotionRun } from "./wizard-client";
+import type { PromotionRun, TargetArm } from "./wizard-client";
 
 type Outcome = "PROMOTE" | "RETAIN" | "GRADUATE" | "WITHDRAW";
 
@@ -17,26 +17,14 @@ type ArmOption = {
   label: string;
 };
 
-function buildDestinationArmOptions(run: PromotionRun): ArmOption[] {
-  const seen = new Map<string, ArmOption>();
-  for (const item of run.items) {
-    const arm = item.destinationClassArm;
-    if (!arm) continue;
-    if (seen.has(arm.id)) continue;
-    seen.set(arm.id, {
-      id: arm.id,
-      label: `${arm.class.name} — ${arm.name}`,
-    });
-  }
-  return Array.from(seen.values()).sort((a, b) => a.label.localeCompare(b.label));
-}
-
 export function Step2OutcomesGrid({
   run,
+  targetArms,
   onNext,
   onBack,
 }: {
   run: PromotionRun;
+  targetArms: TargetArm[];
   onNext: () => void;
   onBack: () => void;
 }) {
@@ -46,7 +34,14 @@ export function Step2OutcomesGrid({
   const [pending, start] = useTransition();
   const [bulkDestArmId, setBulkDestArmId] = useState<string>("");
 
-  const armOptions = useMemo(() => buildDestinationArmOptions(run), [run]);
+  const armOptions = useMemo<ArmOption[]>(
+    () =>
+      targetArms.map((arm) => ({
+        id: arm.id,
+        label: `${arm.class.name} — ${arm.name}`,
+      })),
+    [targetArms],
+  );
   const allIds = useMemo(() => run.items.map((i) => i.id), [run.items]);
   const allSelected = selected.size > 0 && selected.size === allIds.length;
   const someSelected = selected.size > 0 && !allSelected;

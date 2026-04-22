@@ -2,7 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
-import type { getPromotionRunAction } from "@/modules/student/actions/promotion.action";
+import type {
+  getPromotionRunAction,
+  getTargetArmsForRunAction,
+} from "@/modules/student/actions/promotion.action";
 import { Step1SourceReview } from "./step-1-source-review";
 import { Step2OutcomesGrid } from "./step-2-outcomes-grid";
 import { Step3DestinationPreview } from "./step-3-destination-preview";
@@ -13,9 +16,21 @@ type RunResult = Awaited<ReturnType<typeof getPromotionRunAction>>;
 type RunOk = Extract<RunResult, { data: unknown }>;
 export type PromotionRun = RunOk["data"];
 
+type TargetArmsResult = Awaited<ReturnType<typeof getTargetArmsForRunAction>>;
+type TargetArmsOk = Extract<TargetArmsResult, { data: unknown }>;
+export type TargetArm = TargetArmsOk["data"][number];
+
 const STEP_LABELS = ["1. Source", "2. Outcomes", "3. Destinations", "4. Commit"] as const;
 
-export function WizardClient({ run, step }: { run: PromotionRun; step: number }) {
+export function WizardClient({
+  run,
+  step,
+  targetArms,
+}: {
+  run: PromotionRun;
+  step: number;
+  targetArms: TargetArm[];
+}) {
   const router = useRouter();
   const goto = (n: number) => router.push(`/students/promotion/${run.id}?step=${n}`);
 
@@ -48,7 +63,12 @@ export function WizardClient({ run, step }: { run: PromotionRun; step: number })
 
       {step === 1 && <Step1SourceReview run={run} onNext={() => goto(2)} />}
       {step === 2 && (
-        <Step2OutcomesGrid run={run} onNext={() => goto(3)} onBack={() => goto(1)} />
+        <Step2OutcomesGrid
+          run={run}
+          targetArms={targetArms}
+          onNext={() => goto(3)}
+          onBack={() => goto(1)}
+        />
       )}
       {step === 3 && (
         <Step3DestinationPreview run={run} onNext={() => goto(4)} onBack={() => goto(2)} />
