@@ -25,6 +25,7 @@ export function startPdfBatchWorker() {
       try {
         const params = pdfJob.params as Record<string, unknown>;
         const urls: string[] = [];
+        const errors: Array<{ id: string; error: string }> = [];
 
         if (pdfJob.kind === "ID_CARD_BATCH") {
           const enrollments = await db.enrollment.findMany({
@@ -33,11 +34,16 @@ export function startPdfBatchWorker() {
           });
           for (const e of enrollments) {
             const res = await renderStudentIdCardAction(e.studentId);
-            if ("data" in res) urls.push(res.data.url);
-            await db.pdfJob.update({
-              where: { id: pdfJob.id },
-              data: { completedItems: { increment: 1 } },
-            });
+            if ("data" in res) {
+              urls.push(res.data.url);
+              await db.pdfJob.update({
+                where: { id: pdfJob.id },
+                data: { completedItems: { increment: 1 } },
+              });
+            } else {
+              errors.push({ id: e.studentId, error: res.error });
+              log.warn("pdf-batch per-item failure", { pdfJobId: pdfJob.id, studentId: e.studentId, error: res.error });
+            }
           }
         } else if (pdfJob.kind === "REPORT_CARD_BATCH") {
           const enrollments = await db.enrollment.findMany({
@@ -49,11 +55,16 @@ export function startPdfBatchWorker() {
               studentId: e.studentId,
               termId: params.termId as string,
             });
-            if ("data" in res) urls.push(res.data.url);
-            await db.pdfJob.update({
-              where: { id: pdfJob.id },
-              data: { completedItems: { increment: 1 } },
-            });
+            if ("data" in res) {
+              urls.push(res.data.url);
+              await db.pdfJob.update({
+                where: { id: pdfJob.id },
+                data: { completedItems: { increment: 1 } },
+              });
+            } else {
+              errors.push({ id: e.studentId, error: res.error });
+              log.warn("pdf-batch per-item failure", { pdfJobId: pdfJob.id, studentId: e.studentId, error: res.error });
+            }
           }
         } else if (pdfJob.kind === "TRANSCRIPT_BATCH") {
           const studentIds = params.studentIds as string[];
@@ -62,13 +73,22 @@ export function startPdfBatchWorker() {
               where: { studentId: sid, schoolId: pdfJob.schoolId },
               orderBy: { generatedAt: "desc" },
             });
-            if (!latest) continue;
+            if (!latest) {
+              errors.push({ id: sid, error: "No transcript found for student" });
+              log.warn("pdf-batch per-item failure", { pdfJobId: pdfJob.id, studentId: sid, error: "No transcript" });
+              continue;
+            }
             const res = await renderTranscriptPdfAction(latest.id);
-            if ("data" in res) urls.push(res.data.url);
-            await db.pdfJob.update({
-              where: { id: pdfJob.id },
-              data: { completedItems: { increment: 1 } },
-            });
+            if ("data" in res) {
+              urls.push(res.data.url);
+              await db.pdfJob.update({
+                where: { id: pdfJob.id },
+                data: { completedItems: { increment: 1 } },
+              });
+            } else {
+              errors.push({ id: sid, error: res.error });
+              log.warn("pdf-batch per-item failure", { pdfJobId: pdfJob.id, studentId: sid, error: res.error });
+            }
           }
         }
 
@@ -82,9 +102,18 @@ export function startPdfBatchWorker() {
 
         await db.pdfJob.update({
           where: { id: pdfJob.id },
-          data: { status: "COMPLETE", completedAt: new Date(), resultFileKey: uploaded.key },
+          data: {
+            status: "COMPLETE",
+            completedAt: new Date(),
+            resultFileKey: uploaded.key,
+            error: errors.length > 0 ? JSON.stringify({ failedItems: errors }) : null,
+          },
         });
-        log.info("pdf-batch complete", { pdfJobId: pdfJob.id, key: uploaded.key });
+        log.info("pdf-batch complete", {
+          pdfJobId: pdfJob.id,
+          key: uploaded.key,
+          failedCount: errors.length,
+        });
       } catch (err) {
         await db.pdfJob.update({
           where: { id: pdfJob.id },
