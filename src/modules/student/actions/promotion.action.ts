@@ -1,5 +1,6 @@
 "use server";
 
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
@@ -10,6 +11,138 @@ import {
   revertPromotionRunSchema,
 } from "../schemas/promotion.schema";
 import { audit } from "@/lib/audit";
+
+// ---------------------------------------------------------------------------
+// Private transaction helpers (M-1 refactor): extracted from
+// commitPromotionRunAction / revertPromotionRunAction so the action wrappers
+// stay thin permission + audit shells. Behavior is unchanged — the bodies
+// below are moved verbatim from the original actions.
+// ---------------------------------------------------------------------------
+
+type Tx = Prisma.TransactionClient;
+type PromotionRunWithItems = Prisma.PromotionRunGetPayload<{ include: { items: true } }>;
+
+async function applyCommit(
+  tx: Tx,
+  run: PromotionRunWithItems,
+  userSchoolId: string,
+  commitDate: Date
+): Promise<{
+  counts: { PROMOTE: number; RETAIN: number; GRADUATE: number; WITHDRAW: number };
+  skipped: number;
+  skippedStudentIds: string[];
+}> {
+  const counts = { PROMOTE: 0, RETAIN: 0, GRADUATE: 0, WITHDRAW: 0 };
+  let skipped = 0;
+  const skippedStudentIds: string[] = [];
+
+  for (const item of run.items) {
+    const prevEnrollment = await tx.enrollment.findUnique({ where: { id: item.previousEnrollmentId } });
+    if (!prevEnrollment || prevEnrollment.status !== "ACTIVE") {
+      await tx.promotionRunItem.update({
+        where: { id: item.id },
+        data: { skippedAt: commitDate },
+      });
+      skipped++;
+      skippedStudentIds.push(item.studentId);
+      continue;
+    }
+
+    if (item.outcome === "PROMOTE" || item.outcome === "RETAIN") {
+      if (!item.destinationClassArmId) {
+        // Already pre-validated; defensive skip in case state changed between
+        // pre-flight and transaction start.
+        await tx.promotionRunItem.update({
+          where: { id: item.id },
+          data: { skippedAt: commitDate },
+        });
+        skipped++;
+        skippedStudentIds.push(item.studentId);
+        continue;
+      }
+      await tx.enrollment.update({
+        where: { id: item.previousEnrollmentId },
+        data: { status: "PROMOTED" },
+      });
+      const newEnrollment = await tx.enrollment.create({
+        data: {
+          studentId: item.studentId,
+          classArmId: item.destinationClassArmId,
+          schoolId: userSchoolId,
+          academicYearId: run.targetAcademicYearId,
+          isFreeShsPlacement: prevEnrollment.isFreeShsPlacement,
+          previousClassArmId: prevEnrollment.classArmId,
+        },
+      });
+      await tx.promotionRunItem.update({
+        where: { id: item.id },
+        data: { newEnrollmentId: newEnrollment.id },
+      });
+      counts[item.outcome]++;
+    } else if (item.outcome === "GRADUATE") {
+      await tx.enrollment.update({
+        where: { id: item.previousEnrollmentId },
+        data: { status: "COMPLETED" },
+      });
+      await tx.student.update({
+        where: { id: item.studentId },
+        data: { status: "GRADUATED" },
+      });
+      await tx.bedAllocation.updateMany({
+        where: { studentId: item.studentId, vacatedAt: null },
+        data: { vacatedAt: commitDate },
+      });
+      counts.GRADUATE++;
+    } else if (item.outcome === "WITHDRAW") {
+      await tx.enrollment.update({
+        where: { id: item.previousEnrollmentId },
+        data: { status: "WITHDRAWN" },
+      });
+      await tx.student.update({
+        where: { id: item.studentId },
+        data: { status: "WITHDRAWN" },
+      });
+      await tx.bedAllocation.updateMany({
+        where: { studentId: item.studentId, vacatedAt: null },
+        data: { vacatedAt: commitDate },
+      });
+      counts.WITHDRAW++;
+    }
+  }
+
+  return { counts, skipped, skippedStudentIds };
+}
+
+async function applyRevert(tx: Tx, run: PromotionRunWithItems): Promise<void> {
+  for (const item of run.items) {
+    if (item.newEnrollmentId) {
+      try {
+        await tx.enrollment.delete({ where: { id: item.newEnrollmentId } });
+      } catch (err: unknown) {
+        // Only tolerate "already gone" (P2025). Any other error (FK/cascade/transient)
+        // must abort the whole revert so we don't end up with both source and target
+        // year enrollments active.
+        const isNotFound =
+          typeof err === "object" && err !== null &&
+          "code" in err && (err as { code?: string }).code === "P2025";
+        if (!isNotFound) throw err;
+      }
+    }
+    await tx.enrollment.update({
+      where: { id: item.previousEnrollmentId },
+      data: { status: "ACTIVE" },
+    });
+    await tx.student.update({
+      where: { id: item.studentId },
+      data: { status: item.previousStatus },
+    });
+    // Restore pre-commit state: clear the skipped marker if set.
+    await tx.promotionRunItem.update({
+      where: { id: item.id },
+      data: { skippedAt: null },
+    });
+  }
+}
 
 export async function getEligibleSourceArmsAction() {
   const ctx = await requireSchoolContext();
@@ -397,83 +530,7 @@ export async function commitPromotionRunAction(runId: string) {
     if (run.status !== "DRAFT") return { error: "Run is not in DRAFT status" as string };
 
     const commitDate = new Date();
-    const counts = { PROMOTE: 0, RETAIN: 0, GRADUATE: 0, WITHDRAW: 0 };
-    let skipped = 0;
-    const skippedStudentIds: string[] = [];
-
-    for (const item of run.items) {
-      const prevEnrollment = await tx.enrollment.findUnique({ where: { id: item.previousEnrollmentId } });
-      if (!prevEnrollment || prevEnrollment.status !== "ACTIVE") {
-        await tx.promotionRunItem.update({
-          where: { id: item.id },
-          data: { skippedAt: commitDate },
-        });
-        skipped++;
-        skippedStudentIds.push(item.studentId);
-        continue;
-      }
-
-      if (item.outcome === "PROMOTE" || item.outcome === "RETAIN") {
-        if (!item.destinationClassArmId) {
-          // Already pre-validated; defensive skip in case state changed between
-          // pre-flight and transaction start.
-          await tx.promotionRunItem.update({
-            where: { id: item.id },
-            data: { skippedAt: commitDate },
-          });
-          skipped++;
-          skippedStudentIds.push(item.studentId);
-          continue;
-        }
-        await tx.enrollment.update({
-          where: { id: item.previousEnrollmentId },
-          data: { status: "PROMOTED" },
-        });
-        const newEnrollment = await tx.enrollment.create({
-          data: {
-            studentId: item.studentId,
-            classArmId: item.destinationClassArmId,
-            schoolId: ctx.schoolId,
-            academicYearId: run.targetAcademicYearId,
-            isFreeShsPlacement: prevEnrollment.isFreeShsPlacement,
-            previousClassArmId: prevEnrollment.classArmId,
-          },
-        });
-        await tx.promotionRunItem.update({
-          where: { id: item.id },
-          data: { newEnrollmentId: newEnrollment.id },
-        });
-        counts[item.outcome]++;
-      } else if (item.outcome === "GRADUATE") {
-        await tx.enrollment.update({
-          where: { id: item.previousEnrollmentId },
-          data: { status: "COMPLETED" },
-        });
-        await tx.student.update({
-          where: { id: item.studentId },
-          data: { status: "GRADUATED" },
-        });
-        await tx.bedAllocation.updateMany({
-          where: { studentId: item.studentId, vacatedAt: null },
-          data: { vacatedAt: commitDate },
-        });
-        counts.GRADUATE++;
-      } else if (item.outcome === "WITHDRAW") {
-        await tx.enrollment.update({
-          where: { id: item.previousEnrollmentId },
-          data: { status: "WITHDRAWN" },
-        });
-        await tx.student.update({
-          where: { id: item.studentId },
-          data: { status: "WITHDRAWN" },
-        });
-        await tx.bedAllocation.updateMany({
-          where: { studentId: item.studentId, vacatedAt: null },
-          data: { vacatedAt: commitDate },
-        });
-        counts.WITHDRAW++;
-      }
-    }
+    const { counts, skipped, skippedStudentIds } = await applyCommit(tx, run, ctx.schoolId, commitDate);
 
     const committed = await tx.promotionRun.update({
       where: { id: runId },
@@ -555,34 +612,7 @@ export async function revertPromotionRunAction(input: { runId: string; reason: s
       return { error: `Revert window has expired (${REVERT_GRACE_DAYS} days)` as string };
     }
 
-    for (const item of run.items) {
-      if (item.newEnrollmentId) {
-        try {
-          await tx.enrollment.delete({ where: { id: item.newEnrollmentId } });
-        } catch (err: unknown) {
-          // Only tolerate "already gone" (P2025). Any other error (FK/cascade/transient)
-          // must abort the whole revert so we don't end up with both source and target
-          // year enrollments active.
-          const isNotFound =
-            typeof err === "object" && err !== null &&
-            "code" in err && (err as { code?: string }).code === "P2025";
-          if (!isNotFound) throw err;
-        }
-      }
-      await tx.enrollment.update({
-        where: { id: item.previousEnrollmentId },
-        data: { status: "ACTIVE" },
-      });
-      await tx.student.update({
-        where: { id: item.studentId },
-        data: { status: item.previousStatus },
-      });
-      // Restore pre-commit state: clear the skipped marker if set.
-      await tx.promotionRunItem.update({
-        where: { id: item.id },
-        data: { skippedAt: null },
-      });
-    }
+    await applyRevert(tx, run);
 
     const reverted = await tx.promotionRun.update({
       where: { id: parsed.data.runId },
