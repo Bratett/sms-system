@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prismaMock, mockAuthenticatedUser, mockUnauthenticated } from "../setup";
 import { listDocumentTypesAction } from "@/modules/student/actions/document.action";
+import { createDocumentTypeAction } from "@/modules/student/actions/document.action";
 
 describe("listDocumentTypesAction", () => {
   beforeEach(() => mockAuthenticatedUser());
@@ -34,5 +35,40 @@ describe("listDocumentTypesAction", () => {
     expect(prismaMock.documentType.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { schoolId: "default-school", status: "ACTIVE" },
     }));
+  });
+});
+
+describe("createDocumentTypeAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("creates a type and audits", async () => {
+    prismaMock.documentType.create.mockResolvedValue({ id: "dt-new", name: "NHIS Card" } as never);
+
+    const result = await createDocumentTypeAction({
+      name: "NHIS Card",
+      isRequired: true,
+      expiryMonths: 12,
+      appliesTo: "ALL",
+    });
+    expect(result).toMatchObject({ data: { id: "dt-new" } });
+    expect(prismaMock.documentType.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        schoolId: "default-school",
+        name: "NHIS Card",
+        isRequired: true,
+        expiryMonths: 12,
+        appliesTo: "ALL",
+      }),
+    });
+  });
+
+  it("surfaces unique-constraint violation as a clean error", async () => {
+    const uniqueErr = Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+    prismaMock.documentType.create.mockRejectedValue(uniqueErr);
+
+    const result = await createDocumentTypeAction({
+      name: "Birth Certificate",
+    });
+    expect(result).toEqual({ error: "A document type with this name already exists" });
   });
 });
