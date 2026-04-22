@@ -169,6 +169,10 @@ model AcademicYear {
   sourcePromotionRuns PromotionRun[] @relation("SourcePromotionYear")
   targetPromotionRuns PromotionRun[] @relation("TargetPromotionYear")
 
+  classes       Class[]        @relation("ClassAcademicYear")
+  enrollments   Enrollment[]   @relation("EnrollmentAcademicYear")
+  studentHouses StudentHouse[] @relation("StudentHouseAcademicYear")
+
   @@index([schoolId])
   @@index([isCurrent])
   @@index([schoolId, isCurrent])
@@ -230,6 +234,7 @@ model Programme {
 
   school     School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  classes    Class[]     @relation("ClassProgramme")
 
   @@unique([schoolId, name])
   @@index([schoolId])
@@ -246,7 +251,8 @@ model House {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  studentHouses StudentHouse[] @relation("StudentHouseHouse")
 
   @@unique([schoolId, name])
   @@index([schoolId])
