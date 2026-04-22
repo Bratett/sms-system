@@ -44,6 +44,7 @@ export function Step2OutcomesGrid({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [bulkDestArmId, setBulkDestArmId] = useState<string>("");
 
   const armOptions = useMemo(() => buildDestinationArmOptions(run), [run]);
   const allIds = useMemo(() => run.items.map((i) => i.id), [run.items]);
@@ -96,12 +97,15 @@ export function Step2OutcomesGrid({
 
   const handleBulk = (outcome: Outcome) => {
     if (selected.size === 0) return;
+    const needsDest = outcome === "PROMOTE" || outcome === "RETAIN";
+    if (needsDest && !bulkDestArmId) return;
     const itemIds = Array.from(selected);
     runMutation(async () => {
       const res = await bulkUpdatePromotionRunItemsAction({
         runId: run.id,
         itemIds,
         outcome,
+        destinationClassArmId: needsDest ? bulkDestArmId : undefined,
       });
       if (!("error" in res)) setSelected(new Set());
       return res;
@@ -130,16 +134,39 @@ export function Step2OutcomesGrid({
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Bulk set:
           </span>
-          {(["PROMOTE", "RETAIN", "GRADUATE", "WITHDRAW"] as const).map((o) => (
-            <button
-              key={o}
-              onClick={() => handleBulk(o)}
-              disabled={pending || selected.size === 0}
-              className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
-            >
-              {o}
-            </button>
-          ))}
+          {(["PROMOTE", "RETAIN", "GRADUATE", "WITHDRAW"] as const).map((o) => {
+            const needsDest = o === "PROMOTE" || o === "RETAIN";
+            const missingDest = needsDest && bulkDestArmId === "";
+            const disabled = pending || selected.size === 0 || missingDest;
+            return (
+              <button
+                key={o}
+                onClick={() => handleBulk(o)}
+                disabled={disabled}
+                title={missingDest ? "Pick a destination arm first" : undefined}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+              >
+                {o}
+              </button>
+            );
+          })}
+          <span className="ml-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Destination:
+          </span>
+          <select
+            value={bulkDestArmId}
+            onChange={(e) => setBulkDestArmId(e.target.value)}
+            disabled={pending}
+            aria-label="Bulk destination arm"
+            className="rounded-md border border-border bg-background px-2 py-1 text-sm disabled:opacity-50"
+          >
+            <option value="">— Select arm —</option>
+            {armOptions.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
