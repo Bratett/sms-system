@@ -163,43 +163,61 @@ export async function enterMarksAction(data: {
   });
   const existingMap = new Map(existingMarks.map((m) => [m.studentId, m]));
 
-  // Batch upsert marks in DRAFT status
-  const results = await db.$transaction(
-    data.marks.map((mark) =>
-      db.mark.upsert({
-        where: {
-          studentId_subjectId_assessmentTypeId_termId: {
+  // Batch upsert marks in DRAFT status. The cache invalidation is included in
+  // the same transaction so we never end up in a state where the marks are
+  // committed but cached report card PDFs still look fresh.
+  const results = await db.$transaction(async (tx) => {
+    const upserted = await Promise.all(
+      data.marks.map((mark) =>
+        tx.mark.upsert({
+          where: {
+            studentId_subjectId_assessmentTypeId_termId: {
+              studentId: mark.studentId,
+              subjectId: data.subjectId,
+              assessmentTypeId: data.assessmentTypeId,
+              termId: data.termId,
+            },
+          },
+          update: {
+            score: mark.score,
+            maxScore: assessmentType.maxScore,
+            enteredBy: ctx.session.user.id!,
+            enteredAt: new Date(),
+            status: "DRAFT",
+            approvedBy: null,
+            approvedAt: null,
+          },
+          create: {
+            schoolId: ctx.schoolId,
             studentId: mark.studentId,
             subjectId: data.subjectId,
+            classArmId: data.classArmId,
             assessmentTypeId: data.assessmentTypeId,
             termId: data.termId,
+            academicYearId: data.academicYearId,
+            score: mark.score,
+            maxScore: assessmentType.maxScore,
+            enteredBy: ctx.session.user.id!,
+            status: "DRAFT",
           },
-        },
-        update: {
-          score: mark.score,
-          maxScore: assessmentType.maxScore,
-          enteredBy: ctx.session.user.id!,
-          enteredAt: new Date(),
-          status: "DRAFT",
-          approvedBy: null,
-          approvedAt: null,
-        },
-        create: {
-          schoolId: ctx.schoolId,
-          studentId: mark.studentId,
-          subjectId: data.subjectId,
-          classArmId: data.classArmId,
-          assessmentTypeId: data.assessmentTypeId,
-          termId: data.termId,
-          academicYearId: data.academicYearId,
-          score: mark.score,
-          maxScore: assessmentType.maxScore,
-          enteredBy: ctx.session.user.id!,
-          status: "DRAFT",
-        },
-      }),
-    ),
-  );
+        }),
+      ),
+    );
+
+    // Mark data for (studentId, termId) has changed — invalidate any cached
+    // report card PDFs inside the same transaction so marks + cache state
+    // move together.
+    await tx.reportCardPdfCache.updateMany({
+      where: {
+        studentId: { in: upserted.map((r) => r.studentId) },
+        termId: data.termId,
+        schoolId: ctx.schoolId,
+      },
+      data: { invalidatedAt: new Date() },
+    });
+
+    return upserted;
+  });
 
   // Log audit trail for changed marks
   for (const result of results) {
@@ -220,16 +238,6 @@ export async function enterMarksAction(data: {
       });
     }
   }
-
-  // Mark data for (studentId, termId) has changed — invalidate any cached
-  // report card PDFs for the affected students+term so the next render rebuilds.
-  await db.reportCardPdfCache.updateMany({
-    where: {
-      studentId: { in: results.map((r) => r.studentId) },
-      termId: data.termId,
-    },
-    data: { invalidatedAt: new Date() },
-  });
 
   await audit({
     userId: ctx.session.user.id!,
@@ -291,23 +299,31 @@ export async function submitMarksForApprovalAction(
     return { error: "No draft marks found to submit for approval." };
   }
 
-  await db.mark.updateMany({
-    where: {
-      subjectId,
-      classArmId,
-      assessmentTypeId,
-      termId,
-      status: "DRAFT",
-    },
-    data: {
-      status: "SUBMITTED",
-    },
-  });
+  // Submit + cache invalidation share one transaction so a crash between the
+  // two can't leave marks SUBMITTED with stale cached report cards still
+  // appearing fresh.
+  await db.$transaction(async (tx) => {
+    await tx.mark.updateMany({
+      where: {
+        subjectId,
+        classArmId,
+        assessmentTypeId,
+        termId,
+        status: "DRAFT",
+      },
+      data: {
+        status: "SUBMITTED",
+      },
+    });
 
-  // Invalidate cached report cards for every affected student in this term.
-  await db.reportCardPdfCache.updateMany({
-    where: { studentId: { in: draftMarks.map((m) => m.studentId) }, termId },
-    data: { invalidatedAt: new Date() },
+    await tx.reportCardPdfCache.updateMany({
+      where: {
+        studentId: { in: draftMarks.map((m) => m.studentId) },
+        termId,
+        schoolId: ctx.schoolId,
+      },
+      data: { invalidatedAt: new Date() },
+    });
   });
 
   await audit({
@@ -534,26 +550,33 @@ export async function approveMarksAction(
     return { error: "No submitted marks found to approve." };
   }
 
-  await db.mark.updateMany({
-    where: {
-      subjectId,
-      classArmId,
-      assessmentTypeId,
-      termId,
-      status: "SUBMITTED",
-    },
-    data: {
-      status: "APPROVED",
-      approvedBy: ctx.session.user.id!,
-      approvedAt: new Date(),
-    },
-  });
+  // Approve + cache invalidation in one transaction — approving promotes
+  // scores into the pool used by report card generation, and cached PDFs
+  // become stale the instant the marks flip to APPROVED.
+  await db.$transaction(async (tx) => {
+    await tx.mark.updateMany({
+      where: {
+        subjectId,
+        classArmId,
+        assessmentTypeId,
+        termId,
+        status: "SUBMITTED",
+      },
+      data: {
+        status: "APPROVED",
+        approvedBy: ctx.session.user.id!,
+        approvedAt: new Date(),
+      },
+    });
 
-  // Approving marks promotes the scores into the pool used by report card
-  // generation; existing cached PDFs are stale.
-  await db.reportCardPdfCache.updateMany({
-    where: { studentId: { in: submittedMarks.map((m) => m.studentId) }, termId },
-    data: { invalidatedAt: new Date() },
+    await tx.reportCardPdfCache.updateMany({
+      where: {
+        studentId: { in: submittedMarks.map((m) => m.studentId) },
+        termId,
+        schoolId: ctx.schoolId,
+      },
+      data: { invalidatedAt: new Date() },
+    });
   });
 
   // Log audit trail for status change
@@ -624,26 +647,33 @@ export async function rejectMarksAction(
     return { error: "No submitted marks found to reject." };
   }
 
-  await db.mark.updateMany({
-    where: {
-      subjectId,
-      classArmId,
-      assessmentTypeId,
-      termId,
-      status: "SUBMITTED",
-    },
-    data: {
-      status: "DRAFT",
-      approvedBy: null,
-      approvedAt: null,
-    },
-  });
+  // Reject + cache invalidation in one transaction — rejection pushes scores
+  // back out of the approved pool, which changes what a fresh report card
+  // render would include.
+  await db.$transaction(async (tx) => {
+    await tx.mark.updateMany({
+      where: {
+        subjectId,
+        classArmId,
+        assessmentTypeId,
+        termId,
+        status: "SUBMITTED",
+      },
+      data: {
+        status: "DRAFT",
+        approvedBy: null,
+        approvedAt: null,
+      },
+    });
 
-  // Rejecting pushes scores back out of APPROVED, which changes what a fresh
-  // report card render would include; invalidate any cached rows.
-  await db.reportCardPdfCache.updateMany({
-    where: { studentId: { in: submittedMarks.map((m) => m.studentId) }, termId },
-    data: { invalidatedAt: new Date() },
+    await tx.reportCardPdfCache.updateMany({
+      where: {
+        studentId: { in: submittedMarks.map((m) => m.studentId) },
+        termId,
+        schoolId: ctx.schoolId,
+      },
+      data: { invalidatedAt: new Date() },
+    });
   });
 
   // Log audit trail for rejection
