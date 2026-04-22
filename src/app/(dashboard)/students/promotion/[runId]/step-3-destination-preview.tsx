@@ -93,8 +93,8 @@ export function Step3DestinationPreview({
 
       {hasOverCapacity && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          Resolve over-capacity arms before advancing, or confirm override on
-          the commit step.
+          Resolve over-capacity arms on Step 2 before advancing. Capacity is a
+          soft limit — reassign students to a different arm to proceed.
         </div>
       )}
 
