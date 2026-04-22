@@ -17,10 +17,17 @@ export function startPdfBatchWorker() {
       if (!pdfJob) throw new Error(`PdfJob ${job.data.pdfJobId} not found`);
       if (pdfJob.status === "CANCELLED") return;
 
-      await db.pdfJob.update({
-        where: { id: pdfJob.id },
+      // Atomic QUEUED -> RUNNING transition: if a concurrent cancel slipped
+      // between the findUnique above and here, this updateMany's count will be
+      // 0 and we exit without doing work.
+      const claim = await db.pdfJob.updateMany({
+        where: { id: pdfJob.id, status: "QUEUED" },
         data: { status: "RUNNING", startedAt: new Date() },
       });
+      if (claim.count === 0) {
+        log.info("pdf-batch skip: job no longer QUEUED", { pdfJobId: pdfJob.id });
+        return;
+      }
 
       try {
         const params = pdfJob.params as Record<string, unknown>;
@@ -29,7 +36,11 @@ export function startPdfBatchWorker() {
 
         if (pdfJob.kind === "ID_CARD_BATCH") {
           const enrollments = await db.enrollment.findMany({
-            where: { classArmId: params.classArmId as string, status: "ACTIVE" },
+            where: {
+              classArmId: params.classArmId as string,
+              schoolId: pdfJob.schoolId,
+              status: "ACTIVE",
+            },
             select: { studentId: true },
           });
           for (const e of enrollments) {
@@ -47,7 +58,11 @@ export function startPdfBatchWorker() {
           }
         } else if (pdfJob.kind === "REPORT_CARD_BATCH") {
           const enrollments = await db.enrollment.findMany({
-            where: { classArmId: params.classArmId as string, status: "ACTIVE" },
+            where: {
+              classArmId: params.classArmId as string,
+              schoolId: pdfJob.schoolId,
+              status: "ACTIVE",
+            },
             select: { studentId: true },
           });
           for (const e of enrollments) {
@@ -90,6 +105,29 @@ export function startPdfBatchWorker() {
               log.warn("pdf-batch per-item failure", { pdfJobId: pdfJob.id, studentId: sid, error: res.error });
             }
           }
+        }
+
+        // If every per-item render failed, don't produce an empty stitched PDF
+        // and call the job COMPLETE — that masks a total failure as success.
+        // Mark the job FAILED with the error summary so operators can see what
+        // happened and retry.
+        if (urls.length === 0 && errors.length > 0) {
+          await db.pdfJob.update({
+            where: { id: pdfJob.id },
+            data: {
+              status: "FAILED",
+              completedAt: new Date(),
+              error: JSON.stringify({
+                message: "All items failed to render",
+                failedItems: errors,
+              }),
+            },
+          });
+          log.error("pdf-batch failed: all items errored", {
+            pdfJobId: pdfJob.id,
+            failedCount: errors.length,
+          });
+          return;
         }
 
         const stitched = await stitchPdfsFromUrls(urls);

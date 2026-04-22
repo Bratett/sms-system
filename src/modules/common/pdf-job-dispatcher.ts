@@ -20,7 +20,25 @@ export async function enqueuePdfJob(input: {
       status: "QUEUED",
     },
   });
-  const queue = getQueue<PdfBatchJobData>(QUEUE_NAMES.PDF_BATCH);
-  await queue.add("render", { pdfJobId: job.id });
+
+  // If adding to the queue fails, the DB row is already written — without this
+  // compensating update the job would be stuck at QUEUED forever (no worker
+  // would ever pick it up). Mark it FAILED so operators see the error and can
+  // retry or clean up, then rethrow so the caller sees the failure too.
+  try {
+    const queue = getQueue<PdfBatchJobData>(QUEUE_NAMES.PDF_BATCH);
+    await queue.add("render", { pdfJobId: job.id });
+  } catch (err) {
+    await db.pdfJob.update({
+      where: { id: job.id },
+      data: {
+        status: "FAILED",
+        completedAt: new Date(),
+        error: `Failed to enqueue: ${String(err)}`,
+      },
+    });
+    throw err;
+  }
+
   return job.id;
 }
