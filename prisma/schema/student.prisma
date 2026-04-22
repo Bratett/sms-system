@@ -437,10 +437,12 @@ model PromotionRun {
   sourceClassArm     ClassArm           @relation("SourcePromotionArm", fields: [sourceClassArmId], references: [id])
   items              PromotionRunItem[]
 
-  @@unique([sourceClassArmId, sourceAcademicYearId])
   @@index([schoolId])
   @@index([status])
   @@index([sourceClassArmId])
+  @@index([sourceClassArmId, sourceAcademicYearId])
+  @@index([schoolId, status])
+  @@index([targetAcademicYearId])
 }
 
 model PromotionRunItem {
@@ -457,6 +459,8 @@ model PromotionRunItem {
   run                 PromotionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   student             Student      @relation(fields: [studentId], references: [id])
   destinationClassArm ClassArm?    @relation("DestinationPromotionArm", fields: [destinationClassArmId], references: [id])
+  previousEnrollment  Enrollment   @relation("PreviousPromotionEnrollment", fields: [previousEnrollmentId], references: [id])
+  newEnrollment       Enrollment?  @relation("NewPromotionEnrollment", fields: [newEnrollmentId], references: [id], onDelete: SetNull)
 
   @@unique([runId, studentId])
   @@index([runId])
