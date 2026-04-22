@@ -300,6 +300,113 @@ export async function bulkUpdatePromotionRunItemsAction(input: {
   return { data: { updated: result.count } };
 }
 
+export async function commitPromotionRunAction(runId: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_PROMOTE);
+  if (denied) return denied;
+
+  const result = await db.$transaction(async (tx) => {
+    const run = await tx.promotionRun.findFirst({
+      where: { id: runId, schoolId: ctx.schoolId },
+      include: { items: true },
+    });
+    if (!run) return { error: "Run not found" as string };
+    if (run.status !== "DRAFT") return { error: "Run is not in DRAFT status" as string };
+
+    const commitDate = new Date();
+    const counts = { PROMOTE: 0, RETAIN: 0, GRADUATE: 0, WITHDRAW: 0 };
+    let skipped = 0;
+
+    for (const item of run.items) {
+      const prevEnrollment = await tx.enrollment.findUnique({ where: { id: item.previousEnrollmentId } });
+      if (!prevEnrollment || prevEnrollment.status !== "ACTIVE") {
+        skipped++;
+        continue;
+      }
+
+      if (item.outcome === "PROMOTE" || item.outcome === "RETAIN") {
+        if (!item.destinationClassArmId) {
+          throw new Error(`Item ${item.id} has ${item.outcome} outcome but no destination arm`);
+        }
+        await tx.enrollment.update({
+          where: { id: item.previousEnrollmentId },
+          data: { status: "PROMOTED" },
+        });
+        const newEnrollment = await tx.enrollment.create({
+          data: {
+            studentId: item.studentId,
+            classArmId: item.destinationClassArmId,
+            schoolId: ctx.schoolId,
+            academicYearId: run.targetAcademicYearId,
+            isFreeShsPlacement: prevEnrollment.isFreeShsPlacement,
+            previousClassArmId: prevEnrollment.classArmId,
+          },
+        });
+        await tx.promotionRunItem.update({
+          where: { id: item.id },
+          data: { newEnrollmentId: newEnrollment.id },
+        });
+        counts[item.outcome]++;
+      } else if (item.outcome === "GRADUATE") {
+        await tx.enrollment.update({
+          where: { id: item.previousEnrollmentId },
+          data: { status: "COMPLETED" },
+        });
+        await tx.student.update({
+          where: { id: item.studentId },
+          data: { status: "GRADUATED" },
+        });
+        await tx.bedAllocation.updateMany({
+          where: { studentId: item.studentId, vacatedAt: null },
+          data: { vacatedAt: commitDate },
+        });
+        counts.GRADUATE++;
+      } else if (item.outcome === "WITHDRAW") {
+        await tx.enrollment.update({
+          where: { id: item.previousEnrollmentId },
+          data: { status: "WITHDRAWN" },
+        });
+        await tx.student.update({
+          where: { id: item.studentId },
+          data: { status: "WITHDRAWN" },
+        });
+        await tx.bedAllocation.updateMany({
+          where: { studentId: item.studentId, vacatedAt: null },
+          data: { vacatedAt: commitDate },
+        });
+        counts.WITHDRAW++;
+      }
+    }
+
+    const committed = await tx.promotionRun.update({
+      where: { id: runId },
+      data: {
+        status: "COMMITTED",
+        committedAt: commitDate,
+        committedBy: ctx.session.user.id!,
+      },
+    });
+
+    return { data: { ...committed, counts, skipped } };
+  });
+
+  if ("error" in result) return result;
+
+  await audit({
+    userId: ctx.session.user.id!,
+    action: "UPDATE",
+    entity: "PromotionRun",
+    entityId: runId,
+    module: "students",
+    description: `Committed promotion run`,
+    newData: { status: "COMMITTED" },
+    metadata: { counts: result.data.counts, skipped: result.data.skipped },
+  });
+
+  return result;
+}
+
 export async function deletePromotionRunAction(runId: string) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;

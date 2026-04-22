@@ -5,6 +5,7 @@ import {
   updatePromotionRunItemAction,
   bulkUpdatePromotionRunItemsAction,
   deletePromotionRunAction,
+  commitPromotionRunAction,
 } from "@/modules/student/actions/promotion.action";
 
 describe("getEligibleSourceArmsAction", () => {
@@ -279,5 +280,100 @@ describe("deletePromotionRunAction", () => {
     prismaMock.promotionRun.findFirst.mockResolvedValue({ id: "pr-1", status: "COMMITTED", schoolId: "default-school" } as never);
     const result = await deletePromotionRunAction("pr-1");
     expect(result).toEqual({ error: "Only DRAFT runs can be deleted" });
+  });
+});
+
+describe("commitPromotionRunAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("refuses to commit a non-DRAFT run", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: any) => await fn(prismaMock));
+    prismaMock.promotionRun.findFirst.mockResolvedValue({ id: "pr-1", status: "COMMITTED", schoolId: "default-school", items: [] } as never);
+    const result = await commitPromotionRunAction("pr-1");
+    expect(result).toEqual({ error: "Run is not in DRAFT status" });
+  });
+
+  it("handles PROMOTE: marks old enrollment PROMOTED and creates new one", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: any) => await fn(prismaMock));
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "pr-1", status: "DRAFT", schoolId: "default-school",
+      sourceAcademicYearId: "ay-1", targetAcademicYearId: "ay-2", sourceClassArmId: "ca-1",
+      items: [{
+        id: "pri-1", studentId: "s-1", outcome: "PROMOTE", destinationClassArmId: "ca-2",
+        previousEnrollmentId: "e-1", previousStatus: "ACTIVE",
+      }],
+    } as never);
+    prismaMock.enrollment.findUnique.mockResolvedValue({ id: "e-1", isFreeShsPlacement: true, classArmId: "ca-1", status: "ACTIVE" } as never);
+    prismaMock.enrollment.create.mockResolvedValue({ id: "e-new" } as never);
+    prismaMock.promotionRunItem.update.mockResolvedValue({} as never);
+    prismaMock.promotionRun.update.mockResolvedValue({ id: "pr-1", status: "COMMITTED" } as never);
+
+    const result = await commitPromotionRunAction("pr-1");
+    expect(result).toMatchObject({ data: { status: "COMMITTED" } });
+    expect(prismaMock.enrollment.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "e-1" }, data: expect.objectContaining({ status: "PROMOTED" }),
+    }));
+    expect(prismaMock.enrollment.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        studentId: "s-1", classArmId: "ca-2", academicYearId: "ay-2",
+        isFreeShsPlacement: true, previousClassArmId: "ca-1",
+      }),
+    }));
+  });
+
+  it("handles GRADUATE: sets student GRADUATED and vacates beds", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: any) => await fn(prismaMock));
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "pr-1", status: "DRAFT", schoolId: "default-school",
+      sourceAcademicYearId: "ay-1", targetAcademicYearId: "ay-2", sourceClassArmId: "ca-3",
+      items: [{ id: "pri-3", studentId: "s-3", outcome: "GRADUATE", destinationClassArmId: null,
+        previousEnrollmentId: "e-3", previousStatus: "ACTIVE" }],
+    } as never);
+    prismaMock.enrollment.findUnique.mockResolvedValue({ id: "e-3", isFreeShsPlacement: false, classArmId: "ca-3", status: "ACTIVE" } as never);
+    prismaMock.promotionRun.update.mockResolvedValue({ id: "pr-1", status: "COMMITTED" } as never);
+
+    await commitPromotionRunAction("pr-1");
+    expect(prismaMock.enrollment.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "e-3" }, data: expect.objectContaining({ status: "COMPLETED" }),
+    }));
+    expect(prismaMock.student.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "s-3" }, data: expect.objectContaining({ status: "GRADUATED" }),
+    }));
+    expect(prismaMock.bedAllocation.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { studentId: "s-3", vacatedAt: null },
+    }));
+  });
+
+  it("handles WITHDRAW: sets student WITHDRAWN and vacates beds", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: any) => await fn(prismaMock));
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "pr-1", status: "DRAFT", schoolId: "default-school",
+      sourceAcademicYearId: "ay-1", targetAcademicYearId: "ay-2", sourceClassArmId: "ca-1",
+      items: [{ id: "pri-w", studentId: "s-w", outcome: "WITHDRAW", destinationClassArmId: null,
+        previousEnrollmentId: "e-w", previousStatus: "ACTIVE" }],
+    } as never);
+    prismaMock.enrollment.findUnique.mockResolvedValue({ id: "e-w", isFreeShsPlacement: false, classArmId: "ca-1", status: "ACTIVE" } as never);
+    prismaMock.promotionRun.update.mockResolvedValue({ id: "pr-1", status: "COMMITTED" } as never);
+
+    await commitPromotionRunAction("pr-1");
+    expect(prismaMock.student.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "s-w" }, data: expect.objectContaining({ status: "WITHDRAWN" }),
+    }));
+  });
+
+  it("skips items whose previous enrollment is no longer ACTIVE", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: any) => await fn(prismaMock));
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "pr-1", status: "DRAFT", schoolId: "default-school",
+      sourceAcademicYearId: "ay-1", targetAcademicYearId: "ay-2", sourceClassArmId: "ca-1",
+      items: [{ id: "pri-1", studentId: "s-1", outcome: "PROMOTE", destinationClassArmId: "ca-2",
+        previousEnrollmentId: "e-1", previousStatus: "ACTIVE" }],
+    } as never);
+    prismaMock.enrollment.findUnique.mockResolvedValue({ id: "e-1", isFreeShsPlacement: false, classArmId: "ca-1", status: "WITHDRAWN" } as never);
+    prismaMock.promotionRun.update.mockResolvedValue({ id: "pr-1", status: "COMMITTED" } as never);
+
+    const result = await commitPromotionRunAction("pr-1");
+    expect(result).toMatchObject({ data: { status: "COMMITTED", skipped: 1 } });
+    expect(prismaMock.enrollment.create).not.toHaveBeenCalled();
   });
 });
