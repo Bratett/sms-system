@@ -32,17 +32,19 @@ describe("renderTranscriptPdfAction", () => {
     expect(vi.mocked(generator.renderPdfToBuffer)).not.toHaveBeenCalled();
   });
 
-  it("renders preview inline when status is GENERATED (no pdfKey write)", async () => {
+  it("renders preview inline when status is GENERATED (stores previewKey, no pdfKey write)", async () => {
     prismaMock.transcript.findFirst.mockResolvedValue({
       id: "tr-1", schoolId: "default-school", status: "GENERATED",
       transcriptNumber: "TRN/2026/0001", coveringFrom: "2024/2025", coveringTo: "2025/2026",
       cumulativeGPA: 3.4, pdfKey: null, issuedAt: null,
+      previewKey: null, previewRenderedAt: null,
       studentId: "s-1",
     } as never);
     prismaMock.transcript.findUnique.mockResolvedValue({
       id: "tr-1", schoolId: "default-school", status: "GENERATED",
       transcriptNumber: "TRN/2026/0001", coveringFrom: "2024/2025", coveringTo: "2025/2026",
       cumulativeGPA: 3.4, pdfKey: null, issuedAt: null,
+      previewKey: null, previewRenderedAt: null,
       studentId: "s-1",
     } as never);
     prismaMock.student.findUnique.mockResolvedValue({
@@ -61,8 +63,49 @@ describe("renderTranscriptPdfAction", () => {
     expect(result).toHaveProperty("data");
     if (!("data" in result)) throw new Error("expected data");
     expect(result.data.cached).toBe(false);
-    // pdfKey is NOT written to the transcript for previews:
-    expect(prismaMock.transcript.update).not.toHaveBeenCalled();
+    // pdfKey is NOT written; only previewKey/previewRenderedAt are written for previews.
+    expect(prismaMock.transcript.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        previewKey: "transcript-previews/tr-1/preview.pdf",
+        previewRenderedAt: expect.any(Date),
+      }),
+    }));
+    expect(prismaMock.transcript.update).toHaveBeenCalledTimes(1);
+    const updateArg = prismaMock.transcript.update.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(updateArg.data).not.toHaveProperty("pdfKey");
+  });
+
+  it("deletes prior preview when re-rendering a non-ISSUED transcript", async () => {
+    prismaMock.transcript.findFirst.mockResolvedValue({
+      id: "tr-1", schoolId: "default-school", status: "GENERATED",
+      transcriptNumber: "TRN/2026/0001", coveringFrom: null, coveringTo: null,
+      cumulativeGPA: null, pdfKey: null, issuedAt: null,
+      previewKey: "transcript-previews/tr-1/old.pdf", previewRenderedAt: new Date(),
+      studentId: "s-1",
+    } as never);
+    prismaMock.transcript.findUnique.mockResolvedValue({
+      id: "tr-1", schoolId: "default-school", status: "GENERATED",
+      transcriptNumber: "TRN/2026/0001", coveringFrom: null, coveringTo: null,
+      cumulativeGPA: null, pdfKey: null, issuedAt: null,
+      previewKey: "transcript-previews/tr-1/old.pdf", previewRenderedAt: new Date(),
+      studentId: "s-1",
+    } as never);
+    prismaMock.student.findUnique.mockResolvedValue({
+      id: "s-1", studentId: "SCH/1", firstName: "A", lastName: "B",
+      dateOfBirth: new Date("2010-01-01"), gender: "MALE",
+      enrollments: [{ classArm: { class: { programme: { name: "Science" } } } }],
+    } as never);
+    prismaMock.school.findUnique.mockResolvedValue({
+      name: "Test SHS", motto: null, logoUrl: null, address: null, phone: null, email: null,
+    } as never);
+    prismaMock.terminalResult.findMany.mockResolvedValue([] as never);
+    vi.mocked(r2.uploadFile).mockResolvedValue({ key: "transcript-previews/tr-1/new.pdf", url: "" } as never);
+    vi.mocked(r2.getSignedDownloadUrl).mockResolvedValue("https://signed/new.pdf");
+    vi.mocked(r2.deleteFile).mockClear();
+
+    const result = await renderTranscriptPdfAction("tr-1");
+    expect(result).toHaveProperty("data");
+    expect(vi.mocked(r2.deleteFile)).toHaveBeenCalledWith("transcript-previews/tr-1/old.pdf");
   });
 });
 
@@ -100,7 +143,8 @@ describe("issueTranscriptAction", () => {
     prismaMock.transcript.findUnique.mockResolvedValue({
       id: "tr-1", schoolId: "default-school", status: "VERIFIED",
       transcriptNumber: "TRN/2026/0001", coveringFrom: "2024/2025", coveringTo: "2025/2026",
-      cumulativeGPA: 3.4, pdfKey: null, studentId: "s-1",
+      cumulativeGPA: 3.4, pdfKey: null, previewKey: null, previewRenderedAt: null,
+      studentId: "s-1",
     } as never);
     prismaMock.student.findUnique.mockResolvedValue({
       id: "s-1", studentId: "SCH/1", firstName: "A", lastName: "B",

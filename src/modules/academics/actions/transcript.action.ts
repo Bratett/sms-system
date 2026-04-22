@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
-import { uploadFile, getSignedDownloadUrl, generateFileKey } from "@/lib/storage/r2";
+import { uploadFile, getSignedDownloadUrl, generateFileKey, deleteFile } from "@/lib/storage/r2";
 import { renderPdfToBuffer, PDF_SYNC_THRESHOLD } from "@/lib/pdf/generator";
 import { TranscriptTemplate, type TranscriptData } from "@/lib/pdf/templates/transcript";
 import { enqueuePdfJob } from "@/modules/common/pdf-job-dispatcher";
@@ -289,8 +289,18 @@ export async function renderTranscriptPdfAction(transcriptId: string) {
     return { data: { url, cached: true } };
   }
 
+  // Non-ISSUED path: render preview, replacing any previous preview.
   const dataResult = await loadTranscriptData(transcriptId);
   if ("error" in dataResult) return dataResult;
+
+  // Delete old preview if any (best-effort; a stray orphan is one file).
+  if (transcript.previewKey) {
+    try {
+      await deleteFile(transcript.previewKey);
+    } catch {
+      // best-effort; orphan is one file
+    }
+  }
 
   const buffer = await renderPdfToBuffer(TranscriptTemplate({ data: dataResult.data }));
   const initialKey = generateFileKey(
@@ -299,6 +309,12 @@ export async function renderTranscriptPdfAction(transcriptId: string) {
     `preview-${Date.now()}.pdf`,
   );
   const uploaded = await uploadFile(initialKey, buffer, "application/pdf");
+
+  await db.transcript.update({
+    where: { id: transcriptId },
+    data: { previewKey: uploaded.key, previewRenderedAt: new Date() },
+  });
+
   const url = await getSignedDownloadUrl(uploaded.key);
   return { data: { url, cached: false } };
 }
@@ -334,10 +350,20 @@ export async function issueTranscriptAction(transcriptId: string) {
     data: {
       status: "ISSUED",
       pdfKey: uploaded.key,
+      previewKey: null,
       issuedBy: ctx.session.user.id!,
       issuedAt: new Date(),
     },
   });
+
+  // Preview is now superseded by the issued PDF; delete it best-effort.
+  if (transcript.previewKey) {
+    try {
+      await deleteFile(transcript.previewKey);
+    } catch {
+      // best-effort
+    }
+  }
 
   await audit({
     userId: ctx.session.user.id!,

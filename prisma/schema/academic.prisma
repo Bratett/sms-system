@@ -329,6 +329,8 @@ model Transcript {
   verifiedAt       DateTime?
   notes            String?
   pdfKey           String?
+  previewKey       String?
+  previewRenderedAt DateTime?
   issuedBy         String?
   issuedAt         DateTime?
   createdAt        DateTime  @default(now())
