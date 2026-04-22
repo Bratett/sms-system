@@ -428,3 +428,53 @@ describe("reopenStudentDocumentAction", () => {
     expect(result).toEqual({ error: "Document is already PENDING" });
   });
 });
+
+import { portAdmissionDocumentsToStudentAction } from "@/modules/student/actions/document.action";
+
+describe("portAdmissionDocumentsToStudentAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("maps admission docs to matching-named types and preserves verification status", async () => {
+    prismaMock.admissionDocument.findMany.mockResolvedValue([
+      { id: "ad-1", documentType: "Birth Certificate", fileKey: "k1", fileName: "bc.pdf",
+        verificationStatus: "VERIFIED", verifiedBy: "u-1", verifiedAt: new Date("2025-01-01"),
+        rejectionReason: null },
+      { id: "ad-2", documentType: "Unknown Type", fileKey: "k2", fileName: "u.pdf",
+        verificationStatus: "PENDING", verifiedBy: null, verifiedAt: null, rejectionReason: null },
+    ] as never);
+    prismaMock.documentType.upsert.mockResolvedValue({ id: "dt-other", name: "Other" } as never);
+    prismaMock.documentType.findMany.mockResolvedValue([
+      { id: "dt-birth", name: "Birth Certificate", status: "ACTIVE" },
+      { id: "dt-other", name: "Other", status: "ACTIVE" },
+    ] as never);
+    prismaMock.studentDocument.findMany.mockResolvedValue([] as never);
+    prismaMock.studentDocument.createMany.mockResolvedValue({ count: 2 } as never);
+
+    const result = await portAdmissionDocumentsToStudentAction({
+      applicationId: "app-1",
+      studentId: "clh0000000000000000000001",
+    });
+    expect(result).toEqual({ data: { ported: 2, skipped: 0 } });
+  });
+
+  it("is idempotent: skips existing (studentId, fileKey) pairs", async () => {
+    prismaMock.admissionDocument.findMany.mockResolvedValue([
+      { id: "ad-1", documentType: "Birth Certificate", fileKey: "k1", fileName: "bc.pdf",
+        verificationStatus: "VERIFIED", verifiedBy: "u-1", verifiedAt: new Date(),
+        rejectionReason: null },
+    ] as never);
+    prismaMock.documentType.upsert.mockResolvedValue({ id: "dt-other", name: "Other" } as never);
+    prismaMock.documentType.findMany.mockResolvedValue([
+      { id: "dt-birth", name: "Birth Certificate", status: "ACTIVE" },
+      { id: "dt-other", name: "Other", status: "ACTIVE" },
+    ] as never);
+    prismaMock.studentDocument.findMany.mockResolvedValue([{ fileKey: "k1" }] as never);
+    prismaMock.studentDocument.createMany.mockResolvedValue({ count: 0 } as never);
+
+    const result = await portAdmissionDocumentsToStudentAction({
+      applicationId: "app-1",
+      studentId: "clh0000000000000000000001",
+    });
+    expect(result).toEqual({ data: { ported: 0, skipped: 1 } });
+  });
+});

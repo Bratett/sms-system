@@ -445,6 +445,79 @@ export async function rejectStudentDocumentAction(input: { id: string; reason: s
   return { data: updated };
 }
 
+export async function portAdmissionDocumentsToStudentAction(input: {
+  applicationId: string;
+  studentId: string;
+}) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+
+  const admissionDocs = await db.admissionDocument.findMany({
+    where: { applicationId: input.applicationId },
+  });
+  if (admissionDocs.length === 0) return { data: { ported: 0, skipped: 0 } };
+
+  const otherType = await db.documentType.upsert({
+    where: { schoolId_name: { schoolId: ctx.schoolId, name: "Other" } },
+    update: {},
+    create: {
+      schoolId: ctx.schoolId,
+      name: "Other",
+      isRequired: false,
+      appliesTo: "ALL",
+      sortOrder: 9999,
+    },
+  });
+
+  const types = await db.documentType.findMany({
+    where: { schoolId: ctx.schoolId, status: "ACTIVE" },
+  });
+  const typeByLowerName = new Map(types.map((t) => [t.name.toLowerCase(), t]));
+
+  const existing = await db.studentDocument.findMany({
+    where: { studentId: input.studentId, fileKey: { in: admissionDocs.map((d) => d.fileKey) } },
+    select: { fileKey: true },
+  });
+  const existingKeys = new Set(existing.map((e) => e.fileKey));
+
+  const toCreate = admissionDocs
+    .filter((ad) => !existingKeys.has(ad.fileKey))
+    .map((ad) => {
+      const matchedType = typeByLowerName.get(ad.documentType.toLowerCase());
+      const targetType = matchedType ?? otherType;
+      return {
+        schoolId: ctx.schoolId,
+        studentId: input.studentId,
+        documentTypeId: targetType.id,
+        title: ad.documentType,
+        fileKey: ad.fileKey,
+        fileName: ad.fileName,
+        fileSize: 0,
+        contentType: "application/octet-stream",
+        verificationStatus: ad.verificationStatus,
+        verifiedBy: ad.verifiedBy,
+        verifiedAt: ad.verifiedAt,
+        rejectionReason: ad.rejectionReason,
+        uploadedBy: ctx.session.user.id!,
+      };
+    });
+
+  if (toCreate.length > 0) {
+    await db.studentDocument.createMany({ data: toCreate });
+    await audit({
+      userId: ctx.session.user.id!,
+      action: "CREATE",
+      entity: "StudentDocument",
+      entityId: input.studentId,
+      module: "students",
+      description: `Ported ${toCreate.length} admission documents to student vault`,
+      metadata: { applicationId: input.applicationId, ported: toCreate.length, skipped: existingKeys.size },
+    });
+  }
+
+  return { data: { ported: toCreate.length, skipped: existingKeys.size } };
+}
+
 export async function reopenStudentDocumentAction(id: string) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
