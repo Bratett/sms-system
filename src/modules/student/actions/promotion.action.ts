@@ -222,6 +222,16 @@ export async function seedPromotionRunItemsAction(runId: string) {
 
   if (toCreate.length > 0) {
     await db.promotionRunItem.createMany({ data: toCreate });
+
+    await audit({
+      userId: ctx.session.user.id!,
+      action: "CREATE",
+      entity: "PromotionRun",
+      entityId: runId,
+      module: "students",
+      description: `Seeded ${toCreate.length} promotion run items`,
+      metadata: { seeded: toCreate.length, skipped: enrollments.length - toCreate.length },
+    });
   }
 
   return { data: { seeded: toCreate.length, skipped: enrollments.length - toCreate.length } };
