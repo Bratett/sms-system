@@ -221,6 +221,16 @@ export async function enterMarksAction(data: {
     }
   }
 
+  // Mark data for (studentId, termId) has changed — invalidate any cached
+  // report card PDFs for the affected students+term so the next render rebuilds.
+  await db.reportCardPdfCache.updateMany({
+    where: {
+      studentId: { in: results.map((r) => r.studentId) },
+      termId: data.termId,
+    },
+    data: { invalidatedAt: new Date() },
+  });
+
   await audit({
     userId: ctx.session.user.id!,
     action: "CREATE",
@@ -274,7 +284,7 @@ export async function submitMarksForApprovalAction(
       termId,
       status: "DRAFT",
     },
-    select: { id: true },
+    select: { id: true, studentId: true },
   });
 
   if (draftMarks.length === 0) {
@@ -292,6 +302,12 @@ export async function submitMarksForApprovalAction(
     data: {
       status: "SUBMITTED",
     },
+  });
+
+  // Invalidate cached report cards for every affected student in this term.
+  await db.reportCardPdfCache.updateMany({
+    where: { studentId: { in: draftMarks.map((m) => m.studentId) }, termId },
+    data: { invalidatedAt: new Date() },
   });
 
   await audit({
@@ -533,6 +549,13 @@ export async function approveMarksAction(
     },
   });
 
+  // Approving marks promotes the scores into the pool used by report card
+  // generation; existing cached PDFs are stale.
+  await db.reportCardPdfCache.updateMany({
+    where: { studentId: { in: submittedMarks.map((m) => m.studentId) }, termId },
+    data: { invalidatedAt: new Date() },
+  });
+
   // Log audit trail for status change
   for (const mark of submittedMarks) {
     await logMarkChange({
@@ -614,6 +637,13 @@ export async function rejectMarksAction(
       approvedBy: null,
       approvedAt: null,
     },
+  });
+
+  // Rejecting pushes scores back out of APPROVED, which changes what a fresh
+  // report card render would include; invalidate any cached rows.
+  await db.reportCardPdfCache.updateMany({
+    where: { studentId: { in: submittedMarks.map((m) => m.studentId) }, termId },
+    data: { invalidatedAt: new Date() },
   });
 
   // Log audit trail for rejection

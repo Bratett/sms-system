@@ -407,6 +407,16 @@ export async function updateStudentAction(id: string, data: UpdateStudentInput) 
   if (parsed.data.boardingStatus !== undefined)
     updateData.boardingStatus = parsed.data.boardingStatus;
   if (parsed.data.status !== undefined) updateData.status = parsed.data.status;
+  if (parsed.data.photoUrl !== undefined) updateData.photoUrl = parsed.data.photoUrl;
+
+  // Invalidate ID card cache if the photo has actually changed. The field is
+  // set in the same update call so the invalidation is atomic with the write.
+  if (
+    parsed.data.photoUrl !== undefined &&
+    (parsed.data.photoUrl ?? null) !== (existing.photoUrl ?? null)
+  ) {
+    updateData.idCardCacheInvalidatedAt = new Date();
+  }
 
   const updated = await db.student.update({
     where: { id },
