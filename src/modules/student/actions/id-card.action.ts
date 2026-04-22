@@ -143,9 +143,16 @@ export async function renderClassIdCardsAction(input: { classArmId: string }) {
   }
 
   const urls: string[] = [];
+  const failures: Array<{ studentId: string; error: string }> = [];
   for (const e of enrollments) {
     const res = await renderStudentIdCardAction(e.studentId);
     if ("data" in res) urls.push(res.data.url);
+    else failures.push({ studentId: e.studentId, error: res.error });
+  }
+  if (urls.length === 0) {
+    return {
+      error: `All ${enrollments.length} ID cards failed to render. First error: ${failures[0]?.error ?? "unknown"}`,
+    };
   }
   const buffer = await stitchPdfsFromUrls(urls);
   const initialKey = generateFileKey("id-card-batches", classArmId, `batch-${Date.now()}.pdf`);
@@ -158,9 +165,9 @@ export async function renderClassIdCardsAction(input: { classArmId: string }) {
     entity: "IdCardBatch",
     entityId: classArmId,
     module: "students",
-    description: `Generated ${enrollments.length} ID cards inline`,
-    metadata: { fileKey: uploaded.key },
+    description: `Generated ${urls.length} of ${enrollments.length} ID cards inline (${failures.length} failed)`,
+    metadata: { fileKey: uploaded.key, successCount: urls.length, failedCount: failures.length },
   });
 
-  return { data: { url, queued: false } };
+  return { data: { url, queued: false, failures } };
 }
