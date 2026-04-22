@@ -406,11 +406,19 @@ describe("commitPromotionRunAction", () => {
         previousEnrollmentId: "e-1", previousStatus: "ACTIVE" }],
     } as never);
     prismaMock.enrollment.findUnique.mockResolvedValue({ id: "e-1", isFreeShsPlacement: false, classArmId: "ca-1", status: "WITHDRAWN" } as never);
+    prismaMock.promotionRunItem.update.mockResolvedValue({} as never);
     prismaMock.promotionRun.update.mockResolvedValue({ id: "pr-1", status: "COMMITTED" } as never);
 
     const result = await commitPromotionRunAction("pr-1");
-    expect(result).toMatchObject({ data: { status: "COMMITTED", skipped: 1 } });
+    expect(result).toMatchObject({
+      data: { status: "COMMITTED", skipped: 1, skippedStudentIds: ["s-1"] },
+    });
     expect(prismaMock.enrollment.create).not.toHaveBeenCalled();
+    // Drift-guarded item should be marked with a commit-time skippedAt.
+    expect(prismaMock.promotionRunItem.update).toHaveBeenCalledWith({
+      where: { id: "pri-1" },
+      data: { skippedAt: expect.any(Date) },
+    });
   });
 });
 
@@ -454,6 +462,15 @@ describe("revertPromotionRunAction", () => {
     expect(prismaMock.student.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: "s-2" }, data: expect.objectContaining({ status: "ACTIVE" }),
     }));
+    // Revert restores pre-commit state — any drift-guard skippedAt is cleared.
+    expect(prismaMock.promotionRunItem.update).toHaveBeenCalledWith({
+      where: { id: "pri-1" },
+      data: { skippedAt: null },
+    });
+    expect(prismaMock.promotionRunItem.update).toHaveBeenCalledWith({
+      where: { id: "pri-2" },
+      data: { skippedAt: null },
+    });
   });
 
   it("refuses to revert a DRAFT or already-REVERTED run", async () => {

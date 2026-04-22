@@ -399,11 +399,17 @@ export async function commitPromotionRunAction(runId: string) {
     const commitDate = new Date();
     const counts = { PROMOTE: 0, RETAIN: 0, GRADUATE: 0, WITHDRAW: 0 };
     let skipped = 0;
+    const skippedStudentIds: string[] = [];
 
     for (const item of run.items) {
       const prevEnrollment = await tx.enrollment.findUnique({ where: { id: item.previousEnrollmentId } });
       if (!prevEnrollment || prevEnrollment.status !== "ACTIVE") {
+        await tx.promotionRunItem.update({
+          where: { id: item.id },
+          data: { skippedAt: commitDate },
+        });
         skipped++;
+        skippedStudentIds.push(item.studentId);
         continue;
       }
 
@@ -411,7 +417,12 @@ export async function commitPromotionRunAction(runId: string) {
         if (!item.destinationClassArmId) {
           // Already pre-validated; defensive skip in case state changed between
           // pre-flight and transaction start.
+          await tx.promotionRunItem.update({
+            where: { id: item.id },
+            data: { skippedAt: commitDate },
+          });
           skipped++;
+          skippedStudentIds.push(item.studentId);
           continue;
         }
         await tx.enrollment.update({
@@ -473,7 +484,7 @@ export async function commitPromotionRunAction(runId: string) {
       },
     });
 
-    return { data: { ...committed, counts, skipped } };
+    return { data: { ...committed, counts, skipped, skippedStudentIds } };
   });
 
   if ("error" in result) return result;
@@ -486,7 +497,11 @@ export async function commitPromotionRunAction(runId: string) {
     module: "students",
     description: `Committed promotion run`,
     newData: { status: "COMMITTED" },
-    metadata: { counts: result.data.counts, skipped: result.data.skipped },
+    metadata: {
+      counts: result.data.counts,
+      skipped: result.data.skipped,
+      skippedStudentIds: result.data.skippedStudentIds,
+    },
   });
 
   return result;
@@ -561,6 +576,11 @@ export async function revertPromotionRunAction(input: { runId: string; reason: s
       await tx.student.update({
         where: { id: item.studentId },
         data: { status: item.previousStatus },
+      });
+      // Restore pre-commit state: clear the skipped marker if set.
+      await tx.promotionRunItem.update({
+        where: { id: item.id },
+        data: { skippedAt: null },
       });
     }
 
