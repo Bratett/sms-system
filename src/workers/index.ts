@@ -26,6 +26,7 @@ import { startCampaignDispatchSchedule } from "./campaign-dispatch.worker";
 import { startLicenceExpirySchedule } from "./licence-expiry.worker";
 import { startDunningSchedule } from "./dunning.worker";
 import { startAdmissionsSchedule } from "./admissions-schedule.worker";
+import { startPdfBatchWorker } from "./pdf-batch.worker";
 
 const log = logger.child({ component: "workers" });
 
@@ -47,6 +48,9 @@ log.info("Finance penalty worker started");
 
 startFinanceReminderWorker();
 log.info("Finance reminder worker started");
+
+startPdfBatchWorker();
+log.info("PDF batch worker started");
 
 // ─── Scheduled Tasks ─────────────────────────────────────────────
 

@@ -65,6 +65,7 @@ export const QUEUE_NAMES = {
   PAYSLIP_GENERATION: "payslip-generation",
   WHATSAPP: "whatsapp-delivery",
   CAMPAIGN_DISPATCH: "campaign-dispatch",
+  PDF_BATCH: "pdf-batch",
 } as const;
 
 // ─── Job Type Definitions ──────────────────────────────────────────
@@ -129,4 +130,8 @@ export interface WhatsAppJobData {
 export interface CampaignDispatchJobData {
   campaignId: string;
   schoolId: string;
+}
+
+export interface PdfBatchJobData {
+  pdfJobId: string;
 }
