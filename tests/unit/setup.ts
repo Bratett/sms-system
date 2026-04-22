@@ -45,6 +45,15 @@ vi.mock("@/lib/audit", () => ({
   audit: vi.fn().mockResolvedValue(undefined),
 }));
 
+// ─── R2 Storage Mock ───────────────────────────────────────────────
+
+vi.mock("@/lib/storage/r2", () => ({
+  uploadFile: vi.fn().mockResolvedValue({ key: "test-key", url: "test-url" }),
+  getSignedDownloadUrl: vi.fn().mockResolvedValue("https://signed.example/file"),
+  deleteFile: vi.fn().mockResolvedValue(undefined),
+  generateFileKey: vi.fn((module: string, entityId: string, filename: string) => `${module}/${entityId}/${filename}`),
+}));
+
 // ─── Queue Mock ────────────────────────────────────────────────────
 
 const mockQueue = {

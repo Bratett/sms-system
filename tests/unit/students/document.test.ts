@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { prismaMock, mockAuthenticatedUser, mockUnauthenticated } from "../setup";
+import * as r2 from "@/lib/storage/r2";
 import { listDocumentTypesAction } from "@/modules/student/actions/document.action";
 import { createDocumentTypeAction } from "@/modules/student/actions/document.action";
 
@@ -213,5 +214,72 @@ describe("getMissingRequiredDocumentsAction", () => {
     const result = await getMissingRequiredDocumentsAction("student-1");
     if (!("data" in result)) throw new Error(result.error);
     expect(result.data.missing).toHaveLength(1);
+  });
+});
+
+import { recordUploadedStudentDocumentAction } from "@/modules/student/actions/document.action";
+
+describe("recordUploadedStudentDocumentAction", () => {
+  beforeEach(() => {
+    mockAuthenticatedUser();
+    vi.mocked(r2.deleteFile).mockClear();
+  });
+
+  it("creates a document row with computed expiresAt from documentType.expiryMonths", async () => {
+    prismaMock.documentType.findFirst.mockResolvedValue({
+      id: "dt-1", schoolId: "default-school", expiryMonths: 12,
+    } as never);
+    prismaMock.studentDocument.create.mockResolvedValue({ id: "sd-new" } as never);
+
+    const result = await recordUploadedStudentDocumentAction({
+      studentId: "clh0000000000000000000001",
+      documentTypeId: "clh0000000000000000000002",
+      title: "Birth Certificate",
+      fileKey: "student-documents/clh0000000000000000000001/1234-file.pdf",
+      fileName: "file.pdf",
+      fileSize: 1024,
+      contentType: "application/pdf",
+    });
+    expect(result).toMatchObject({ data: { id: "sd-new" } });
+    const createArgs = vi.mocked(prismaMock.studentDocument.create).mock.calls[0][0];
+    expect(createArgs.data.expiresAt).toBeInstanceOf(Date);
+  });
+
+  it("creates with null expiresAt when documentType.expiryMonths is null", async () => {
+    prismaMock.documentType.findFirst.mockResolvedValue({
+      id: "dt-1", schoolId: "default-school", expiryMonths: null,
+    } as never);
+    prismaMock.studentDocument.create.mockResolvedValue({ id: "sd-new" } as never);
+
+    await recordUploadedStudentDocumentAction({
+      studentId: "clh0000000000000000000001",
+      documentTypeId: "clh0000000000000000000002",
+      title: "Birth Certificate",
+      fileKey: "key",
+      fileName: "f.pdf",
+      fileSize: 1,
+      contentType: "application/pdf",
+    });
+    const createArgs = vi.mocked(prismaMock.studentDocument.create).mock.calls[0][0];
+    expect(createArgs.data.expiresAt).toBeNull();
+  });
+
+  it("deletes R2 file and returns error when DB insert fails", async () => {
+    prismaMock.documentType.findFirst.mockResolvedValue({
+      id: "dt-1", schoolId: "default-school", expiryMonths: null,
+    } as never);
+    prismaMock.studentDocument.create.mockRejectedValue(new Error("DB exploded"));
+
+    const result = await recordUploadedStudentDocumentAction({
+      studentId: "clh0000000000000000000001",
+      documentTypeId: "clh0000000000000000000002",
+      title: "X",
+      fileKey: "orphan-key",
+      fileName: "f.pdf",
+      fileSize: 1,
+      contentType: "application/pdf",
+    });
+    expect(result).toMatchObject({ error: expect.stringContaining("failed") });
+    expect(vi.mocked(r2.deleteFile)).toHaveBeenCalledWith("orphan-key");
   });
 });

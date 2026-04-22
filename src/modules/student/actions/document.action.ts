@@ -4,9 +4,11 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import { deleteFile } from "@/lib/storage/r2";
 import {
   createDocumentTypeSchema,
   updateDocumentTypeSchema,
+  recordUploadedStudentDocumentSchema,
 } from "../schemas/document.schema";
 
 export async function listDocumentTypesAction(opts?: { status?: "ACTIVE" | "INACTIVE" }) {
@@ -223,4 +225,67 @@ export async function getMissingRequiredDocumentsAction(studentId: string) {
   const missing = requiredTypes.filter((t) => !satisfiedTypeIds.has(t.id));
 
   return { data: { required: requiredTypes, missing } };
+}
+
+export async function recordUploadedStudentDocumentAction(input: {
+  studentId: string;
+  documentTypeId: string;
+  title: string;
+  fileKey: string;
+  fileName: string;
+  fileSize: number;
+  contentType: string;
+  notes?: string;
+}) {
+  const parsed = recordUploadedStudentDocumentSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_DOCUMENTS_CREATE);
+  if (denied) return denied;
+
+  const type = await db.documentType.findFirst({
+    where: { id: parsed.data.documentTypeId, schoolId: ctx.schoolId },
+  });
+  if (!type) return { error: "Document type not found" };
+
+  const expiresAt = type.expiryMonths
+    ? new Date(Date.now() + type.expiryMonths * 30 * 24 * 60 * 60 * 1000)
+    : null;
+
+  try {
+    const doc = await db.studentDocument.create({
+      data: {
+        schoolId: ctx.schoolId,
+        studentId: parsed.data.studentId,
+        documentTypeId: parsed.data.documentTypeId,
+        title: parsed.data.title,
+        fileKey: parsed.data.fileKey,
+        fileName: parsed.data.fileName,
+        fileSize: parsed.data.fileSize,
+        contentType: parsed.data.contentType,
+        notes: parsed.data.notes,
+        expiresAt,
+        uploadedBy: ctx.session.user.id!,
+      },
+    });
+
+    await audit({
+      userId: ctx.session.user.id!,
+      action: "CREATE",
+      entity: "StudentDocument",
+      entityId: doc.id,
+      module: "students",
+      description: `Uploaded document: ${parsed.data.title}`,
+      metadata: { documentTypeId: parsed.data.documentTypeId, fileKey: parsed.data.fileKey },
+    });
+
+    return { data: doc };
+  } catch (err) {
+    try {
+      await deleteFile(parsed.data.fileKey);
+    } catch {}
+    return { error: "Document record creation failed; file was cleaned up." };
+  }
 }
