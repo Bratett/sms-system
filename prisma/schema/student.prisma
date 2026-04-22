@@ -43,6 +43,8 @@ model Student {
   @@index([schoolId, status])
   @@index([schoolId, gender, status])
   @@index([schoolId, boardingStatus, status])
+  @@index([schoolId, region, status])
+  @@index([schoolId, religion, status])
 }
 
 model Guardian {

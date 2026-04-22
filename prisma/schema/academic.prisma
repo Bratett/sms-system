@@ -79,6 +79,7 @@ model Enrollment {
   @@index([status])
   @@index([termId])
   @@index([schoolId])
+  @@index([academicYearId, isFreeShsPlacement])
 }
 
 enum EnrollmentStatus {
