@@ -171,6 +171,12 @@ export function StudentsClient({
           >
             Add Student
           </Link>
+          <Link
+            href="/students/promotion"
+            className="rounded-lg bg-primary px-4 py-2 text-center text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Promotion
+          </Link>
         </div>
       </div>
 
