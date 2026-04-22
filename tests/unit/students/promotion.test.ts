@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prismaMock, mockAuthenticatedUser, mockUnauthenticated } from "../setup";
-import { getEligibleSourceArmsAction, listPromotionRunsAction } from "@/modules/student/actions/promotion.action";
+import { getEligibleSourceArmsAction, listPromotionRunsAction, getPromotionRunAction } from "@/modules/student/actions/promotion.action";
 
 describe("getEligibleSourceArmsAction", () => {
   beforeEach(() => mockAuthenticatedUser());
@@ -50,5 +50,36 @@ describe("listPromotionRunsAction", () => {
       expect.objectContaining({ id: "pr-1" }),
       expect.objectContaining({ id: "pr-2" }),
     ]) });
+  });
+});
+
+describe("getPromotionRunAction", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("returns the run with items and capacity rollup", async () => {
+    prismaMock.promotionRun.findFirst.mockResolvedValue({
+      id: "pr-1",
+      schoolId: "default-school",
+      status: "DRAFT",
+      targetAcademicYearId: "ay-2",
+      items: [
+        { id: "pri-1", outcome: "PROMOTE", destinationClassArmId: "ca-2", student: { firstName: "A", lastName: "B", studentId: "S/1" } },
+      ],
+      sourceClassArm: { id: "ca-1", name: "A", class: { name: "SHS1 Sci", yearGroup: 1, programmeId: "pr-sci" } },
+      sourceAcademicYear: { id: "ay-1", name: "2025/26" },
+      targetAcademicYear: { id: "ay-2", name: "2026/27" },
+    } as never);
+    prismaMock.classArm.findMany.mockResolvedValue([
+      { id: "ca-2", capacity: 40, _count: { enrollments: 10 } },
+    ] as never);
+
+    const result = await getPromotionRunAction("pr-1");
+    expect(result).toMatchObject({ data: { id: "pr-1", capacityByArm: { "ca-2": { capacity: 40, existing: 10, incoming: 1 } } } });
+  });
+
+  it("returns error when run does not belong to current school", async () => {
+    prismaMock.promotionRun.findFirst.mockResolvedValue(null);
+    const result = await getPromotionRunAction("pr-x");
+    expect(result).toEqual({ error: "Promotion run not found" });
   });
 });

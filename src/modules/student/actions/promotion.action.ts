@@ -60,3 +60,46 @@ export async function listPromotionRunsAction(opts?: { status?: "DRAFT" | "COMMI
 
   return { data: runs };
 }
+
+export async function getPromotionRunAction(runId: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_PROMOTE);
+  if (denied) return denied;
+
+  const run = await db.promotionRun.findFirst({
+    where: { id: runId, schoolId: ctx.schoolId },
+    include: {
+      items: {
+        include: {
+          student: { select: { id: true, studentId: true, firstName: true, lastName: true, status: true } },
+          destinationClassArm: { include: { class: { select: { name: true, yearGroup: true } } } },
+        },
+        orderBy: [{ student: { lastName: "asc" } }],
+      },
+      sourceClassArm: { include: { class: { select: { id: true, name: true, yearGroup: true, programmeId: true } } } },
+      sourceAcademicYear: { select: { id: true, name: true } },
+      targetAcademicYear: { select: { id: true, name: true } },
+    },
+  });
+  if (!run) return { error: "Promotion run not found" };
+
+  // Capacity rollup: count draft items per destination arm.
+  const destIds = run.items.map((i) => i.destinationClassArmId).filter(Boolean) as string[];
+  const destArms = destIds.length
+    ? await db.classArm.findMany({
+        where: { id: { in: destIds } },
+        select: { id: true, capacity: true, _count: { select: { enrollments: { where: { status: "ACTIVE", academicYearId: run.targetAcademicYearId } } } } },
+      })
+    : [];
+  const capacityByArm: Record<string, { capacity: number; existing: number; incoming: number }> = {};
+  for (const a of destArms) {
+    capacityByArm[a.id] = {
+      capacity: a.capacity,
+      existing: a._count.enrollments,
+      incoming: run.items.filter((i) => i.destinationClassArmId === a.id).length,
+    };
+  }
+
+  return { data: { ...run, capacityByArm } };
+}
