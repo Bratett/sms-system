@@ -105,4 +105,27 @@ describe("backfillHouseholds", () => {
     expect(prismaMock.guardian.update).not.toHaveBeenCalled();
     expect(prismaMock.student.update).not.toHaveBeenCalled();
   });
+
+  it("merges null-household student into an existing guardian's household", async () => {
+    prismaMock.school.findMany.mockResolvedValue([{ id: "school-1" }] as never);
+    prismaMock.studentGuardian.findMany.mockResolvedValue([sg("s1", "g1", true)] as never);
+    prismaMock.guardian.findMany.mockResolvedValue([
+      { id: "g1", firstName: "Kwame", lastName: "Asante", householdId: "existing-hh" },
+    ] as never);
+    prismaMock.student.findMany.mockResolvedValue([
+      { id: "s1", householdId: null },
+    ] as never);
+
+    await backfillHouseholds({ dryRun: false });
+
+    // No new household created
+    expect(prismaMock.household.create).not.toHaveBeenCalled();
+    // Student inherits the guardian's existing household
+    expect(prismaMock.student.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "s1" },
+        data: { householdId: "existing-hh" },
+      }),
+    );
+  });
 });

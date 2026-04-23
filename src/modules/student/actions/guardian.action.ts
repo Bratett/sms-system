@@ -59,8 +59,8 @@ export async function getGuardianAction(id: string) {
   const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_READ);
   if (denied) return denied;
 
-  const guardian = await db.guardian.findUnique({
-    where: { id },
+  const guardian = await db.guardian.findFirst({
+    where: { id, schoolId: ctx.schoolId },
     include: {
       students: {
         include: {
@@ -283,37 +283,38 @@ export async function linkGuardianToStudentAction(
     };
   }
 
-  const link = await db.studentGuardian.create({
-    data: {
-      schoolId: ctx.schoolId,
-      studentId,
-      guardianId,
-      isPrimary: isPrimary ?? false,
-    },
+  const link = await db.$transaction(async (tx) => {
+    const newLink = await tx.studentGuardian.create({
+      data: {
+        schoolId: ctx.schoolId,
+        studentId,
+        guardianId,
+        isPrimary: isPrimary ?? false,
+      },
+    });
+
+    if (student.householdId == null && guardian.householdId != null) {
+      await tx.student.update({
+        where: { id: studentId },
+        data: { householdId: guardian.householdId },
+      });
+    }
+    if (guardian.householdId == null && student.householdId != null) {
+      await tx.guardian.update({
+        where: { id: guardianId },
+        data: { householdId: student.householdId },
+      });
+    }
+
+    if (isPrimary) {
+      await tx.studentGuardian.updateMany({
+        where: { studentId, id: { not: newLink.id } },
+        data: { isPrimary: false },
+      });
+    }
+
+    return newLink;
   });
-
-  // If the student has no household and the guardian does, inherit it
-  if (student.householdId == null && guardian.householdId != null) {
-    await db.student.update({
-      where: { id: studentId },
-      data: { householdId: guardian.householdId },
-    });
-  }
-  // If the guardian has no household and the student does, inherit it
-  if (guardian.householdId == null && student.householdId != null) {
-    await db.guardian.update({
-      where: { id: guardianId },
-      data: { householdId: student.householdId },
-    });
-  }
-
-  // isPrimary flip: unset others for this student
-  if (isPrimary) {
-    await db.studentGuardian.updateMany({
-      where: { studentId, id: { not: link.id } },
-      data: { isPrimary: false },
-    });
-  }
 
   await audit({
     userId: ctx.session.user.id!,
@@ -336,27 +337,26 @@ export async function unlinkGuardianFromStudentAction(studentId: string, guardia
   const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_UPDATE);
   if (denied) return denied;
 
-  const existing = await db.studentGuardian.findUnique({
-    where: {
-      studentId_guardianId: {
-        studentId,
-        guardianId,
-      },
-    },
+  const existing = await db.studentGuardian.findFirst({
+    where: { studentId, guardianId, schoolId: ctx.schoolId },
   });
 
   if (!existing) {
     return { error: "Guardian link not found." };
   }
 
-  await db.studentGuardian.delete({
-    where: { id: existing.id },
-  });
-
   const [student, guardian] = await Promise.all([
-    db.student.findUnique({ where: { id: studentId }, select: { firstName: true, lastName: true } }),
-    db.guardian.findUnique({ where: { id: guardianId }, select: { firstName: true, lastName: true } }),
+    db.student.findFirst({
+      where: { id: studentId, schoolId: ctx.schoolId },
+      select: { firstName: true, lastName: true },
+    }),
+    db.guardian.findFirst({
+      where: { id: guardianId, schoolId: ctx.schoolId },
+      select: { firstName: true, lastName: true },
+    }),
   ]);
+
+  await db.studentGuardian.delete({ where: { id: existing.id } });
 
   await audit({
     userId: ctx.session.user.id!,
@@ -364,7 +364,7 @@ export async function unlinkGuardianFromStudentAction(studentId: string, guardia
     entity: "StudentGuardian",
     entityId: existing.id,
     module: "student",
-    description: `Unlinked guardian "${guardian?.firstName} ${guardian?.lastName}" from student "${student?.firstName} ${student?.lastName}"`,
+    description: `Unlinked guardian "${guardian?.firstName ?? "?"} ${guardian?.lastName ?? "?"}" from student "${student?.firstName ?? "?"} ${student?.lastName ?? "?"}"`,
     previousData: existing,
   });
 

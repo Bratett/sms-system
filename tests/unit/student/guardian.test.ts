@@ -75,13 +75,13 @@ describe("getGuardianAction", () => {
   });
 
   it("should return error if guardian not found", async () => {
-    prismaMock.guardian.findUnique.mockResolvedValue(null as never);
+    prismaMock.guardian.findFirst.mockResolvedValue(null as never);
     const result = await getGuardianAction("nonexistent");
     expect(result).toEqual({ error: "Guardian not found." });
   });
 
   it("should return guardian with linked students", async () => {
-    prismaMock.guardian.findUnique.mockResolvedValue({
+    prismaMock.guardian.findFirst.mockResolvedValue({
       id: "g1",
       firstName: "Kofi",
       lastName: "Asante",
@@ -326,23 +326,23 @@ describe("unlinkGuardianFromStudentAction", () => {
   });
 
   it("should return error if link not found", async () => {
-    prismaMock.studentGuardian.findUnique.mockResolvedValue(null as never);
+    prismaMock.studentGuardian.findFirst.mockResolvedValue(null as never);
     const result = await unlinkGuardianFromStudentAction("s1", "g1");
     expect(result).toEqual({ error: "Guardian link not found." });
   });
 
   it("should delete link successfully", async () => {
-    prismaMock.studentGuardian.findUnique.mockResolvedValue({
+    prismaMock.studentGuardian.findFirst.mockResolvedValue({
       id: "sg-1",
       studentId: "s1",
       guardianId: "g1",
     } as never);
     prismaMock.studentGuardian.delete.mockResolvedValue({} as never);
-    prismaMock.student.findUnique.mockResolvedValue({
+    prismaMock.student.findFirst.mockResolvedValue({
       firstName: "Kwame",
       lastName: "Asante",
     } as never);
-    prismaMock.guardian.findUnique.mockResolvedValue({
+    prismaMock.guardian.findFirst.mockResolvedValue({
       firstName: "Kofi",
       lastName: "Asante",
     } as never);
@@ -508,6 +508,46 @@ describe("createGuardianAction dedup", () => {
     expect(prismaMock.guardian.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ schoolId: "default-school" }),
+      }),
+    );
+  });
+});
+
+// ─── getGuardianAction tenant isolation ───────────────────────────
+
+describe("getGuardianAction tenant isolation", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("scopes the query by schoolId", async () => {
+    prismaMock.guardian.findFirst.mockResolvedValue(null as never);
+    await getGuardianAction("g-from-other-school");
+    expect(prismaMock.guardian.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: "g-from-other-school",
+          schoolId: "default-school",
+        }),
+      }),
+    );
+  });
+});
+
+// ─── unlinkGuardianFromStudentAction tenant isolation ─────────────
+
+describe("unlinkGuardianFromStudentAction tenant isolation", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("scopes the studentGuardian lookup by schoolId", async () => {
+    prismaMock.studentGuardian.findFirst.mockResolvedValue(null as never);
+    const result = await unlinkGuardianFromStudentAction("s1", "g1");
+    expect(result).toEqual({ error: "Guardian link not found." });
+    expect(prismaMock.studentGuardian.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          studentId: "s1",
+          guardianId: "g1",
+          schoolId: "default-school",
+        }),
       }),
     );
   });

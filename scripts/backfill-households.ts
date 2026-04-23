@@ -104,13 +104,15 @@ async function backfillForSchool(schoolId: string, dryRun: boolean): Promise<voi
     return;
   }
 
-  // Build union-find from links
+  // Build union-find from links.
+  // Include ALL guardians (not just those needing backfill) so that already-assigned
+  // guardians are reachable in the same connected component as null-householdId members.
   const uf = new UnionFind();
   const guardianKey = (id: string) => `g:${id}`;
   const studentKey = (id: string) => `s:${id}`;
 
-  // Seed with all nodes that need backfilling (so isolated ones form their own component)
-  for (const g of guardiansToBackfill) uf.find(guardianKey(g.id));
+  // Seed all guardians and null-household students so isolated nodes form their own component
+  for (const g of guardians) uf.find(guardianKey(g.id));
   for (const s of studentsToBackfill) uf.find(studentKey(s.id));
 
   for (const link of links as LinkLite[]) {
@@ -123,9 +125,11 @@ async function backfillForSchool(schoolId: string, dryRun: boolean): Promise<voi
     if (link.isPrimary) primaryByStudent.set(link.studentId, link.guardianId);
   }
 
-  // Group all nodes by root
+  // Group nodes that need backfilling by their component root.
+  // We include all guardian keys so the component roots are consistent,
+  // but we only process components that actually contain null-household members.
   const allNodeKeys = [
-    ...guardiansToBackfill.map((g) => guardianKey(g.id)),
+    ...guardians.map((g) => guardianKey(g.id)),
     ...studentsToBackfill.map((s) => studentKey(s.id)),
   ];
   const components = uf.components(allNodeKeys);
@@ -133,21 +137,57 @@ async function backfillForSchool(schoolId: string, dryRun: boolean): Promise<voi
   const guardianById = new Map(guardians.map((g: GuardianLite) => [g.id, g]));
 
   for (const memberKeys of components.values()) {
-    const memberGuardians: GuardianLite[] = [];
-    const memberStudents: StudentLite[] = [];
+    const memberGuardians: GuardianLite[] = []; // null-householdId guardians needing update
+    const memberStudents: StudentLite[] = [];   // null-householdId students needing update
+    let existingHouseholdId: string | null = null;
 
     for (const key of memberKeys) {
       const [prefix, id] = [key[0], key.slice(2)];
       if (prefix === "g") {
         const g = guardianById.get(id);
-        if (g && g.householdId === null) memberGuardians.push(g);
+        if (!g) continue;
+        if (g.householdId !== null) {
+          // This guardian is already assigned — capture the existing household
+          existingHouseholdId = g.householdId;
+        } else {
+          memberGuardians.push(g);
+        }
       } else if (prefix === "s") {
         const s = students.find((x: StudentLite) => x.id === id);
         if (s && s.householdId === null) memberStudents.push(s);
       }
     }
 
-    // Surname rule: primary guardian's lastName (by any student); fallback: first guardian alphabetically
+    // Skip components where nothing needs updating
+    if (memberGuardians.length === 0 && memberStudents.length === 0) continue;
+
+    if (existingHouseholdId !== null) {
+      // At least one guardian in the component already belongs to a household —
+      // slot the null-household members into that existing household.
+      if (dryRun) {
+        console.log(
+          `[${schoolId}] WOULD ASSIGN existing household "${existingHouseholdId}" to ${memberGuardians.length} guardian(s) + ${memberStudents.length} student(s)`,
+        );
+        continue;
+      }
+
+      await Promise.all([
+        ...memberGuardians.map((g) =>
+          db.guardian.update({ where: { id: g.id }, data: { householdId: existingHouseholdId } }),
+        ),
+        ...memberStudents.map((s) =>
+          db.student.update({ where: { id: s.id }, data: { householdId: existingHouseholdId } }),
+        ),
+      ]);
+
+      console.log(
+        `[${schoolId}] assigned existing household "${existingHouseholdId}" — ${memberGuardians.length} guardian(s), ${memberStudents.length} student(s)`,
+      );
+      continue;
+    }
+
+    // No existing household in this component — create a new one.
+    // Surname rule: primary guardian's lastName (by any null-household student); fallback: first guardian alphabetically
     let surname = "Household";
     const primaryGuardianIds = memberStudents
       .map((s) => primaryByStudent.get(s.id))
