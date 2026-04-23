@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { getCached } from "@/lib/analytics-cache";
-import { getStudentAnalyticsSchema } from "../schemas/analytics.schema";
+import { getStudentAnalyticsSchema, exportAnalyticsMetricSchema } from "../schemas/analytics.schema";
 
 export type StudentAnalyticsPayload = {
   computedAt: Date;
@@ -490,4 +490,50 @@ export async function getStudentAnalyticsAction(input: {
   });
 
   return { data: { ...payload, cached: !wasCacheMiss } };
+}
+
+/**
+ * @no-audit Read-only export derived from cached analytics payload.
+ */
+export async function exportAnalyticsMetricAction(input: {
+  metric:
+    | "kpis"
+    | "enrollmentTrend"
+    | "demographics.gender"
+    | "demographics.region"
+    | "demographics.religion"
+    | "retention"
+    | "freeShs"
+    | "atRisk";
+  academicYearId?: string;
+  programmeId?: string;
+}): Promise<{ data: Array<Record<string, unknown>> } | { error: string }> {
+  const parsed = exportAnalyticsMetricSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid metric" };
+
+  const loaded = await getStudentAnalyticsAction({
+    academicYearId: parsed.data.academicYearId,
+    programmeId: parsed.data.programmeId,
+  });
+  if ("error" in loaded) return loaded;
+  const p = loaded.data;
+
+  switch (parsed.data.metric) {
+    case "kpis":
+      return { data: [p.kpis as unknown as Record<string, unknown>] };
+    case "enrollmentTrend":
+      return { data: p.enrollmentTrend };
+    case "demographics.gender":
+      return { data: p.demographics.byGender };
+    case "demographics.region":
+      return { data: p.demographics.byRegion };
+    case "demographics.religion":
+      return { data: p.demographics.byReligion };
+    case "retention":
+      return { data: p.retention.cohorts };
+    case "freeShs":
+      return { data: [p.freeShs as unknown as Record<string, unknown>] };
+    case "atRisk":
+      return { data: p.atRisk.topStudents };
+  }
 }
