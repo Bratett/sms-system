@@ -121,6 +121,7 @@ model School {
 
   // Communication
   graduationRecords GraduationRecord[] @relation("SchoolGraduationRecords")
+  messageThreads    MessageThread[]    @relation("SchoolMessageThread")
 
   // LMS
   lessons               Lesson[]               @relation("SchoolLessons")

@@ -16,7 +16,9 @@ model User {
   auditLogs                AuditLog[]
   notifications            Notification[]
   userSchools              UserSchool[]
-  invigilatorExamSchedules ExamSchedule[] @relation("InvigilatorExamSchedules")
+  invigilatorExamSchedules ExamSchedule[]  @relation("InvigilatorExamSchedules")
+  teacherThreads           MessageThread[] @relation("TeacherThreads")
+  authoredMessages         Message[]       @relation("AuthoredMessages")
 
   @@index([email])
   @@index([username])

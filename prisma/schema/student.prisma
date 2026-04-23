@@ -39,6 +39,8 @@ model Student {
   householdId String?
   household   Household? @relation(fields: [householdId], references: [id], onDelete: SetNull)
 
+  messageThreads MessageThread[]
+
   @@index([schoolId])
   @@index([studentId])
   @@index([status])
