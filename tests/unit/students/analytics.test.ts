@@ -304,6 +304,37 @@ describe("loadAtRisk", () => {
     expect(result.data.atRisk.hasAnyProfiles).toBe(false);
     expect(result.data.atRisk.computedAt).toBeNull();
   });
+
+  it("applies programme filter via studentId in-list when programmeId is given", async () => {
+    const validAyId = "cjld2cyuq0000t3rmniod1foy";
+    const progId    = "cjld2cyuq0001t3rmniod1foz";
+    prismaMock.academicYear.findFirst.mockResolvedValue({
+      id: validAyId, schoolId: "default-school", isCurrent: true,
+      startDate: new Date("2025-09-01"), endDate: new Date("2026-08-31"), name: "2025/2026",
+    } as never);
+    prismaMock.academicYear.findMany.mockResolvedValue([] as never);
+    prismaMock.enrollment.groupBy.mockResolvedValue([] as never);
+    prismaMock.student.count.mockResolvedValue(0);
+    prismaMock.enrollment.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.count.mockResolvedValue(0);
+    prismaMock.enrollment.findMany.mockImplementation(async (args: any) => {
+      // Demographics query selects the nested student object; return empty so it
+      // doesn't crash. The programme-filter query (for getStudentIdsInProgramme)
+      // selects only studentId — return the two scoped students for that call.
+      if (args?.select?.student) return [] as never;
+      return [{ studentId: "s-1" }, { studentId: "s-2" }] as never;
+    });
+    prismaMock.student.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
+
+    await getStudentAnalyticsAction({ academicYearId: validAyId, programmeId: progId });
+
+    // The loadAtRisk risk-profile queries should include studentId: { in: [...] }
+    const groupByArgs = prismaMock.studentRiskProfile.groupBy.mock.calls[0]![0];
+    expect(groupByArgs.where).toMatchObject({ studentId: { in: ["s-1", "s-2"] } });
+  });
 });
 
 describe("loadRetention", () => {

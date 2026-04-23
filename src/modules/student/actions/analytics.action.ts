@@ -64,6 +64,26 @@ export type StudentAnalyticsPayload = {
   };
 };
 
+/**
+ * Returns the student IDs enrolled in a specific programme for a given academic
+ * year. Used to scope StudentRiskProfile queries (which have no direct Prisma
+ * relation to Student / Programme) when a programme filter is active.
+ * Returns `undefined` when no programmeId is provided so callers can cheaply
+ * skip the extra query.
+ */
+async function getStudentIdsInProgramme(
+  schoolId: string,
+  academicYearId: string,
+  programmeId: string | undefined,
+): Promise<string[] | undefined> {
+  if (!programmeId) return undefined;
+  const enrollments = await db.enrollment.findMany({
+    where: { schoolId, academicYearId, classArm: { class: { programmeId } } },
+    select: { studentId: true },
+  });
+  return enrollments.map((e) => e.studentId);
+}
+
 async function loadKpis(
   schoolId: string,
   academicYearId: string,
@@ -92,14 +112,7 @@ async function loadKpis(
   // When a programme is selected, resolve the set of student IDs enrolled in
   // that programme for the year upfront, so risk profiles (which have no
   // Prisma relation back to Student) can be scoped by studentId.
-  let programmeScopedStudentIds: string[] | undefined;
-  if (programmeId) {
-    const enrollments = await db.enrollment.findMany({
-      where: { schoolId, academicYearId, classArm: { class: { programmeId } } },
-      select: { studentId: true },
-    });
-    programmeScopedStudentIds = enrollments.map((e) => e.studentId);
-  }
+  const programmeScopedStudentIds = await getStudentIdsInProgramme(schoolId, academicYearId, programmeId);
 
   const riskProgrammeFilter: Prisma.StudentRiskProfileWhereInput =
     programmeScopedStudentIds !== undefined
@@ -362,21 +375,28 @@ async function loadFreeShs(
 async function loadAtRisk(
   schoolId: string,
   academicYearId: string,
+  programmeId?: string,
 ): Promise<StudentAnalyticsPayload["atRisk"]> {
+  const programmeScopedStudentIds = await getStudentIdsInProgramme(schoolId, academicYearId, programmeId);
+  const riskProgrammeFilter: Prisma.StudentRiskProfileWhereInput =
+    programmeScopedStudentIds !== undefined
+      ? { studentId: { in: programmeScopedStudentIds } }
+      : {};
+
   const [byLevelRaw, topRaw, agg] = await Promise.all([
     db.studentRiskProfile.groupBy({
       by: ["riskLevel"],
-      where: { schoolId, academicYearId },
+      where: { schoolId, academicYearId, ...riskProgrammeFilter },
       _count: { _all: true },
     }),
     db.studentRiskProfile.findMany({
-      where: { schoolId, academicYearId },
+      where: { schoolId, academicYearId, ...riskProgrammeFilter },
       orderBy: { riskScore: "desc" },
       take: 10,
       select: { studentId: true, riskScore: true, riskLevel: true },
     }),
     db.studentRiskProfile.aggregate({
-      where: { schoolId, academicYearId },
+      where: { schoolId, academicYearId, ...riskProgrammeFilter },
       _max: { computedAt: true },
     }),
   ]);
@@ -455,7 +475,7 @@ export async function getStudentAnalyticsAction(input: {
       loadDemographics(ctx.schoolId, year.id, programmeFilter),
       loadRetention(ctx.schoolId, programmeFilter),
       loadFreeShs(ctx.schoolId, year.id, programmeFilter),
-      loadAtRisk(ctx.schoolId, year.id),
+      loadAtRisk(ctx.schoolId, year.id, parsed.data.programmeId),
     ]);
     return {
       computedAt: new Date(),
