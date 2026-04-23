@@ -36,6 +36,9 @@ model Student {
 
   reportCardPdfCaches ReportCardPdfCache[]
 
+  householdId String?
+  household   Household? @relation(fields: [householdId], references: [id], onDelete: SetNull)
+
   @@index([schoolId])
   @@index([studentId])
   @@index([status])
@@ -45,6 +48,7 @@ model Student {
   @@index([schoolId, boardingStatus, status])
   @@index([schoolId, region, status])
   @@index([schoolId, religion, status])
+  @@index([householdId])
 }
 
 model Guardian {
@@ -62,12 +66,15 @@ model Guardian {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  students StudentGuardian[]
-  school   School            @relation("SchoolGuardian", fields: [schoolId], references: [id])
+  students    StudentGuardian[]
+  school      School            @relation("SchoolGuardian", fields: [schoolId], references: [id])
+  householdId String?
+  household   Household?        @relation(fields: [householdId], references: [id], onDelete: SetNull)
 
   @@index([phone])
   @@index([firstName, lastName])
   @@index([schoolId])
+  @@index([householdId])
 }
 
 model StudentGuardian {
@@ -84,6 +91,23 @@ model StudentGuardian {
   @@unique([studentId, guardianId])
   @@index([guardianId])
   @@index([schoolId])
+}
+
+model Household {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String
+  address   String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guardians Guardian[]
+  students  Student[]
+  school    School @relation("SchoolHousehold", fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+  @@index([schoolId, name])
 }
 
 model StudentHouse {
