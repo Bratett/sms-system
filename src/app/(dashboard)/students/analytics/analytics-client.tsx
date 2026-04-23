@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import type { StudentAnalyticsPayload } from "@/modules/student/actions/analytics.action";
+import { invalidateAnalyticsCacheAction } from "@/modules/student/actions/analytics.action";
 import { KpiTiles } from "./kpi-tiles";
 import { EnrollmentTrendChart } from "./enrollment-trend-chart";
 import { DemographicsChart } from "./demographics-chart";
@@ -38,7 +39,10 @@ export function AnalyticsClient(props: Props) {
   };
 
   const handleRefresh = () => {
-    start(() => router.refresh());
+    start(async () => {
+      await invalidateAnalyticsCacheAction();
+      router.refresh();
+    });
   };
 
   if (props.error) {

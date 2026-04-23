@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
-import { getCached } from "@/lib/analytics-cache";
+import { getCached, invalidateCachePrefix } from "@/lib/analytics-cache";
 import { getStudentAnalyticsSchema, exportAnalyticsMetricSchema } from "../schemas/analytics.schema";
 
 export type StudentAnalyticsPayload = {
@@ -316,28 +316,24 @@ async function loadRetention(
       byYearGroup.get(yg)!.push(e.studentId);
     }
 
-    for (const [yearGroup, studentIds] of byYearGroup) {
-      const retained = await db.enrollment.findMany({
-        where: {
-          schoolId,
-          academicYearId: nextYear.id,
-          status: "ACTIVE",
-          studentId: { in: studentIds },
-        },
-        select: { studentId: true },
-      });
-      const startingCount = studentIds.length;
-      const retainedCount = retained.length;
-      cohorts.push({
-        yearGroup,
-        academicYearName: baseYear.name,
-        startingCount,
-        retainedCount,
-        retentionPct: startingCount > 0
-          ? Math.round((retainedCount / startingCount) * 1000) / 10
-          : 0,
-      });
-    }
+    const cohortEntries = await Promise.all(
+      Array.from(byYearGroup.entries()).map(async ([yearGroup, studentIds]) => {
+        const retained = await db.enrollment.findMany({
+          where: { schoolId, academicYearId: nextYear.id, status: "ACTIVE", studentId: { in: studentIds } },
+          select: { studentId: true },
+        });
+        const startingCount = studentIds.length;
+        const retainedCount = retained.length;
+        return {
+          yearGroup,
+          academicYearName: baseYear.name,
+          startingCount,
+          retainedCount,
+          retentionPct: startingCount > 0 ? Math.round((retainedCount / startingCount) * 1000) / 10 : 0,
+        };
+      }),
+    );
+    cohorts.push(...cohortEntries);
   }
 
   cohorts.sort((a, b) =>
@@ -511,6 +507,11 @@ export async function exportAnalyticsMetricAction(input: {
   const parsed = exportAnalyticsMetricSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid metric" };
 
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_ANALYTICS_READ);
+  if (denied) return denied;
+
   const loaded = await getStudentAnalyticsAction({
     academicYearId: parsed.data.academicYearId,
     programmeId: parsed.data.programmeId,
@@ -536,4 +537,16 @@ export async function exportAnalyticsMetricAction(input: {
     case "atRisk":
       return { data: p.atRisk.topStudents };
   }
+}
+
+/**
+ * @no-audit Read-only control plane: busts in-process analytics cache for this school.
+ */
+export async function invalidateAnalyticsCacheAction(): Promise<{ ok: true } | { error: string }> {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.STUDENTS_ANALYTICS_READ);
+  if (denied) return denied;
+  invalidateCachePrefix(`analytics:${ctx.schoolId}`);
+  return { ok: true };
 }

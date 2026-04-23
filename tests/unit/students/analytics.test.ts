@@ -423,7 +423,7 @@ describe("loadRetention", () => {
   });
 });
 
-import { exportAnalyticsMetricAction } from "@/modules/student/actions/analytics.action";
+import { exportAnalyticsMetricAction, invalidateAnalyticsCacheAction } from "@/modules/student/actions/analytics.action";
 
 describe("exportAnalyticsMetricAction", () => {
   beforeEach(() => {
@@ -465,5 +465,44 @@ describe("exportAnalyticsMetricAction", () => {
       metric: "not-a-metric" as never,
     });
     expect(result).toHaveProperty("error");
+  });
+});
+
+describe("invalidateAnalyticsCacheAction", () => {
+  beforeEach(() => { __resetCacheForTests(); mockAuthenticatedUser(); });
+
+  it("rejects unauthenticated", async () => {
+    mockUnauthenticated();
+    const result = await invalidateAnalyticsCacheAction();
+    expect(result).toHaveProperty("error");
+  });
+
+  it("busts the cache so next call is not cached", async () => {
+    prismaMock.academicYear.findFirst.mockResolvedValue({
+      id: "cjld2cyuq0000t3rmniod1foy", schoolId: "default-school", isCurrent: true,
+      startDate: new Date("2025-09-01"), endDate: new Date("2026-08-31"),
+    } as never);
+    prismaMock.student.count.mockResolvedValue(0);
+    prismaMock.enrollment.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.count.mockResolvedValue(0);
+    prismaMock.academicYear.findMany.mockResolvedValue([] as never);
+    prismaMock.enrollment.groupBy.mockResolvedValue([] as never);
+    prismaMock.enrollment.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
+    prismaMock.student.findMany?.mockResolvedValue?.([] as never);
+
+    const r1 = await getStudentAnalyticsAction({ academicYearId: "cjld2cyuq0000t3rmniod1foy" });
+    const r2 = await getStudentAnalyticsAction({ academicYearId: "cjld2cyuq0000t3rmniod1foy" });
+    if (!("data" in r1) || !("data" in r2)) throw new Error("expected data");
+    expect(r1.data.cached).toBe(false);
+    expect(r2.data.cached).toBe(true);
+
+    await invalidateAnalyticsCacheAction();
+
+    const r3 = await getStudentAnalyticsAction({ academicYearId: "cjld2cyuq0000t3rmniod1foy" });
+    if (!("data" in r3)) throw new Error("expected data");
+    expect(r3.data.cached).toBe(false);
   });
 });
