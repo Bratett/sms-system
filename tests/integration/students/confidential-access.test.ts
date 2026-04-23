@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { getMedicalRecordAction, getMedicalRecordsAction } from "@/modules/student/actions/medical.action";
-import { getCounselingRecordsAction } from "@/modules/discipline/actions/counseling.action";
+import { getCounselingRecordAction, getCounselingRecordsAction } from "@/modules/discipline/actions/counseling.action";
 import { resolveSeededAdminId, loginAs } from "./setup";
 
 /**
@@ -311,6 +311,40 @@ describeIfDb("Confidential access (integration)", () => {
     const cnsConfRedacted = cnsRedacted.data.find((r) => r.id === confidentialCnsId);
     expect(cnsConfRedacted?.summary).toBe("Confidential — restricted");
     expect(cnsConfRedacted?.actionPlan).toBeNull();
+  });
+
+  // ─── Counseling detail + audit ───────────────────────────────────────────
+
+  it("counselor detail on confidential counseling writes audit row with denied:false", async () => {
+    loginAs({ id: counsellorDbId, permissions: ["welfare:counseling:read", "welfare:counseling:confidential:read"], schoolId: "default-school" });
+    const result = await getCounselingRecordAction(confidentialCnsId);
+    if (!("data" in result)) throw new Error(result.error);
+    expect(result.data.summary).toBe("Sensitive family matter");
+
+    const rows = await db.auditLog.findMany({
+      where: { entity: "CounselingRecord", entityId: confidentialCnsId, userId: counsellorDbId },
+      orderBy: { timestamp: "desc" },
+      take: 1,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.action).toBe("READ");
+    expect(rows[0]!.metadata).toMatchObject({ isConfidential: true, denied: false });
+  });
+
+  it("teacher detail on confidential counseling writes audit row with denied:true", async () => {
+    loginAs({ id: teacherDbId, permissions: ["welfare:counseling:read"], schoolId: "default-school" });
+    const result = await getCounselingRecordAction(confidentialCnsId);
+    if (!("data" in result)) throw new Error(result.error);
+    expect(result.data.summary).toBe("Confidential — restricted");
+    expect(result.data.actionPlan).toBeNull();
+
+    const rows = await db.auditLog.findMany({
+      where: { entity: "CounselingRecord", entityId: confidentialCnsId, userId: teacherDbId },
+      orderBy: { timestamp: "desc" },
+      take: 1,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.metadata).toMatchObject({ isConfidential: true, denied: true });
   });
 
   // ─── Tenant isolation ────────────────────────────────────────────────────

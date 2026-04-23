@@ -89,7 +89,7 @@ export function StudentHealthSection({ studentId }: { studentId: string }) {
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{formatDate(r.date)}</p>
                   </div>
-                  {r.followUpDate && (
+                  {!isRedacted && r.followUpDate && (
                     <p className="text-xs text-muted-foreground">
                       Follow-up: {formatDate(r.followUpDate)}
                     </p>

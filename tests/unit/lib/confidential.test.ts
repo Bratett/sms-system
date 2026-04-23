@@ -79,6 +79,7 @@ describe("redactMedicalRecord", () => {
     expect(result.description).toBe("");
     expect(result.treatment).toBeNull();
     expect(result.attachmentKey).toBeNull();
+    expect(result.followUpDate).toBeNull();
   });
 
   it("preserves metadata fields when redacting", () => {
@@ -87,7 +88,6 @@ describe("redactMedicalRecord", () => {
     expect(result.studentId).toBe(baseMedical.studentId);
     expect(result.date).toBe(baseMedical.date);
     expect(result.type).toBe(baseMedical.type);
-    expect(result.followUpDate).toBe(baseMedical.followUpDate);
     expect(result.isConfidential).toBe(true);
     expect(result.recordedBy).toBe(baseMedical.recordedBy);
   });
@@ -107,6 +107,8 @@ describe("redactCounselingRecord", () => {
     const result = redactCounselingRecord(baseCounseling, false);
     expect(result.summary).toBe("Confidential — restricted");
     expect(result.actionPlan).toBeNull();
+    expect(result.counselorId).toBe("");
+    expect(result.followUpDate).toBeNull();
   });
 
   it("preserves metadata fields when redacting", () => {
@@ -114,9 +116,7 @@ describe("redactCounselingRecord", () => {
     expect(result.id).toBe(baseCounseling.id);
     expect(result.sessionDate).toBe(baseCounseling.sessionDate);
     expect(result.type).toBe(baseCounseling.type);
-    expect(result.counselorId).toBe(baseCounseling.counselorId);
     expect(result.status).toBe(baseCounseling.status);
-    expect(result.followUpDate).toBe(baseCounseling.followUpDate);
   });
 });
 

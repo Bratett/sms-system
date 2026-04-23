@@ -91,6 +91,19 @@ describe("Role-Permission Mappings", () => {
     }
   });
 
+  it("school_nurse role has the expected permission bundle", () => {
+    const bundle = DEFAULT_ROLE_PERMISSIONS.school_nurse;
+    expect(bundle).toEqual(expect.arrayContaining([
+      PERMISSIONS.STUDENTS_READ,
+      PERMISSIONS.MEDICAL_CREATE,
+      PERMISSIONS.MEDICAL_READ,
+      PERMISSIONS.MEDICAL_UPDATE,
+      PERMISSIONS.MEDICAL_CONFIDENTIAL_READ,
+      PERMISSIONS.ANNOUNCEMENTS_READ,
+    ]));
+    expect(bundle).toHaveLength(6);
+  });
+
   it("all seeded roles should have permission mappings", () => {
     const expectedRoles = [
       "super_admin",

@@ -55,6 +55,7 @@ export function redactMedicalRecord<T extends MedicalLike>(
     description: "",
     treatment: null,
     attachmentKey: null,
+    followUpDate: null,
   };
 }
 
@@ -85,6 +86,8 @@ export function redactCounselingRecord<T extends CounselingLike>(
     ...record,
     summary: "Confidential — restricted",
     actionPlan: null,
+    counselorId: "",
+    followUpDate: null,
   };
 }
 
