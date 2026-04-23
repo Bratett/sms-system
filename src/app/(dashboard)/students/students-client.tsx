@@ -272,6 +272,12 @@ export function StudentsClient({
           >
             Promotion
           </Link>
+          <Link
+            href="/students/analytics"
+            className="rounded-lg border border-border bg-background px-4 py-2 text-center text-sm font-medium transition-colors hover:bg-muted"
+          >
+            Analytics
+          </Link>
         </div>
       </div>
 
