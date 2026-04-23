@@ -69,6 +69,7 @@ model School {
   guardians           Guardian[]           @relation("SchoolGuardian")
   studentGuardians    StudentGuardian[]    @relation("SchoolStudentGuardian")
   studentHouses       StudentHouse[]       @relation("SchoolStudentHouse")
+  households          Household[]          @relation("SchoolHousehold")
   admissionDocuments  AdmissionDocument[]  @relation("SchoolAdmissionDocument")
   admissionInterviews AdmissionInterview[] @relation("SchoolAdmissionInterview")
   admissionDecisions  AdmissionDecision[]  @relation("SchoolAdmissionDecision")

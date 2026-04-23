@@ -19,6 +19,9 @@ import { StudentHealthSection } from "./health-section";
 import { StudentBoardingSection } from "./boarding-section";
 import { StudentDocumentsSection } from "./documents-section";
 import { StudentAcademicSection } from "./academic-section";
+import { StudentSiblingsSection } from "./siblings-section";
+import { GuardianDedupModal } from "./guardian-dedup-modal";
+import type { DuplicateMatch } from "@/lib/guardian-matching";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -141,6 +144,23 @@ export function StudentProfile({
     relationship: "",
   });
   const [guardianFormError, setGuardianFormError] = useState<string | null>(null);
+  const [dedupState, setDedupState] = useState<
+    | { kind: "idle" }
+    | {
+        kind: "open";
+        duplicates: DuplicateMatch[];
+        originalInput: {
+          firstName: string;
+          lastName: string;
+          phone: string;
+          altPhone?: string;
+          email?: string;
+          occupation?: string;
+          address?: string;
+          relationship?: string;
+        };
+      }
+  >({ kind: "idle" });
 
   // Status update
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -251,6 +271,13 @@ export function StudentProfile({
           address: newGuardian.address.trim() || undefined,
           relationship: newGuardian.relationship.trim() || undefined,
         });
+        if ("duplicates" in createResult) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const r = createResult as any;
+          setDedupState({ kind: "open", duplicates: r.duplicates, originalInput: r.input });
+          setShowGuardianModal(false);
+          return;
+        }
         if ("error" in createResult) {
           setGuardianFormError(createResult.error);
           return;
@@ -387,6 +414,10 @@ export function StudentProfile({
               <InfoItem label="Blood Group" value={student.bloodGroup} />
               <InfoItem label="Boarding Status" value={student.boardingStatus} />
               <InfoItem label="Enrolled" value={formatDate(student.enrollmentDate)} />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <StudentSiblingsSection studentId={student.id} />
             </div>
 
             {(student.medicalConditions || student.allergies) && (
@@ -874,6 +905,52 @@ export function StudentProfile({
             </form>
           </div>
         </div>
+      )}
+
+      {/* ─── Guardian Dedup Modal ─────────────────────────────── */}
+      {dedupState.kind === "open" && (
+        <GuardianDedupModal
+          duplicates={dedupState.duplicates}
+          pending={isPending}
+          onCancel={() => setDedupState({ kind: "idle" })}
+          onUseExisting={(guardianId) => {
+            startTransition(async () => {
+              const linkRes = await linkGuardianToStudentAction(student.id, guardianId, guardianIsPrimary);
+              if ("error" in linkRes) {
+                toast.error(linkRes.error);
+                return;
+              }
+              toast.success("Guardian linked.");
+              setDedupState({ kind: "idle" });
+              router.refresh();
+            });
+          }}
+          onCreateNew={() => {
+            startTransition(async () => {
+              if (dedupState.kind !== "open") return;
+              const forceRes = await createGuardianAction(dedupState.originalInput, { skipDedupCheck: true });
+              if ("error" in forceRes) {
+                toast.error(forceRes.error);
+                return;
+              }
+              if ("duplicates" in forceRes) {
+                // Should never happen with skipDedupCheck: true, guard defensively
+                toast.error("Unexpected dedup response.");
+                return;
+              }
+              if ("data" in forceRes && forceRes.data) {
+                const linkRes = await linkGuardianToStudentAction(student.id, forceRes.data.id, guardianIsPrimary);
+                if ("error" in linkRes) {
+                  toast.error(linkRes.error);
+                  return;
+                }
+              }
+              toast.success("Guardian created and linked.");
+              setDedupState({ kind: "idle" });
+              router.refresh();
+            });
+          }}
+        />
       )}
 
       {/* ─── Status Modal ─────────────────────────────────────── */}
