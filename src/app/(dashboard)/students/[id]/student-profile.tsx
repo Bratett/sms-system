@@ -19,6 +19,7 @@ import { StudentHealthSection } from "./health-section";
 import { StudentBoardingSection } from "./boarding-section";
 import { StudentDocumentsSection } from "./documents-section";
 import { StudentAcademicSection } from "./academic-section";
+import { StudentSiblingsSection } from "./siblings-section";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -387,6 +388,10 @@ export function StudentProfile({
               <InfoItem label="Blood Group" value={student.bloodGroup} />
               <InfoItem label="Boarding Status" value={student.boardingStatus} />
               <InfoItem label="Enrolled" value={formatDate(student.enrollmentDate)} />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <StudentSiblingsSection studentId={student.id} />
             </div>
 
             {(student.medicalConditions || student.allergies) && (
