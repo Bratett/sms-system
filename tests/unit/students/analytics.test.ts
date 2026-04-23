@@ -47,6 +47,7 @@ describe("getStudentAnalyticsAction", () => {
     prismaMock.enrollment.findMany.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.student.findMany.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
 
     const result = await getStudentAnalyticsAction({});
@@ -79,6 +80,7 @@ describe("getStudentAnalyticsAction", () => {
     prismaMock.enrollment.findMany.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.student.findMany.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
 
     await getStudentAnalyticsAction({ academicYearId: validCuid, programmeId: progCuid });
@@ -112,6 +114,7 @@ describe("getStudentAnalyticsAction", () => {
     prismaMock.enrollment.findMany.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.student.findMany.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
 
     const first = await getStudentAnalyticsAction({ academicYearId: validYearId });
@@ -154,6 +157,7 @@ describe("loadEnrollmentTrend", () => {
     prismaMock.enrollment.findMany.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.student.findMany.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
 
     const result = await getStudentAnalyticsAction({});
@@ -185,6 +189,7 @@ describe("loadDemographics", () => {
     prismaMock.studentRiskProfile.count.mockResolvedValue(0);
     prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.student.findMany.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
     prismaMock.enrollment.findMany.mockResolvedValue([
       { student: { gender: "MALE",   region: "Greater Accra", religion: "Christianity" } },
@@ -204,6 +209,100 @@ describe("loadDemographics", () => {
     expect(d.byRegion.find((r) => r.region === "Greater Accra")?.count).toBe(2);
     expect(d.byRegion.find((r) => r.region === "Unspecified")?.count).toBe(1);
     expect(d.byReligion.find((r) => r.religion === "Christianity")?.count).toBe(2);
+  });
+});
+
+describe("loadFreeShs", () => {
+  beforeEach(() => { __resetCacheForTests(); mockAuthenticatedUser(); });
+
+  it("splits enrollments into Free SHS vs paying with percentage", async () => {
+    const current = { id: "ay-1", schoolId: "default-school", isCurrent: true,
+      startDate: new Date("2025-09-01"), endDate: new Date("2026-08-31"), name: "2025/2026" };
+    prismaMock.academicYear.findFirst.mockResolvedValue(current as never);
+    prismaMock.academicYear.findMany.mockResolvedValue([] as never);
+    prismaMock.enrollment.groupBy.mockImplementation(async (args: any) => {
+      if (args.by?.includes("isFreeShsPlacement")) {
+        return [
+          { isFreeShsPlacement: true,  _count: { _all: 30 } },
+          { isFreeShsPlacement: false, _count: { _all: 70 } },
+        ] as never;
+      }
+      return [] as never;
+    });
+    prismaMock.student.count.mockResolvedValue(0);
+    prismaMock.enrollment.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.count.mockResolvedValue(0);
+    prismaMock.enrollment.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
+    prismaMock.student.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
+
+    const result = await getStudentAnalyticsAction({});
+    if (!("data" in result)) throw new Error("expected data");
+    expect(result.data.freeShs).toEqual({ freeShsCount: 30, payingCount: 70, freeShsPct: 30 });
+  });
+});
+
+describe("loadAtRisk", () => {
+  beforeEach(() => { __resetCacheForTests(); mockAuthenticatedUser(); });
+
+  it("aggregates risk levels + returns top 10 and hasAnyProfiles flag", async () => {
+    const current = { id: "ay-1", schoolId: "default-school", isCurrent: true,
+      startDate: new Date("2025-09-01"), endDate: new Date("2026-08-31"), name: "2025/2026" };
+    prismaMock.academicYear.findFirst.mockResolvedValue(current as never);
+    prismaMock.academicYear.findMany.mockResolvedValue([] as never);
+    prismaMock.enrollment.groupBy.mockResolvedValue([] as never);
+    prismaMock.student.count.mockResolvedValue(0);
+    prismaMock.enrollment.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.groupBy.mockResolvedValue([
+      { riskLevel: "LOW",      _count: { _all: 50 } },
+      { riskLevel: "CRITICAL", _count: { _all: 3 } },
+    ] as never);
+    // Two-step: findMany returns risk profiles (no nested student)
+    prismaMock.studentRiskProfile.findMany.mockResolvedValue([
+      { studentId: "s-1", riskScore: 92, riskLevel: "CRITICAL" },
+      { studentId: "s-2", riskScore: 88, riskLevel: "CRITICAL" },
+    ] as never);
+    // Two-step: student.findMany returns the matching students
+    prismaMock.student.findMany.mockResolvedValue([
+      { id: "s-1", studentId: "SCH/1", firstName: "A", lastName: "B" },
+      { id: "s-2", studentId: "SCH/2", firstName: "C", lastName: "D" },
+    ] as never);
+    prismaMock.studentRiskProfile.aggregate.mockResolvedValue({
+      _max: { computedAt: new Date("2026-04-20") },
+    } as never);
+    prismaMock.enrollment.findMany.mockResolvedValue([] as never);
+
+    const result = await getStudentAnalyticsAction({});
+    if (!("data" in result)) throw new Error("expected data");
+    expect(result.data.atRisk.byLevel).toHaveLength(2);
+    expect(result.data.atRisk.topStudents).toHaveLength(2);
+    expect(result.data.atRisk.topStudents[0]?.riskScore).toBe(92);
+    expect(result.data.atRisk.hasAnyProfiles).toBe(true);
+    expect(result.data.atRisk.computedAt).toEqual(new Date("2026-04-20"));
+  });
+
+  it("hasAnyProfiles: false when table empty for selected year", async () => {
+    const current = { id: "ay-1", schoolId: "default-school", isCurrent: true,
+      startDate: new Date("2025-09-01"), endDate: new Date("2026-08-31"), name: "2025/2026" };
+    prismaMock.academicYear.findFirst.mockResolvedValue(current as never);
+    prismaMock.academicYear.findMany.mockResolvedValue([] as never);
+    prismaMock.enrollment.groupBy.mockResolvedValue([] as never);
+    prismaMock.student.count.mockResolvedValue(0);
+    prismaMock.enrollment.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.count.mockResolvedValue(0);
+    prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.student.findMany.mockResolvedValue([] as never);
+    prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
+    prismaMock.enrollment.findMany.mockResolvedValue([] as never);
+
+    const result = await getStudentAnalyticsAction({});
+    if (!("data" in result)) throw new Error("expected data");
+    expect(result.data.atRisk.hasAnyProfiles).toBe(false);
+    expect(result.data.atRisk.computedAt).toBeNull();
   });
 });
 
@@ -227,6 +326,7 @@ describe("loadRetention", () => {
     prismaMock.studentRiskProfile.count.mockResolvedValue(0);
     prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.student.findMany.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
     prismaMock.enrollment.findMany.mockImplementation(async (args: any) => {
       // Retention retained-check: where has studentId.in array
@@ -282,6 +382,7 @@ describe("loadRetention", () => {
     prismaMock.studentRiskProfile.count.mockResolvedValue(0);
     prismaMock.studentRiskProfile.groupBy.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.student.findMany.mockResolvedValue([] as never);
     prismaMock.studentRiskProfile.aggregate.mockResolvedValue({ _max: { computedAt: null } } as never);
     prismaMock.enrollment.findMany.mockResolvedValue([] as never);
 

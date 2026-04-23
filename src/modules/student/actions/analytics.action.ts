@@ -334,6 +334,92 @@ async function loadRetention(
   return { cohorts };
 }
 
+async function loadFreeShs(
+  schoolId: string,
+  academicYearId: string,
+  programmeFilter: Record<string, unknown>,
+): Promise<StudentAnalyticsPayload["freeShs"]> {
+  const rows = await db.enrollment.groupBy({
+    by: ["isFreeShsPlacement"],
+    where: {
+      schoolId,
+      academicYearId,
+      status: "ACTIVE",
+      ...programmeFilter,
+    },
+    _count: { _all: true },
+  });
+  const freeShsCount = rows.find((r) => r.isFreeShsPlacement)?._count._all ?? 0;
+  const payingCount = rows.find((r) => !r.isFreeShsPlacement)?._count._all ?? 0;
+  const total = freeShsCount + payingCount;
+  return {
+    freeShsCount,
+    payingCount,
+    freeShsPct: total > 0 ? Math.round((freeShsCount / total) * 1000) / 10 : 0,
+  };
+}
+
+async function loadAtRisk(
+  schoolId: string,
+  academicYearId: string,
+): Promise<StudentAnalyticsPayload["atRisk"]> {
+  const [byLevelRaw, topRaw, agg] = await Promise.all([
+    db.studentRiskProfile.groupBy({
+      by: ["riskLevel"],
+      where: { schoolId, academicYearId },
+      _count: { _all: true },
+    }),
+    db.studentRiskProfile.findMany({
+      where: { schoolId, academicYearId },
+      orderBy: { riskScore: "desc" },
+      take: 10,
+      select: { studentId: true, riskScore: true, riskLevel: true },
+    }),
+    db.studentRiskProfile.aggregate({
+      where: { schoolId, academicYearId },
+      _max: { computedAt: true },
+    }),
+  ]);
+
+  // Two-step: StudentRiskProfile has no Prisma relation to Student.
+  // Batch-fetch the students referenced by the top profiles.
+  const studentIds = topRaw.map((r) => r.studentId);
+  const students =
+    studentIds.length > 0
+      ? await db.student.findMany({
+          where: { id: { in: studentIds } },
+          select: { id: true, studentId: true, firstName: true, lastName: true },
+        })
+      : [];
+  const studentMap = new Map(students.map((s) => [s.id, s]));
+
+  const byLevel = byLevelRaw.map((r) => ({
+    riskLevel: r.riskLevel as "LOW" | "MODERATE" | "HIGH" | "CRITICAL",
+    count: r._count._all,
+  }));
+  const topStudents = topRaw.flatMap((r) => {
+    const s = studentMap.get(r.studentId);
+    if (!s) return [];
+    return [
+      {
+        studentId: s.id,
+        studentCode: s.studentId,
+        firstName: s.firstName,
+        lastName: s.lastName,
+        riskScore: r.riskScore,
+        riskLevel: r.riskLevel as "LOW" | "MODERATE" | "HIGH" | "CRITICAL",
+      },
+    ];
+  });
+  const totalProfiles = byLevel.reduce((sum, x) => sum + x.count, 0);
+  return {
+    byLevel,
+    topStudents,
+    hasAnyProfiles: totalProfiles > 0,
+    computedAt: agg._max.computedAt ?? null,
+  };
+}
+
 /**
  * @no-audit Read-only analytics aggregation. No side effects.
  */
@@ -363,11 +449,13 @@ export async function getStudentAnalyticsAction(input: {
   let wasCacheMiss = false;
   const payload = await getCached<StudentAnalyticsPayload>(cacheKey, async () => {
     wasCacheMiss = true;
-    const [kpis, enrollmentTrend, demographics, retention] = await Promise.all([
+    const [kpis, enrollmentTrend, demographics, retention, freeShs, atRisk] = await Promise.all([
       loadKpis(ctx.schoolId, year.id, year.startDate, year.endDate, parsed.data.programmeId),
       loadEnrollmentTrend(ctx.schoolId, programmeFilter),
       loadDemographics(ctx.schoolId, year.id, programmeFilter),
       loadRetention(ctx.schoolId, programmeFilter),
+      loadFreeShs(ctx.schoolId, year.id, programmeFilter),
+      loadAtRisk(ctx.schoolId, year.id),
     ]);
     return {
       computedAt: new Date(),
@@ -376,8 +464,8 @@ export async function getStudentAnalyticsAction(input: {
       enrollmentTrend,
       demographics,
       retention,
-      freeShs: { freeShsCount: 0, payingCount: 0, freeShsPct: 0 },
-      atRisk: { byLevel: [], topStudents: [], hasAnyProfiles: false, computedAt: null },
+      freeShs,
+      atRisk,
     };
   });
 
