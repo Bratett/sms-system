@@ -95,13 +95,38 @@ describe("Role-Permission Mappings", () => {
     const bundle = DEFAULT_ROLE_PERMISSIONS.school_nurse;
     expect(bundle).toEqual(expect.arrayContaining([
       PERMISSIONS.STUDENTS_READ,
+      PERMISSIONS.HOUSEHOLDS_READ,
       PERMISSIONS.MEDICAL_CREATE,
       PERMISSIONS.MEDICAL_READ,
       PERMISSIONS.MEDICAL_UPDATE,
       PERMISSIONS.MEDICAL_CONFIDENTIAL_READ,
       PERMISSIONS.ANNOUNCEMENTS_READ,
     ]));
-    expect(bundle).toHaveLength(6);
+    expect(bundle).toHaveLength(7);
+  });
+
+  it("households permissions are granted to the expected roles", () => {
+    // HOUSEHOLDS_READ should be granted anywhere STUDENTS_READ is granted
+    for (const role of Object.keys(DEFAULT_ROLE_PERMISSIONS)) {
+      if (role === "super_admin") continue; // inherits ALL_PERMISSIONS
+      const bundle = DEFAULT_ROLE_PERMISSIONS[role];
+      if (bundle.includes(PERMISSIONS.STUDENTS_READ)) {
+        expect(bundle).toContain(PERMISSIONS.HOUSEHOLDS_READ);
+      }
+    }
+
+    // HOUSEHOLDS_MANAGE
+    for (const role of ["headmaster", "assistant_headmaster_academic", "assistant_headmaster_admin", "admissions_officer"]) {
+      expect(DEFAULT_ROLE_PERMISSIONS[role]).toContain(PERMISSIONS.HOUSEHOLDS_MANAGE);
+    }
+
+    // GUARDIANS_MERGE
+    for (const role of ["headmaster", "assistant_headmaster_admin"]) {
+      expect(DEFAULT_ROLE_PERMISSIONS[role]).toContain(PERMISSIONS.GUARDIANS_MERGE);
+    }
+
+    // Negative: guidance_counsellor should NOT have GUARDIANS_MERGE
+    expect(DEFAULT_ROLE_PERMISSIONS.guidance_counsellor).not.toContain(PERMISSIONS.GUARDIANS_MERGE);
   });
 
   it("all seeded roles should have permission mappings", () => {
