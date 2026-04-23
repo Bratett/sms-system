@@ -1,8 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { prismaMock, mockAuthenticatedUser, mockUnauthenticated } from "../setup";
+import { audit } from "@/lib/audit";
 import {
   createMedicalRecordAction,
   getMedicalRecordsAction,
+  getMedicalRecordAction,
   updateMedicalRecordAction,
 } from "@/modules/student/actions/medical.action";
 
@@ -185,5 +187,163 @@ describe("updateMedicalRecordAction", () => {
         where: { id: "med-1" },
       })
     );
+  });
+});
+
+// ─── getMedicalRecordsAction redaction ─────────────────────────────
+
+describe("getMedicalRecordsAction redaction", () => {
+  const confidentialRecord = {
+    id: "med-1",
+    schoolId: "default-school",
+    studentId: "s-1",
+    recordedBy: "nurse-1",
+    date: new Date("2026-03-01"),
+    type: "TREATMENT",
+    title: "Allergic Reaction",
+    description: "Peanut exposure",
+    treatment: "Antihistamine",
+    followUpDate: null,
+    isConfidential: true,
+    attachmentKey: "medical/med-1/photo.jpg",
+    student: { firstName: "A", lastName: "B", studentId: "SCH/0001" },
+  };
+  const publicRecord = {
+    id: "med-2",
+    schoolId: "default-school",
+    studentId: "s-1",
+    recordedBy: "nurse-1",
+    date: new Date("2026-03-02"),
+    type: "CHECKUP",
+    title: "Annual Checkup",
+    description: "Routine",
+    treatment: null,
+    followUpDate: null,
+    isConfidential: false,
+    attachmentKey: null,
+    student: { firstName: "A", lastName: "B", studentId: "SCH/0001" },
+  };
+
+  it("returns full content when the user has MEDICAL_CONFIDENTIAL_READ", async () => {
+    mockAuthenticatedUser({ permissions: ["medical:records:read", "medical:records:confidential:read"] });
+    prismaMock.medicalRecord.findMany.mockResolvedValue([confidentialRecord, publicRecord] as never);
+    prismaMock.medicalRecord.count.mockResolvedValue(2 as never);
+
+    const result = await getMedicalRecordsAction();
+    if (!("data" in result)) throw new Error("expected data");
+    expect(result.data[0]!.title).toBe("Allergic Reaction");
+    expect(result.data[0]!.description).toBe("Peanut exposure");
+    expect(result.data[0]!.treatment).toBe("Antihistamine");
+    expect(result.data[0]!.attachmentKey).toBe("medical/med-1/photo.jpg");
+  });
+
+  it("redacts confidential rows when the user lacks MEDICAL_CONFIDENTIAL_READ", async () => {
+    mockAuthenticatedUser({ permissions: ["medical:records:read"] });
+    prismaMock.medicalRecord.findMany.mockResolvedValue([confidentialRecord, publicRecord] as never);
+    prismaMock.medicalRecord.count.mockResolvedValue(2 as never);
+
+    const result = await getMedicalRecordsAction();
+    if (!("data" in result)) throw new Error("expected data");
+    expect(result.data[0]!.title).toBe("Confidential — restricted");
+    expect(result.data[0]!.description).toBe("");
+    expect(result.data[0]!.treatment).toBeNull();
+    expect(result.data[0]!.attachmentKey).toBeNull();
+    expect(result.data[0]!.isConfidential).toBe(true);
+    expect(result.data[0]!.type).toBe("TREATMENT");
+    // Non-confidential row is untouched
+    expect(result.data[1]!.title).toBe("Annual Checkup");
+    expect(result.data[1]!.description).toBe("Routine");
+  });
+});
+
+// ─── getMedicalRecordAction (detail) ──────────────────────────────
+
+describe("getMedicalRecordAction", () => {
+  beforeEach(() => {
+    vi.mocked(audit).mockClear();
+    vi.mocked(audit).mockResolvedValue(undefined);
+  });
+
+  const confidentialRecord = {
+    id: "med-1",
+    schoolId: "default-school",
+    studentId: "s-1",
+    recordedBy: "nurse-1",
+    date: new Date("2026-03-01"),
+    type: "TREATMENT",
+    title: "Allergic Reaction",
+    description: "Peanut exposure",
+    treatment: "Antihistamine",
+    followUpDate: null,
+    isConfidential: true,
+    attachmentKey: null,
+    student: { firstName: "A", lastName: "B", studentId: "SCH/0001" },
+  };
+
+  it("rejects unauthenticated users", async () => {
+    mockUnauthenticated();
+    const result = await getMedicalRecordAction("med-1");
+    expect(result).toEqual({ error: "Unauthorized" });
+  });
+
+  it("rejects users lacking MEDICAL_READ", async () => {
+    mockAuthenticatedUser({ permissions: [] });
+    const result = await getMedicalRecordAction("med-1");
+    expect(result).toEqual({ error: "Insufficient permissions" });
+  });
+
+  it("returns { error: 'Record not found' } when findFirst returns null", async () => {
+    mockAuthenticatedUser({ permissions: ["medical:records:read"] });
+    prismaMock.medicalRecord.findFirst.mockResolvedValue(null as never);
+    const result = await getMedicalRecordAction("med-1");
+    expect(result).toEqual({ error: "Record not found" });
+    expect(vi.mocked(audit)).not.toHaveBeenCalled();
+  });
+
+  it("returns full record + writes audit log when authorized on confidential", async () => {
+    mockAuthenticatedUser({ permissions: ["medical:records:read", "medical:records:confidential:read"] });
+    prismaMock.medicalRecord.findFirst.mockResolvedValue(confidentialRecord as never);
+
+    const result = await getMedicalRecordAction("med-1");
+    if (!("data" in result)) throw new Error("expected data");
+    expect(result.data.title).toBe("Allergic Reaction");
+    expect(vi.mocked(audit)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "READ",
+        entity: "MedicalRecord",
+        entityId: "med-1",
+        module: "medical",
+        metadata: { isConfidential: true, denied: false },
+      }),
+    );
+  });
+
+  it("returns redacted record + writes denial audit log when unauthorized on confidential", async () => {
+    mockAuthenticatedUser({ permissions: ["medical:records:read"] });
+    prismaMock.medicalRecord.findFirst.mockResolvedValue(confidentialRecord as never);
+
+    const result = await getMedicalRecordAction("med-1");
+    if (!("data" in result)) throw new Error("expected data");
+    expect(result.data.title).toBe("Confidential — restricted");
+    expect(result.data.description).toBe("");
+    expect(vi.mocked(audit)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "READ",
+        entity: "MedicalRecord",
+        entityId: "med-1",
+        metadata: { isConfidential: true, denied: true },
+      }),
+    );
+  });
+
+  it("does not write audit log when record is not confidential", async () => {
+    mockAuthenticatedUser({ permissions: ["medical:records:read"] });
+    const publicRecord = { ...confidentialRecord, id: "med-2", isConfidential: false };
+    prismaMock.medicalRecord.findFirst.mockResolvedValue(publicRecord as never);
+
+    const result = await getMedicalRecordAction("med-2");
+    if (!("data" in result)) throw new Error("expected data");
+    expect(result.data.title).toBe("Allergic Reaction");
+    expect(vi.mocked(audit)).not.toHaveBeenCalled();
   });
 });

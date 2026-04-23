@@ -395,6 +395,7 @@ export const PERMISSIONS = {
   COUNSELING_CREATE: "welfare:counseling:create",
   COUNSELING_READ: "welfare:counseling:read",
   COUNSELING_UPDATE: "welfare:counseling:update",
+  COUNSELING_CONFIDENTIAL_READ: "welfare:counseling:confidential:read",
   WELFARE_CREATE: "welfare:notes:create",
   WELFARE_READ: "welfare:notes:read",
   WELFARE_UPDATE: "welfare:notes:update",
@@ -405,6 +406,7 @@ export const PERMISSIONS = {
   MEDICAL_CREATE: "medical:records:create",
   MEDICAL_READ: "medical:records:read",
   MEDICAL_UPDATE: "medical:records:update",
+  MEDICAL_CONFIDENTIAL_READ: "medical:records:confidential:read",
 
   // Transcripts
   TRANSCRIPTS_CREATE: "academics:transcripts:create",
@@ -803,6 +805,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.DONOR_FUNDS_READ,
     PERMISSIONS.FINANCIAL_AID_READ,
     PERMISSIONS.FINANCIAL_AID_REVIEW,
+    PERMISSIONS.MEDICAL_READ,
+    PERMISSIONS.MEDICAL_CONFIDENTIAL_READ,
+    PERMISSIONS.COUNSELING_READ,
+    PERMISSIONS.COUNSELING_CONFIDENTIAL_READ,
   ],
   finance_officer: [
     PERMISSIONS.STUDENTS_READ,
@@ -1399,6 +1405,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.INTERVENTIONS_CREATE,
     PERMISSIONS.INTERVENTIONS_READ,
     PERMISSIONS.INTERVENTIONS_UPDATE,
+    PERMISSIONS.COUNSELING_CONFIDENTIAL_READ,
   ],
   parent: [
     PERMISSIONS.STUDENTS_READ,
@@ -1427,5 +1434,13 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.HOMEWORK_READ,
     PERMISSIONS.AWARDS_READ,
     PERMISSIONS.ACADEMIC_EVENTS_READ,
+  ],
+  school_nurse: [
+    PERMISSIONS.STUDENTS_READ,
+    PERMISSIONS.MEDICAL_CREATE,
+    PERMISSIONS.MEDICAL_READ,
+    PERMISSIONS.MEDICAL_UPDATE,
+    PERMISSIONS.MEDICAL_CONFIDENTIAL_READ,
+    PERMISSIONS.ANNOUNCEMENTS_READ,
   ],
 };

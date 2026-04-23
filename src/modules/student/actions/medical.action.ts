@@ -4,6 +4,11 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import {
+  resolveConfidentialCapability,
+  redactMedicalRecord,
+  logConfidentialAccess,
+} from "@/lib/confidential";
 
 // ─── Create Medical Record ─────────────────────────────────────────
 
@@ -64,6 +69,11 @@ export async function getMedicalRecordsAction(filters?: {
   const denied = assertPermission(ctx.session, PERMISSIONS.MEDICAL_READ);
   if (denied) return denied;
 
+  const { canReadConfidential } = resolveConfidentialCapability(
+    ctx.session,
+    PERMISSIONS.MEDICAL_CONFIDENTIAL_READ,
+  );
+
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
@@ -84,7 +94,7 @@ export async function getMedicalRecordsAction(filters?: {
   ]);
 
   return {
-    data: records,
+    data: records.map((r) => redactMedicalRecord(r, canReadConfidential)),
     pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
   };
 }
@@ -128,4 +138,43 @@ export async function updateMedicalRecordAction(
   });
 
   return { data: record };
+}
+
+// ─── Get Single Medical Record (with access logging) ──────────────
+
+/**
+ * Fetches a single medical record by id. Writes an audit log entry when the
+ * record is confidential (for both authorized and denied access). Redacts
+ * sensitive fields when the caller lacks MEDICAL_CONFIDENTIAL_READ.
+ */
+export async function getMedicalRecordAction(id: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MEDICAL_READ);
+  if (denied) return denied;
+
+  const record = await db.medicalRecord.findFirst({
+    where: { id, schoolId: ctx.schoolId },
+    include: { student: { select: { firstName: true, lastName: true, studentId: true } } },
+  });
+  if (!record) return { error: "Record not found" };
+
+  const { canReadConfidential } = resolveConfidentialCapability(
+    ctx.session,
+    PERMISSIONS.MEDICAL_CONFIDENTIAL_READ,
+  );
+
+  if (record.isConfidential) {
+    await logConfidentialAccess({
+      userId: ctx.session.user.id!,
+      schoolId: ctx.schoolId,
+      entity: "MedicalRecord",
+      entityId: record.id,
+      isConfidential: true,
+      denied: !canReadConfidential,
+      module: "medical",
+    });
+  }
+
+  return { data: redactMedicalRecord(record, canReadConfidential) };
 }

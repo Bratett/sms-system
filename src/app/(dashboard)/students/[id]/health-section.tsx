@@ -14,6 +14,8 @@ interface MedicalRecord {
   isConfidential: boolean;
 }
 
+const REDACTED_TITLE = "Confidential — restricted";
+
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString("en-GB", {
     day: "numeric",
@@ -60,38 +62,57 @@ export function StudentHealthSection({ studentId }: { studentId: string }) {
         <p className="text-sm text-muted-foreground py-4">No medical records on file.</p>
       ) : (
         <div className="space-y-3">
-          {records.map((r) => (
-            <div key={r.id} className="rounded-lg border border-border p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium">{r.title}</p>
-                    <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                      {r.type}
-                    </span>
-                    {r.isConfidential && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
-                        Confidential
+          {records.map((r) => {
+            const isRedacted = r.isConfidential && r.title === REDACTED_TITLE;
+            return (
+              <div
+                key={r.id}
+                className={`rounded-lg border border-border p-4 ${isRedacted ? "opacity-60" : ""}`}
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{r.title}</p>
+                      <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                        {r.type}
                       </span>
-                    )}
+                      {r.isConfidential && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
+                          Confidential
+                        </span>
+                      )}
+                      {isRedacted && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300">
+                          Restricted
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{formatDate(r.date)}</p>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{formatDate(r.date)}</p>
+                  {!isRedacted && r.followUpDate && (
+                    <p className="text-xs text-muted-foreground">
+                      Follow-up: {formatDate(r.followUpDate)}
+                    </p>
+                  )}
                 </div>
-                {r.followUpDate && (
-                  <p className="text-xs text-muted-foreground">
-                    Follow-up: {formatDate(r.followUpDate)}
+                {isRedacted ? (
+                  <p className="mt-2 text-sm italic text-muted-foreground">
+                    Access restricted — contact school nurse.
                   </p>
+                ) : (
+                  <>
+                    <p className="mt-2 text-sm">{r.description}</p>
+                    {r.treatment && (
+                      <p className="mt-2 text-sm">
+                        <span className="font-medium">Treatment:</span>{" "}
+                        <span className="text-muted-foreground">{r.treatment}</span>
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
-              <p className="mt-2 text-sm">{r.description}</p>
-              {r.treatment && (
-                <p className="mt-2 text-sm">
-                  <span className="font-medium">Treatment:</span>{" "}
-                  <span className="text-muted-foreground">{r.treatment}</span>
-                </p>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

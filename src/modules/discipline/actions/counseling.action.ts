@@ -4,6 +4,11 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import {
+  resolveConfidentialCapability,
+  redactCounselingRecord,
+  logConfidentialAccess,
+} from "@/lib/confidential";
 
 // ─── Create Counseling Record ──────────────────────────────────────
 
@@ -61,6 +66,11 @@ export async function getCounselingRecordsAction(filters?: {
   const denied = assertPermission(ctx.session, PERMISSIONS.COUNSELING_READ);
   if (denied) return denied;
 
+  const { canReadConfidential } = resolveConfidentialCapability(
+    ctx.session,
+    PERMISSIONS.COUNSELING_CONFIDENTIAL_READ,
+  );
+
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
   const skip = (page - 1) * pageSize;
@@ -81,7 +91,7 @@ export async function getCounselingRecordsAction(filters?: {
   ]);
 
   return {
-    data: records,
+    data: records.map((r) => redactCounselingRecord(r, canReadConfidential)),
     pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
   };
 }
@@ -127,4 +137,42 @@ export async function updateCounselingRecordAction(
   });
 
   return { data: record };
+}
+
+// ─── Get Single Counseling Record (with access logging) ────────────
+
+/**
+ * Fetches a single counseling record by id. Writes an audit log entry when
+ * the record is confidential. Redacts sensitive fields when the caller
+ * lacks COUNSELING_CONFIDENTIAL_READ.
+ */
+export async function getCounselingRecordAction(id: string) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.COUNSELING_READ);
+  if (denied) return denied;
+
+  const record = await db.counselingRecord.findFirst({
+    where: { id, schoolId: ctx.schoolId },
+  });
+  if (!record) return { error: "Record not found" };
+
+  const { canReadConfidential } = resolveConfidentialCapability(
+    ctx.session,
+    PERMISSIONS.COUNSELING_CONFIDENTIAL_READ,
+  );
+
+  if (record.isConfidential) {
+    await logConfidentialAccess({
+      userId: ctx.session.user.id!,
+      schoolId: ctx.schoolId,
+      entity: "CounselingRecord",
+      entityId: record.id,
+      isConfidential: true,
+      denied: !canReadConfidential,
+      module: "welfare",
+    });
+  }
+
+  return { data: redactCounselingRecord(record, canReadConfidential) };
 }
