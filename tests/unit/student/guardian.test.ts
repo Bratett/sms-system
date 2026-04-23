@@ -159,6 +159,7 @@ describe("createGuardianAction", () => {
       lastName: "Asante",
       phone: "0241234567",
     };
+    prismaMock.guardian.findMany.mockResolvedValue([] as never);
     prismaMock.guardian.create.mockResolvedValue(mockGuardian as never);
 
     const result = await createGuardianAction({
@@ -229,6 +230,18 @@ describe("linkGuardianToStudentAction", () => {
   });
 
   it("should return error if link already exists", async () => {
+    prismaMock.student.findFirst.mockResolvedValue({
+      id: "s1",
+      firstName: "Kwame",
+      lastName: "Asante",
+      householdId: null,
+    } as never);
+    prismaMock.guardian.findFirst.mockResolvedValue({
+      id: "g1",
+      firstName: "Kofi",
+      lastName: "Asante",
+      householdId: null,
+    } as never);
     prismaMock.studentGuardian.findUnique.mockResolvedValue({
       id: "sg-1",
       studentId: "s1",
@@ -240,20 +253,24 @@ describe("linkGuardianToStudentAction", () => {
   });
 
   it("should create link successfully", async () => {
+    prismaMock.student.findFirst.mockResolvedValue({
+      id: "s1",
+      firstName: "Kwame",
+      lastName: "Asante",
+      householdId: null,
+    } as never);
+    prismaMock.guardian.findFirst.mockResolvedValue({
+      id: "g1",
+      firstName: "Kofi",
+      lastName: "Asante",
+      householdId: null,
+    } as never);
     prismaMock.studentGuardian.findUnique.mockResolvedValue(null as never);
     prismaMock.studentGuardian.create.mockResolvedValue({
       id: "sg-1",
       studentId: "s1",
       guardianId: "g1",
       isPrimary: false,
-    } as never);
-    prismaMock.student.findUnique.mockResolvedValue({
-      firstName: "Kwame",
-      lastName: "Asante",
-    } as never);
-    prismaMock.guardian.findUnique.mockResolvedValue({
-      firstName: "Kofi",
-      lastName: "Asante",
     } as never);
 
     const result = await linkGuardianToStudentAction("s1", "g1");
@@ -262,6 +279,18 @@ describe("linkGuardianToStudentAction", () => {
   });
 
   it("should unset other primary guardians when isPrimary is true", async () => {
+    prismaMock.student.findFirst.mockResolvedValue({
+      id: "s1",
+      firstName: "Kwame",
+      lastName: "Asante",
+      householdId: null,
+    } as never);
+    prismaMock.guardian.findFirst.mockResolvedValue({
+      id: "g1",
+      firstName: "Kofi",
+      lastName: "Asante",
+      householdId: null,
+    } as never);
     prismaMock.studentGuardian.findUnique.mockResolvedValue(null as never);
     prismaMock.studentGuardian.create.mockResolvedValue({
       id: "sg-1",
@@ -270,14 +299,6 @@ describe("linkGuardianToStudentAction", () => {
       isPrimary: true,
     } as never);
     prismaMock.studentGuardian.updateMany.mockResolvedValue({ count: 1 } as never);
-    prismaMock.student.findUnique.mockResolvedValue({
-      firstName: "Kwame",
-      lastName: "Asante",
-    } as never);
-    prismaMock.guardian.findUnique.mockResolvedValue({
-      firstName: "Kofi",
-      lastName: "Asante",
-    } as never);
 
     const result = await linkGuardianToStudentAction("s1", "g1", true);
     expect(result).toHaveProperty("data");
@@ -374,5 +395,120 @@ describe("getStudentGuardiansAction", () => {
       firstName: "Kofi",
       isPrimary: true,
     });
+  });
+});
+
+// ─── schoolId regression (was: cross-tenant leak) ─────────────────
+
+describe("getGuardiansAction schoolId isolation", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  it("scopes the query by schoolId", async () => {
+    prismaMock.guardian.findMany.mockResolvedValue([] as never);
+    await getGuardiansAction();
+    expect(prismaMock.guardian.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ schoolId: "default-school" }),
+      }),
+    );
+  });
+
+  it("keeps schoolId filter when search is also applied", async () => {
+    prismaMock.guardian.findMany.mockResolvedValue([] as never);
+    await getGuardiansAction("Kwame");
+    expect(prismaMock.guardian.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          schoolId: "default-school",
+          OR: expect.any(Array),
+        }),
+      }),
+    );
+  });
+});
+
+// ─── createGuardianAction dedup check ─────────────────────────────
+
+describe("createGuardianAction dedup", () => {
+  beforeEach(() => mockAuthenticatedUser());
+
+  const existingGuardian = {
+    id: "g-existing",
+    firstName: "Kwame",
+    lastName: "Asante",
+    phone: "0241234567",
+    email: "kwame@example.com",
+    schoolId: "default-school",
+    altPhone: null,
+    occupation: null,
+    address: null,
+    relationship: null,
+    householdId: null,
+    userId: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  it("returns duplicates without creating when a matching guardian exists", async () => {
+    prismaMock.guardian.findMany.mockResolvedValue([existingGuardian] as never);
+
+    const result = await createGuardianAction({
+      firstName: "Kwame",
+      lastName: "Asante",
+      phone: "+233 24 123 4567",
+    });
+
+    expect(result).toHaveProperty("duplicates");
+    const res = result as { duplicates: unknown[]; input: unknown };
+    expect(res.duplicates).toHaveLength(1);
+    expect(prismaMock.guardian.create).not.toHaveBeenCalled();
+  });
+
+  it("creates normally when no duplicates and skipDedupCheck not set", async () => {
+    prismaMock.guardian.findMany.mockResolvedValue([] as never);
+    prismaMock.guardian.create.mockResolvedValue({ ...existingGuardian, id: "g-new" } as never);
+
+    const result = await createGuardianAction({
+      firstName: "Akua",
+      lastName: "Mensah",
+      phone: "0209876543",
+    });
+
+    expect(result).toHaveProperty("data");
+    expect(prismaMock.guardian.create).toHaveBeenCalled();
+  });
+
+  it("forces create when skipDedupCheck: true", async () => {
+    prismaMock.guardian.findMany.mockResolvedValue([existingGuardian] as never);
+    prismaMock.guardian.create.mockResolvedValue({ ...existingGuardian, id: "g-forced" } as never);
+
+    const result = await createGuardianAction(
+      {
+        firstName: "Kwame",
+        lastName: "Asante",
+        phone: "0241234567",
+      },
+      { skipDedupCheck: true },
+    );
+
+    expect(result).toHaveProperty("data");
+    expect(prismaMock.guardian.create).toHaveBeenCalled();
+  });
+
+  it("dedup query is scoped to the caller's school", async () => {
+    prismaMock.guardian.findMany.mockResolvedValue([] as never);
+    prismaMock.guardian.create.mockResolvedValue(existingGuardian as never);
+
+    await createGuardianAction({
+      firstName: "Kwame",
+      lastName: "Asante",
+      phone: "0241234567",
+    });
+
+    expect(prismaMock.guardian.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ schoolId: "default-school" }),
+      }),
+    );
   });
 });
