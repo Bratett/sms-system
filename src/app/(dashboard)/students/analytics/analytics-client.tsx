@@ -4,14 +4,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import type { StudentAnalyticsPayload } from "@/modules/student/actions/analytics.action";
 import { KpiTiles } from "./kpi-tiles";
-
-function ChartsPlaceholder() {
-  return (
-    <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-      Charts land in Task 13.
-    </div>
-  );
-}
+import { EnrollmentTrendChart } from "./enrollment-trend-chart";
+import { DemographicsChart } from "./demographics-chart";
+import { RetentionChart } from "./retention-chart";
+import { FreeShsChart } from "./free-shs-chart";
+import { AtRiskSection } from "./at-risk-section";
 
 type Props = {
   academicYears: Array<{ id: string; name: string; isCurrent: boolean }>;
@@ -104,7 +101,33 @@ export function AnalyticsClient(props: Props) {
       </div>
 
       <KpiTiles kpis={p.kpis} />
-      <ChartsPlaceholder />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <EnrollmentTrendChart
+          data={p.enrollmentTrend}
+          academicYearId={props.selectedAcademicYearId}
+          programmeId={props.selectedProgrammeId}
+        />
+        <DemographicsChart
+          demographics={p.demographics}
+          academicYearId={props.selectedAcademicYearId}
+          programmeId={props.selectedProgrammeId}
+        />
+        <RetentionChart
+          retention={p.retention}
+          academicYearId={props.selectedAcademicYearId}
+          programmeId={props.selectedProgrammeId}
+        />
+        <FreeShsChart
+          freeShs={p.freeShs}
+          academicYearId={props.selectedAcademicYearId}
+          programmeId={props.selectedProgrammeId}
+        />
+      </div>
+      <AtRiskSection
+        atRisk={p.atRisk}
+        academicYearId={props.selectedAcademicYearId}
+        programmeId={props.selectedProgrammeId}
+      />
     </div>
   );
 }
