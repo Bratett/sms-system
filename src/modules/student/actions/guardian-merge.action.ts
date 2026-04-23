@@ -107,64 +107,77 @@ export async function performMergeAction(input: {
     return { error: `Merge blocked by conflicts: ${preview.conflicts.join(", ")}` };
   }
 
-  const survivor = await db.guardian.findFirst({
-    where: { id: input.survivorId, schoolId: ctx.schoolId },
-  });
-  const duplicate = await db.guardian.findFirst({
-    where: { id: input.duplicateId, schoolId: ctx.schoolId },
-  });
-  if (!survivor || !duplicate) return { error: "Guardian no longer exists" };
+  // Wrap all mutations in a transaction for atomicity.
+  let result: { survivor: typeof undefined; duplicate: typeof undefined; absorbedLinks: Array<{ studentId: string; isPrimary: boolean }> };
+  try {
+    result = await db.$transaction(async (tx) => {
+      const survivor = await tx.guardian.findFirst({
+        where: { id: input.survivorId, schoolId: ctx.schoolId },
+      });
+      const duplicate = await tx.guardian.findFirst({
+        where: { id: input.duplicateId, schoolId: ctx.schoolId },
+      });
+      if (!survivor || !duplicate) {
+        throw new Error("Guardian no longer exists");
+      }
 
-  const duplicateLinks = await db.studentGuardian.findMany({
-    where: { guardianId: duplicate.id },
-  });
-  const survivorLinks = await db.studentGuardian.findMany({
-    where: { guardianId: survivor.id },
-  });
-  const survivorStudentIds = new Set(survivorLinks.map((l) => l.studentId));
+      const duplicateLinks = await tx.studentGuardian.findMany({
+        where: { guardianId: duplicate.id },
+      });
+      const survivorLinks = await tx.studentGuardian.findMany({
+        where: { guardianId: survivor.id },
+      });
+      const survivorStudentIds = new Set(survivorLinks.map((l) => l.studentId));
 
-  const absorbedLinks: Array<{ studentId: string; isPrimary: boolean }> = [];
+      const absorbedLinks: Array<{ studentId: string; isPrimary: boolean }> = [];
 
-  for (const link of duplicateLinks) {
-    if (survivorStudentIds.has(link.studentId)) {
-      await db.studentGuardian.delete({ where: { id: link.id } });
-      continue;
-    }
-    await db.studentGuardian.update({
-      where: { id: link.id },
-      data: { guardianId: survivor.id },
+      for (const link of duplicateLinks) {
+        if (survivorStudentIds.has(link.studentId)) {
+          await tx.studentGuardian.delete({ where: { id: link.id } });
+          continue;
+        }
+        await tx.studentGuardian.update({
+          where: { id: link.id },
+          data: { guardianId: survivor.id },
+        });
+        absorbedLinks.push({ studentId: link.studentId, isPrimary: link.isPrimary });
+      }
+
+      const updateData: Record<string, unknown> = {};
+      const optionalFields = ["altPhone", "email", "occupation", "address", "relationship"] as const;
+      for (const field of optionalFields) {
+        if (survivor[field] == null && duplicate[field] != null) {
+          updateData[field] = duplicate[field];
+        }
+      }
+      if (survivor.householdId == null && duplicate.householdId != null) {
+        updateData.householdId = duplicate.householdId;
+      }
+      if (Object.keys(updateData).length > 0) {
+        await tx.guardian.update({ where: { id: survivor.id }, data: updateData });
+      }
+
+      await tx.guardian.delete({ where: { id: duplicate.id } });
+
+      return { survivor, duplicate, absorbedLinks };
     });
-    absorbedLinks.push({ studentId: link.studentId, isPrimary: link.isPrimary });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Merge failed" };
   }
 
-  const updateData: Record<string, unknown> = {};
-  const optionalFields = ["altPhone", "email", "occupation", "address", "relationship"] as const;
-  for (const field of optionalFields) {
-    if (survivor[field] == null && duplicate[field] != null) {
-      updateData[field] = duplicate[field];
-    }
-  }
-  if (survivor.householdId == null && duplicate.householdId != null) {
-    updateData.householdId = duplicate.householdId;
-  }
-  if (Object.keys(updateData).length > 0) {
-    await db.guardian.update({ where: { id: survivor.id }, data: updateData });
-  }
-
-  await db.guardian.delete({ where: { id: duplicate.id } });
-
+  // Audit OUTSIDE the transaction — audit write failure shouldn't roll back the merge
   await audit({
     userId: ctx.session.user.id!,
     schoolId: ctx.schoolId,
     action: "DELETE",
     entity: "Guardian",
-    entityId: duplicate.id,
+    entityId: result.duplicate.id,
     module: "student",
-    description: `Merged guardian "${duplicate.firstName} ${duplicate.lastName}" into "${survivor.firstName} ${survivor.lastName}"`,
-    previousData: { duplicate, absorbedLinks },
+    description: `Merged guardian "${result.duplicate.firstName} ${result.duplicate.lastName}" into "${result.survivor.firstName} ${result.survivor.lastName}"`,
+    previousData: { duplicate: result.duplicate, absorbedLinks: result.absorbedLinks },
   });
 
-  return { data: { survivorId: survivor.id, absorbedLinks: absorbedLinks.length } };
+  return { data: { survivorId: result.survivor.id, absorbedLinks: result.absorbedLinks.length } };
 }
 
 // ─── Scan All Guardians for Duplicates ─────────────────────────────
