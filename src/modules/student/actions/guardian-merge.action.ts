@@ -108,59 +108,9 @@ export async function performMergeAction(input: {
   }
 
   // Wrap all mutations in a transaction for atomicity.
-  let result: { survivor: typeof undefined; duplicate: typeof undefined; absorbedLinks: Array<{ studentId: string; isPrimary: boolean }> };
+  let result: Awaited<ReturnType<typeof mergeInTransaction>>;
   try {
-    result = await db.$transaction(async (tx) => {
-      const survivor = await tx.guardian.findFirst({
-        where: { id: input.survivorId, schoolId: ctx.schoolId },
-      });
-      const duplicate = await tx.guardian.findFirst({
-        where: { id: input.duplicateId, schoolId: ctx.schoolId },
-      });
-      if (!survivor || !duplicate) {
-        throw new Error("Guardian no longer exists");
-      }
-
-      const duplicateLinks = await tx.studentGuardian.findMany({
-        where: { guardianId: duplicate.id },
-      });
-      const survivorLinks = await tx.studentGuardian.findMany({
-        where: { guardianId: survivor.id },
-      });
-      const survivorStudentIds = new Set(survivorLinks.map((l) => l.studentId));
-
-      const absorbedLinks: Array<{ studentId: string; isPrimary: boolean }> = [];
-
-      for (const link of duplicateLinks) {
-        if (survivorStudentIds.has(link.studentId)) {
-          await tx.studentGuardian.delete({ where: { id: link.id } });
-          continue;
-        }
-        await tx.studentGuardian.update({
-          where: { id: link.id },
-          data: { guardianId: survivor.id },
-        });
-        absorbedLinks.push({ studentId: link.studentId, isPrimary: link.isPrimary });
-      }
-
-      const updateData: Record<string, unknown> = {};
-      const optionalFields = ["altPhone", "email", "occupation", "address", "relationship"] as const;
-      for (const field of optionalFields) {
-        if (survivor[field] == null && duplicate[field] != null) {
-          updateData[field] = duplicate[field];
-        }
-      }
-      if (survivor.householdId == null && duplicate.householdId != null) {
-        updateData.householdId = duplicate.householdId;
-      }
-      if (Object.keys(updateData).length > 0) {
-        await tx.guardian.update({ where: { id: survivor.id }, data: updateData });
-      }
-
-      await tx.guardian.delete({ where: { id: duplicate.id } });
-
-      return { survivor, duplicate, absorbedLinks };
-    });
+    result = await mergeInTransaction(input, ctx.schoolId);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Merge failed" };
   }
@@ -178,6 +128,63 @@ export async function performMergeAction(input: {
   });
 
   return { data: { survivorId: result.survivor.id, absorbedLinks: result.absorbedLinks.length } };
+}
+
+async function mergeInTransaction(
+  input: { duplicateId: string; survivorId: string },
+  schoolId: string,
+) {
+  return await db.$transaction(async (tx) => {
+    const survivor = await tx.guardian.findFirst({
+      where: { id: input.survivorId, schoolId },
+    });
+    const duplicate = await tx.guardian.findFirst({
+      where: { id: input.duplicateId, schoolId },
+    });
+    if (!survivor || !duplicate) {
+      throw new Error("Guardian no longer exists");
+    }
+
+    const duplicateLinks = await tx.studentGuardian.findMany({
+      where: { guardianId: duplicate.id },
+    });
+    const survivorLinks = await tx.studentGuardian.findMany({
+      where: { guardianId: survivor.id },
+    });
+    const survivorStudentIds = new Set(survivorLinks.map((l) => l.studentId));
+
+    const absorbedLinks: Array<{ studentId: string; isPrimary: boolean }> = [];
+
+    for (const link of duplicateLinks) {
+      if (survivorStudentIds.has(link.studentId)) {
+        await tx.studentGuardian.delete({ where: { id: link.id } });
+        continue;
+      }
+      await tx.studentGuardian.update({
+        where: { id: link.id },
+        data: { guardianId: survivor.id },
+      });
+      absorbedLinks.push({ studentId: link.studentId, isPrimary: link.isPrimary });
+    }
+
+    const updateData: Record<string, unknown> = {};
+    const optionalFields = ["altPhone", "email", "occupation", "address", "relationship"] as const;
+    for (const field of optionalFields) {
+      if (survivor[field] == null && duplicate[field] != null) {
+        updateData[field] = duplicate[field];
+      }
+    }
+    if (survivor.householdId == null && duplicate.householdId != null) {
+      updateData.householdId = duplicate.householdId;
+    }
+    if (Object.keys(updateData).length > 0) {
+      await tx.guardian.update({ where: { id: survivor.id }, data: updateData });
+    }
+
+    await tx.guardian.delete({ where: { id: duplicate.id } });
+
+    return { survivor, duplicate, absorbedLinks };
+  });
 }
 
 // ─── Scan All Guardians for Duplicates ─────────────────────────────
