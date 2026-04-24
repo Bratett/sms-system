@@ -66,33 +66,51 @@ export async function getMessageThreadsAction(filters?: {
     },
   });
 
-  const data: ThreadListRow[] = await Promise.all(
-    threads.map(async (t) => {
-      const lastReadAt = t.reads[0]?.lastReadAt ?? null;
-      const unreadCount = await db.message.count({
-        where: {
-          threadId: t.id,
-          authorUserId: { not: userId },
-          ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
-        },
-      });
-      const lastMsg = t.messages[0];
-      return {
-        id: t.id,
-        studentId: t.studentId,
-        studentName: `${t.student.firstName} ${t.student.lastName}`,
-        teacherUserId: t.teacherUserId,
-        teacherName: t.teacher
-          ? `${t.teacher.firstName} ${t.teacher.lastName}`.trim()
-          : "(teacher)",
-        status: t.status,
-        locked: t.lockedAt != null,
-        lastMessageAt: t.lastMessageAt,
-        lastMessagePreview: lastMsg?.body?.slice(0, 120) ?? null,
-        unreadCount,
-      };
-    }),
-  );
+  // Batch unread-count computation: one query fetches all candidate messages
+  // (not authored by the caller) across all listed threads, then we group and
+  // apply per-thread lastReadAt cutoffs in memory. Typical thread-list size
+  // makes this cheaper than one count() per thread.
+  const threadIds = threads.map((t) => t.id);
+  const candidateMessages =
+    threadIds.length > 0
+      ? await db.message.findMany({
+          where: {
+            threadId: { in: threadIds },
+            authorUserId: { not: userId },
+          },
+          select: { threadId: true, createdAt: true },
+        })
+      : [];
+
+  const unreadByThread = new Map<string, number>();
+  const lastReadByThread = new Map<string, Date | null>();
+  for (const t of threads) {
+    lastReadByThread.set(t.id, t.reads[0]?.lastReadAt ?? null);
+    unreadByThread.set(t.id, 0);
+  }
+  for (const m of candidateMessages) {
+    const lastReadAt = lastReadByThread.get(m.threadId) ?? null;
+    if (lastReadAt && m.createdAt <= lastReadAt) continue;
+    unreadByThread.set(m.threadId, (unreadByThread.get(m.threadId) ?? 0) + 1);
+  }
+
+  const data: ThreadListRow[] = threads.map((t) => {
+    const lastMsg = t.messages[0];
+    return {
+      id: t.id,
+      studentId: t.studentId,
+      studentName: `${t.student.firstName} ${t.student.lastName}`,
+      teacherUserId: t.teacherUserId,
+      teacherName: t.teacher
+        ? `${t.teacher.firstName} ${t.teacher.lastName}`.trim()
+        : "(teacher)",
+      status: t.status,
+      locked: t.lockedAt != null,
+      lastMessageAt: t.lastMessageAt,
+      lastMessagePreview: lastMsg?.body?.slice(0, 120) ?? null,
+      unreadCount: unreadByThread.get(t.id) ?? 0,
+    };
+  });
 
   return { data };
 }
