@@ -305,7 +305,7 @@ Recipient resolution in `postMessageAction`:
 `src/modules/messaging/attachments.ts`:
 
 - MIME allowlist: `application/pdf`, `image/jpeg`, `image/png`, `image/heic`, `image/webp`
-- Max size: 5 MB (5 * 1024 * 1024 bytes)
+- Max size: 5 MB (`5 * 1024 * 1024 bytes`)
 - R2 key format: `messages/{schoolId}/{threadId}/{uuid}-{sanitizedFilename}`
 - Upload flow: client requests signed PUT URL → PUTs directly to R2 → client calls `postMessageAction` with attachment metadata → server HEAD-verifies R2 object exists + Content-Type matches claim + Content-Length matches claim → persists message (or rejects + deletes orphan)
 - Download flow: `getMessageAttachmentUrlAction` returns a 5-minute signed GET URL
