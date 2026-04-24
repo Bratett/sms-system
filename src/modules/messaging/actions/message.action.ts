@@ -5,8 +5,13 @@ import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { isRateLimited } from "../eligibility";
-import { validateAttachment } from "../attachments";
+import {
+  validateAttachment,
+  ALLOWED_MIME_TYPES,
+  MAX_ATTACHMENT_SIZE_BYTES,
+} from "../attachments";
 import { notifyNewMessage } from "../notifications";
+import { headObject, deleteFile } from "@/lib/storage/r2";
 
 // ─── Post Message ──────────────────────────────────────────────────
 
@@ -37,6 +42,30 @@ export async function postMessageAction(input: {
       size: input.attachmentSize,
     });
     if (!validation.ok) return { error: validation.error };
+  }
+
+  // Server-side HEAD verification of the uploaded object. Catches lies about
+  // MIME type or size that slipped past the client-side validate step and
+  // aren't enforced by the signed-URL Content-Length binding alone (e.g.
+  // content-type spoofing). Rejects + deletes on any mismatch.
+  if (input.attachmentKey) {
+    const head = await headObject(input.attachmentKey);
+    if (!head) {
+      return { error: "Uploaded attachment was not found in storage." };
+    }
+    const allowedMimes: readonly string[] = ALLOWED_MIME_TYPES;
+    const sizeMismatch = head.contentLength !== input.attachmentSize;
+    const mimeMismatch = head.contentType !== input.attachmentMime;
+    const tooLarge = head.contentLength > MAX_ATTACHMENT_SIZE_BYTES;
+    const mimeNotAllowed = !allowedMimes.includes(head.contentType);
+    if (sizeMismatch || mimeMismatch || tooLarge || mimeNotAllowed) {
+      try {
+        await deleteFile(input.attachmentKey);
+      } catch {
+        // best-effort cleanup
+      }
+      return { error: "Uploaded attachment did not match declared metadata." };
+    }
   }
 
   const thread = await db.messageThread.findFirst({

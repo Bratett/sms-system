@@ -4,7 +4,11 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { getSignedDownloadUrl, getSignedUploadUrl } from "@/lib/storage/r2";
-import { validateAttachment, buildAttachmentKey } from "../attachments";
+import {
+  validateAttachment,
+  buildAttachmentKey,
+  MAX_ATTACHMENT_SIZE_BYTES,
+} from "../attachments";
 
 export async function getMessageAttachmentUploadUrlAction(input: {
   threadId: string;
@@ -48,6 +52,7 @@ export async function getMessageAttachmentUploadUrlAction(input: {
     key,
     contentType: input.mimeType,
     expiresInSeconds: 300,
+    maxSizeBytes: MAX_ATTACHMENT_SIZE_BYTES,
   });
 
   return { data: { uploadUrl: url, attachmentKey: key } };

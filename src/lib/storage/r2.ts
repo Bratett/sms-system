@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  HeadObjectCommand,
   type PutObjectCommandInput,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -78,16 +79,46 @@ export async function getSignedUploadUrl(input: {
   key: string;
   contentType: string;
   expiresInSeconds?: number;
+  /**
+   * If provided, binds a Content-Length into the SigV4 signature so the
+   * client cannot upload a larger body than expected. Callers that enforce
+   * a server-side size limit should pass this.
+   */
+  maxSizeBytes?: number;
 }): Promise<string> {
   const command = new PutObjectCommand({
     Bucket: getBucket(),
     Key: input.key,
     ContentType: input.contentType,
+    ...(input.maxSizeBytes != null ? { ContentLength: input.maxSizeBytes } : {}),
   });
 
   return getSignedUrl(getClient(), command, {
     expiresIn: input.expiresInSeconds ?? 3600,
   });
+}
+
+// ─── HEAD Object ───────────────────────────────────────────────────
+
+/**
+ * Fetches object metadata (size + content type) from R2. Returns null when
+ * the object does not exist or the request fails. Callers use this to
+ * verify client-claimed attachment metadata server-side before persisting.
+ */
+export async function headObject(
+  key: string,
+): Promise<{ contentLength: number; contentType: string } | null> {
+  try {
+    const out = await getClient().send(
+      new HeadObjectCommand({ Bucket: getBucket(), Key: key }),
+    );
+    return {
+      contentLength: out.ContentLength ?? 0,
+      contentType: out.ContentType ?? "application/octet-stream",
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ─── Delete ────────────────────────────────────────────────────────
