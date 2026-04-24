@@ -13,6 +13,7 @@ const parentLinks = [
   { href: "/parent/attendance", label: "Attendance" },
   { href: "/parent/messages", label: "Messages" },
   { href: "/parent/requests", label: "My requests" },
+  { href: "/parent/circulars", label: "Circulars" },
 ];
 
 const studentLinks = [
