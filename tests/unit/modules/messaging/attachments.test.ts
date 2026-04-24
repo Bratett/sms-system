@@ -57,4 +57,28 @@ describe("buildAttachmentKey", () => {
     expect(key).not.toContain("..");
     expect(key.startsWith("messages/school-1/t-1/")).toBe(true);
   });
+
+  it('falls back to "file" when the filename is empty', () => {
+    const key = buildAttachmentKey({
+      schoolId: "school-1",
+      threadId: "t-1",
+      filename: "",
+    });
+    expect(key).toMatch(/^messages\/school-1\/t-1\/[0-9a-f-]+-file$/);
+  });
+
+  it('falls back to "file" when the filename is only a path separator', () => {
+    const keyForward = buildAttachmentKey({
+      schoolId: "school-1",
+      threadId: "t-1",
+      filename: "/",
+    });
+    const keyBack = buildAttachmentKey({
+      schoolId: "school-1",
+      threadId: "t-1",
+      filename: "\\",
+    });
+    expect(keyForward).toMatch(/^messages\/school-1\/t-1\/[0-9a-f-]+-file$/);
+    expect(keyBack).toMatch(/^messages\/school-1\/t-1\/[0-9a-f-]+-file$/);
+  });
 });

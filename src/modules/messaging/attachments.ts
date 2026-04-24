@@ -51,7 +51,11 @@ export function buildAttachmentKey(input: {
 }
 
 function sanitiseFilename(name: string): string {
-  const lastSegment = name.split(/[\\/]/).pop() ?? "file";
+  // Note: "".split(...).pop() returns "" (not undefined), and "/".split(...)
+  // returns ["", ""] whose .pop() is also "". Handle empty-string fallback
+  // explicitly so these cases produce "file" instead of an empty key segment.
+  let lastSegment = name.split(/[\\/]/).pop() ?? "file";
+  if (lastSegment === "") lastSegment = "file";
   return lastSegment
     .replace(/[^a-zA-Z0-9._-]/g, "_")
     .toLowerCase();
