@@ -43,140 +43,169 @@ describeIfDb("Messaging (integration)", () => {
   let armId: string;
   let enrollmentId: string;
   let threadId: string | null = null;
+  // Second thread used by the tenant-isolation test so we don't conflate
+  // "archived" with "wrong tenant".
+  let isolationThreadId: string | null = null;
 
-  beforeAll(async () => {
-    adminId = await resolveSeededAdminId();
-
-    // Parent user (linked to guardian)
-    const parent = await db.user.create({
-      data: {
-        email: `${testTag}-parent@test.local`,
-        username: `${testTag}-parent`,
-        firstName: "Test",
-        lastName: "Parent",
-        passwordHash: "x",
-        status: "ACTIVE",
-      },
-    });
-    parentUserId = parent.id;
-
-    // Teacher user
-    const teacher = await db.user.create({
-      data: {
-        email: `${testTag}-teacher@test.local`,
-        username: `${testTag}-teacher`,
-        firstName: "Ms",
-        lastName: "Test",
-        passwordHash: "x",
-        status: "ACTIVE",
-      },
-    });
-    teacherUserId = teacher.id;
-
-    // Current academic year (seeded). Fall back to most recent by start date.
-    const year =
-      (await db.academicYear.findFirst({
-        where: { schoolId: "default-school", isCurrent: true },
-      })) ??
-      (await db.academicYear.findFirst({
-        where: { schoolId: "default-school" },
-        orderBy: { startDate: "desc" },
-      }));
-    if (!year) throw new Error("Seed DB missing an academic year for default-school");
-
-    const prog = await db.programme.create({
-      data: {
-        schoolId: "default-school",
-        name: `${testTag}-P`,
-        duration: 3,
-      },
-    });
-    programmeId = prog.id;
-
-    const cls = await db.class.create({
-      data: {
-        schoolId: "default-school",
-        programmeId: prog.id,
-        academicYearId: year.id,
-        yearGroup: 1,
-        name: `${testTag}-C`,
-        maxCapacity: 40,
-      },
-    });
-    classId = cls.id;
-
-    const arm = await db.classArm.create({
-      data: {
-        classId: cls.id,
-        schoolId: "default-school",
-        name: "A",
-        capacity: 40,
-      },
-    });
-    armId = arm.id;
-
-    const s = await db.student.create({
-      data: {
-        schoolId: "default-school",
-        studentId: `${testTag}/1`,
-        firstName: "MsgTest",
-        lastName: "Student",
-        dateOfBirth: new Date("2010-01-01"),
-        gender: "MALE",
-      },
-    });
-    studentId = s.id;
-
-    const enrollment = await db.enrollment.create({
-      data: {
-        schoolId: "default-school",
-        studentId,
-        classArmId: arm.id,
-        academicYearId: year.id,
-        status: "ACTIVE",
-      },
-    });
-    enrollmentId = enrollment.id;
-
-    const g = await db.guardian.create({
-      data: {
-        schoolId: "default-school",
-        firstName: "Parent",
-        lastName: "Test",
-        phone: `020${testTag.slice(-6)}`,
-        userId: parentUserId,
-      },
-    });
-    guardianId = g.id;
-
-    await db.studentGuardian.create({
-      data: {
-        schoolId: "default-school",
-        studentId,
-        guardianId,
-        isPrimary: true,
-      },
-    });
-  });
-
-  afterAll(async () => {
-    // Clean up in FK-safe order.
+  async function cleanupSeedData() {
+    // Clean up in FK-safe order. Every call is best-effort so partial seeds
+    // from a failed beforeAll can still be torn down.
     if (threadId) {
       await db.auditLog
         .deleteMany({ where: { entity: "MessageThread", entityId: threadId } })
         .catch(() => {});
-      // Message, MessageThreadRead cascade from MessageThread deletion
       await db.messageThread.delete({ where: { id: threadId } }).catch(() => {});
     }
-    await db.studentGuardian.deleteMany({ where: { studentId } }).catch(() => {});
-    await db.enrollment.deleteMany({ where: { id: enrollmentId } }).catch(() => {});
-    await db.student.delete({ where: { id: studentId } }).catch(() => {});
-    await db.guardian.delete({ where: { id: guardianId } }).catch(() => {});
-    await db.classArm.delete({ where: { id: armId } }).catch(() => {});
-    await db.class.delete({ where: { id: classId } }).catch(() => {});
-    await db.programme.delete({ where: { id: programmeId } }).catch(() => {});
-    await db.user.delete({ where: { id: parentUserId } }).catch(() => {});
-    await db.user.delete({ where: { id: teacherUserId } }).catch(() => {});
+    if (isolationThreadId) {
+      await db.auditLog
+        .deleteMany({ where: { entity: "MessageThread", entityId: isolationThreadId } })
+        .catch(() => {});
+      await db.messageThread
+        .delete({ where: { id: isolationThreadId } })
+        .catch(() => {});
+    }
+    if (studentId)
+      await db.studentGuardian.deleteMany({ where: { studentId } }).catch(() => {});
+    if (enrollmentId)
+      await db.enrollment.deleteMany({ where: { id: enrollmentId } }).catch(() => {});
+    if (studentId)
+      await db.student.delete({ where: { id: studentId } }).catch(() => {});
+    if (guardianId)
+      await db.guardian.delete({ where: { id: guardianId } }).catch(() => {});
+    if (armId) await db.classArm.delete({ where: { id: armId } }).catch(() => {});
+    if (classId) await db.class.delete({ where: { id: classId } }).catch(() => {});
+    if (programmeId)
+      await db.programme.delete({ where: { id: programmeId } }).catch(() => {});
+    if (parentUserId)
+      await db.user.delete({ where: { id: parentUserId } }).catch(() => {});
+    if (teacherUserId)
+      await db.user.delete({ where: { id: teacherUserId } }).catch(() => {});
+  }
+
+  beforeAll(async () => {
+    try {
+      adminId = await resolveSeededAdminId();
+
+      // Parent user (linked to guardian)
+      const parent = await db.user.create({
+        data: {
+          email: `${testTag}-parent@test.local`,
+          username: `${testTag}-parent`,
+          firstName: "Test",
+          lastName: "Parent",
+          passwordHash: "x",
+          status: "ACTIVE",
+        },
+      });
+      parentUserId = parent.id;
+
+      // Teacher user
+      const teacher = await db.user.create({
+        data: {
+          email: `${testTag}-teacher@test.local`,
+          username: `${testTag}-teacher`,
+          firstName: "Ms",
+          lastName: "Test",
+          passwordHash: "x",
+          status: "ACTIVE",
+        },
+      });
+      teacherUserId = teacher.id;
+
+      // Current academic year (seeded). Fall back to most recent by start date.
+      const year =
+        (await db.academicYear.findFirst({
+          where: { schoolId: "default-school", isCurrent: true },
+        })) ??
+        (await db.academicYear.findFirst({
+          where: { schoolId: "default-school" },
+          orderBy: { startDate: "desc" },
+        }));
+      if (!year) throw new Error("Seed DB missing an academic year for default-school");
+
+      const prog = await db.programme.create({
+        data: {
+          schoolId: "default-school",
+          name: `${testTag}-P`,
+          duration: 3,
+        },
+      });
+      programmeId = prog.id;
+
+      const cls = await db.class.create({
+        data: {
+          schoolId: "default-school",
+          programmeId: prog.id,
+          academicYearId: year.id,
+          yearGroup: 1,
+          name: `${testTag}-C`,
+          maxCapacity: 40,
+        },
+      });
+      classId = cls.id;
+
+      const arm = await db.classArm.create({
+        data: {
+          classId: cls.id,
+          schoolId: "default-school",
+          name: "A",
+          capacity: 40,
+        },
+      });
+      armId = arm.id;
+
+      const s = await db.student.create({
+        data: {
+          schoolId: "default-school",
+          studentId: `${testTag}/1`,
+          firstName: "MsgTest",
+          lastName: "Student",
+          dateOfBirth: new Date("2010-01-01"),
+          gender: "MALE",
+        },
+      });
+      studentId = s.id;
+
+      const enrollment = await db.enrollment.create({
+        data: {
+          schoolId: "default-school",
+          studentId,
+          classArmId: arm.id,
+          academicYearId: year.id,
+          status: "ACTIVE",
+        },
+      });
+      enrollmentId = enrollment.id;
+
+      const g = await db.guardian.create({
+        data: {
+          schoolId: "default-school",
+          firstName: "Parent",
+          lastName: "Test",
+          phone: `020${testTag.slice(-6)}`,
+          userId: parentUserId,
+        },
+      });
+      guardianId = g.id;
+
+      await db.studentGuardian.create({
+        data: {
+          schoolId: "default-school",
+          studentId,
+          guardianId,
+          isPrimary: true,
+        },
+      });
+    } catch (err) {
+      // Best-effort cleanup if seeding blew up partway so the next run
+      // doesn't see half-populated rows.
+      await cleanupSeedData();
+      throw err;
+    }
+  });
+
+  afterAll(async () => {
+    await cleanupSeedData();
     await db.$disconnect();
   });
 
@@ -268,13 +297,58 @@ describeIfDb("Messaging (integration)", () => {
     expect(postRes).toEqual({ error: "Thread is archived." });
   });
 
-  it("tenant isolation: session from another school cannot see this thread", async () => {
-    loginAs({
-      id: "other-user",
-      permissions: ["messaging:portal:use"],
-      schoolId: "other-school",
+  it("tenant isolation: session from another school cannot see an ACTIVE thread", async () => {
+    // Seed a fresh ACTIVE thread for this test so we don't conflate
+    // "archived" with "wrong tenant" — the earlier archive step locked in
+    // ARCHIVED status on the first thread, which by itself would also
+    // satisfy "Thread not found" for some code paths.
+    // Parent creates a second thread on a new (student, teacher) pair
+    // using a direct db insert so we don't re-exercise the full action
+    // chain, then we verify:
+    //   (a) original-tenant session CAN read it (control)
+    //   (b) other-tenant session CANNOT (the actual assertion)
+
+    const secondTeacher = await db.user.create({
+      data: {
+        email: `${testTag}-teacher2@test.local`,
+        username: `${testTag}-teacher2`,
+        firstName: "Mr",
+        lastName: "Second",
+        passwordHash: "x",
+        status: "ACTIVE",
+      },
     });
-    const res = await getMessageThreadAction(threadId!);
-    expect(res).toEqual({ error: "Thread not found" });
+    try {
+      const thread = await db.messageThread.create({
+        data: {
+          schoolId: "default-school",
+          studentId,
+          teacherUserId: secondTeacher.id,
+          status: "ACTIVE",
+          lastMessageAt: new Date(),
+        },
+      });
+      isolationThreadId = thread.id;
+
+      // Control: same tenant, participant (teacher) can read.
+      loginAs({
+        id: secondTeacher.id,
+        permissions: ["messaging:portal:use"],
+        schoolId: "default-school",
+      });
+      const sameTenant = await getMessageThreadAction(thread.id);
+      expect(sameTenant).toHaveProperty("data");
+
+      // Actual assertion: cross-tenant session cannot read.
+      loginAs({
+        id: "other-user",
+        permissions: ["messaging:portal:use"],
+        schoolId: "other-school",
+      });
+      const crossTenant = await getMessageThreadAction(thread.id);
+      expect(crossTenant).toEqual({ error: "Thread not found" });
+    } finally {
+      await db.user.delete({ where: { id: secondTeacher.id } }).catch(() => {});
+    }
   });
 });
