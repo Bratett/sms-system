@@ -2,7 +2,9 @@
 
 import { db } from "@/lib/db";
 import { requireAuth, requireSchoolContext } from "@/lib/auth-context";
+import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { toNum } from "@/lib/decimal";
+import { doesAnnouncementTargetGuardian } from "@/modules/communication/circular-targeting";
 
 // ─── Helper: verify parent has access to a student ────────────────────
 
@@ -444,30 +446,123 @@ export async function getChildAttendanceAction(studentId: string, termId?: strin
 
 // ─── Get Announcements for Parent ─────────────────────────────────────
 
+/** @no-audit Read-only parent view. */
 export async function getParentAnnouncementsAction() {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ANNOUNCEMENTS_READ);
+  if (denied) return denied;
 
-  const announcements = await db.announcement.findMany({
-    where: {
-      schoolId: ctx.schoolId,
-      status: "PUBLISHED",
-      targetType: { in: ["all", "specific"] },
-    },
-    orderBy: { publishedAt: "desc" },
-    take: 20,
+  const userId = ctx.session.user.id!;
+  const guardian = await db.guardian.findUnique({
+    where: { userId },
     select: {
-      id: true,
-      title: true,
-      content: true,
-      priority: true,
-      publishedAt: true,
-      expiresAt: true,
+      userId: true,
+      householdId: true,
+      students: {
+        select: {
+          student: {
+            select: {
+              id: true,
+              status: true,
+              enrollments: {
+                where: { status: "ACTIVE" },
+                take: 1,
+                select: {
+                  classArmId: true,
+                  classArm: {
+                    select: {
+                      id: true,
+                      classId: true,
+                      class: { select: { programmeId: true } },
+                    },
+                  },
+                },
+              },
+              houseAssignment: { select: { houseId: true } },
+            },
+          },
+        },
+      },
     },
   });
 
-  const now = new Date();
-  const active = announcements.filter((a) => !a.expiresAt || new Date(a.expiresAt) > now);
+  if (!guardian) return { data: [] };
 
-  return { data: active };
+  const contexts = guardian.students
+    .map((sg) => sg.student)
+    .filter((s) => s.status === "ACTIVE" || s.status === "SUSPENDED")
+    .map((s) => ({
+      id: s.id,
+      classArmId: s.enrollments[0]?.classArmId ?? null,
+      classId: s.enrollments[0]?.classArm?.classId ?? null,
+      programmeId: s.enrollments[0]?.classArm?.class?.programmeId ?? null,
+      houseId: s.houseAssignment?.houseId ?? null,
+    }));
+  const studentIds = contexts.map((c) => c.id);
+
+  const now = new Date();
+  const candidates = await db.announcement.findMany({
+    where: {
+      schoolId: ctx.schoolId,
+      status: "PUBLISHED",
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+    orderBy: { publishedAt: "desc" },
+  });
+
+  const visible = candidates.filter((a) =>
+    doesAnnouncementTargetGuardian(
+      { targetType: a.targetType, targetIds: a.targetIds },
+      studentIds,
+      contexts,
+    ),
+  );
+
+  return { data: visible };
+}
+
+/** @no-audit Read-only parent view. */
+export async function getParentCircularsAction(input: {
+  tab: "pending" | "history";
+}) {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.ANNOUNCEMENTS_READ);
+  if (denied) return denied;
+
+  const base = await getParentAnnouncementsAction();
+  if ("error" in base) return base;
+
+  const userId = ctx.session.user.id!;
+  const guardian = await db.guardian.findUnique({
+    where: { userId },
+    select: { householdId: true },
+  });
+
+  const ackIds = new Set<string>();
+  if (guardian?.householdId) {
+    const acks = await db.circularAcknowledgement.findMany({
+      where: {
+        householdId: guardian.householdId,
+        announcementId: { in: base.data.map((a) => a.id) },
+      },
+      select: { announcementId: true },
+    });
+    for (const a of acks) ackIds.add(a.announcementId);
+  }
+
+  const hydrated = base.data.map((a) => ({
+    ...a,
+    isAcknowledged: ackIds.has(a.id),
+  }));
+
+  const pending = hydrated.filter(
+    (a) => a.requiresAcknowledgement && !a.isAcknowledged,
+  );
+  const history = hydrated.filter(
+    (a) => !a.requiresAcknowledgement || a.isAcknowledged,
+  );
+
+  return { data: input.tab === "pending" ? pending : history };
 }
