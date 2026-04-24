@@ -10,6 +10,7 @@ import {
   type CreateStudentInput,
   type UpdateStudentInput,
 } from "@/modules/student/schemas/student.schema";
+import { archiveThreadsForStudent } from "@/modules/messaging/lifecycle";
 
 // ─── List Students (paginated, with search & filters) ───────────
 
@@ -476,6 +477,8 @@ export async function deleteStudentAction(id: string) {
     where: { id },
     data: { status: "WITHDRAWN" },
   });
+
+  await archiveThreadsForStudent(id);
 
   // Also deactivate active enrollments
   await db.enrollment.updateMany({

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import { archiveThreadsForStudent } from "@/modules/messaging/lifecycle";
 
 // ─── Get Promotion Candidates ─────────────────────────────────────────
 
@@ -246,6 +247,7 @@ export async function processPromotionsAction(data: {
             where: { id: promotion.studentId },
             data: { status: "GRADUATED" },
           });
+          await archiveThreadsForStudent(promotion.studentId);
           results.graduated++;
           break;
       }
