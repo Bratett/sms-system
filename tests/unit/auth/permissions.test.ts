@@ -74,6 +74,7 @@ describe("Role-Permission Mappings", () => {
       PERMISSIONS.MESSAGING_REPORT,
       PERMISSIONS.EXCUSE_SUBMIT,
       PERMISSIONS.MEDICAL_DISCLOSURE_SUBMIT,
+      PERMISSIONS.CIRCULAR_ACKNOWLEDGE,
     ];
     for (const perm of parent) {
       const isAllowed = perm.endsWith("read") || allowedNonRead.includes(perm as any);
@@ -167,6 +168,19 @@ describe("Role-Permission Mappings", () => {
     expect(DEFAULT_ROLE_PERMISSIONS.parent).not.toContain(PERMISSIONS.MEDICAL_DISCLOSURE_REVIEW);
     expect(DEFAULT_ROLE_PERMISSIONS.class_teacher).not.toContain(PERMISSIONS.MEDICAL_DISCLOSURE_REVIEW);
     expect(DEFAULT_ROLE_PERMISSIONS.school_nurse).not.toContain(PERMISSIONS.EXCUSE_REVIEW);
+  });
+
+  it("circular-acknowledgement permissions are granted to the expected roles", () => {
+    expect(DEFAULT_ROLE_PERMISSIONS.parent).toContain(PERMISSIONS.CIRCULAR_ACKNOWLEDGE);
+
+    for (const role of ["headmaster", "assistant_headmaster_academic", "assistant_headmaster_admin"]) {
+      expect(DEFAULT_ROLE_PERMISSIONS[role]).toContain(PERMISSIONS.CIRCULAR_ACKNOWLEDGEMENT_TRACK);
+    }
+
+    // Negative
+    expect(DEFAULT_ROLE_PERMISSIONS.parent).not.toContain(PERMISSIONS.CIRCULAR_ACKNOWLEDGEMENT_TRACK);
+    expect(DEFAULT_ROLE_PERMISSIONS.class_teacher).not.toContain(PERMISSIONS.CIRCULAR_ACKNOWLEDGE);
+    expect(DEFAULT_ROLE_PERMISSIONS.class_teacher).not.toContain(PERMISSIONS.CIRCULAR_ACKNOWLEDGEMENT_TRACK);
   });
 
   it("all seeded roles should have permission mappings", () => {
