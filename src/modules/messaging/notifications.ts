@@ -104,6 +104,9 @@ function channelKeyToEnum(c: string): NotificationChannel {
     case "push":
       return "PUSH";
     default:
-      return "IN_APP";
+      // Fail loud rather than silently falling through to IN_APP; an unknown
+      // key is almost always a typo in EVENT_CHANNELS config and masking it
+      // makes channel-preference bugs hard to spot.
+      throw new Error(`unknown notification channel key: "${c}"`);
   }
 }
