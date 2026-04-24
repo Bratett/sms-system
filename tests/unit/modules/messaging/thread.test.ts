@@ -110,7 +110,11 @@ describe("createMessageThreadAction", () => {
       status: "ACTIVE",
     } as never);
     prismaMock.message.create.mockResolvedValue({ createdAt: new Date() } as never);
-    prismaMock.messageThread.update.mockResolvedValue({} as never);
+    prismaMock.messageThread.update.mockResolvedValue({
+      id: "existing",
+      schoolId: "default-school",
+      status: "ACTIVE",
+    } as never);
 
     const result = await createMessageThreadAction({
       studentId: "s-1",

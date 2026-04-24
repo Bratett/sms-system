@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
@@ -35,7 +36,7 @@ export async function getMessageThreadsAction(filters?: {
 
   const userId = ctx.session.user.id!;
 
-  const where: Record<string, unknown> = {
+  const where: Prisma.MessageThreadWhereInput = {
     schoolId: ctx.schoolId,
     ...(filters?.status ? { status: filters.status } : {}),
     ...(filters?.studentId ? { studentId: filters.studentId } : {}),
@@ -239,22 +240,25 @@ export async function createMessageThreadAction(input: {
   });
 
   if (existing) {
-    const msg = await db.message.create({
-      data: {
-        threadId: existing.id,
-        authorUserId: userId,
-        body,
-        attachmentKey: input.attachmentKey ?? null,
-        attachmentName: input.attachmentName ?? null,
-        attachmentSize: input.attachmentSize ?? null,
-        attachmentMime: input.attachmentMime ?? null,
-      },
+    const { thread } = await db.$transaction(async (tx) => {
+      const msg = await tx.message.create({
+        data: {
+          threadId: existing.id,
+          authorUserId: userId,
+          body,
+          attachmentKey: input.attachmentKey ?? null,
+          attachmentName: input.attachmentName ?? null,
+          attachmentSize: input.attachmentSize ?? null,
+          attachmentMime: input.attachmentMime ?? null,
+        },
+      });
+      const t = await tx.messageThread.update({
+        where: { id: existing.id },
+        data: { lastMessageAt: msg.createdAt },
+      });
+      return { thread: t };
     });
-    await db.messageThread.update({
-      where: { id: existing.id },
-      data: { lastMessageAt: msg.createdAt },
-    });
-    return { data: existing };
+    return { data: thread };
   }
 
   const { thread } = await db.$transaction(async (tx) => {
