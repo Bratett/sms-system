@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import { archiveThreadsForStudent } from "@/modules/messaging/lifecycle";
 
 // ─── Transfer Student ──────────────────────────────────────────────
 
@@ -44,6 +45,8 @@ export async function transferStudentAction(data: {
 
     return updatedStudent;
   });
+
+  await archiveThreadsForStudent(data.studentId);
 
   await audit({
     userId: ctx.session.user.id!,
@@ -101,6 +104,8 @@ export async function withdrawStudentAction(data: {
 
     return updatedStudent;
   });
+
+  await archiveThreadsForStudent(data.studentId);
 
   await audit({
     userId: ctx.session.user.id!,
