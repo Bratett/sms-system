@@ -72,6 +72,8 @@ describe("Role-Permission Mappings", () => {
       PERMISSIONS.PTC_BOOK,
       PERMISSIONS.MESSAGING_PORTAL_USE,
       PERMISSIONS.MESSAGING_REPORT,
+      PERMISSIONS.EXCUSE_SUBMIT,
+      PERMISSIONS.MEDICAL_DISCLOSURE_SUBMIT,
     ];
     for (const perm of parent) {
       const isAllowed = perm.endsWith("read") || allowedNonRead.includes(perm as any);
@@ -105,8 +107,9 @@ describe("Role-Permission Mappings", () => {
       PERMISSIONS.MEDICAL_UPDATE,
       PERMISSIONS.MEDICAL_CONFIDENTIAL_READ,
       PERMISSIONS.ANNOUNCEMENTS_READ,
+      PERMISSIONS.MEDICAL_DISCLOSURE_REVIEW,
     ]));
-    expect(bundle).toHaveLength(7);
+    expect(bundle).toHaveLength(8);
   });
 
   it("households permissions are granted to the expected roles", () => {
@@ -149,6 +152,21 @@ describe("Role-Permission Mappings", () => {
     expect(DEFAULT_ROLE_PERMISSIONS.parent).not.toContain(PERMISSIONS.MESSAGING_ADMIN_REVIEW);
     // Negative: guidance_counsellor (not a thread participant) must NOT have MESSAGING_PORTAL_USE
     expect(DEFAULT_ROLE_PERMISSIONS.guidance_counsellor).not.toContain(PERMISSIONS.MESSAGING_PORTAL_USE);
+  });
+
+  it("parent-request permissions are granted to the expected roles", () => {
+    expect(DEFAULT_ROLE_PERMISSIONS.parent).toContain(PERMISSIONS.EXCUSE_SUBMIT);
+    expect(DEFAULT_ROLE_PERMISSIONS.parent).toContain(PERMISSIONS.MEDICAL_DISCLOSURE_SUBMIT);
+    for (const role of ["class_teacher", "housemaster"]) {
+      expect(DEFAULT_ROLE_PERMISSIONS[role]).toContain(PERMISSIONS.EXCUSE_REVIEW);
+    }
+    expect(DEFAULT_ROLE_PERMISSIONS.school_nurse).toContain(PERMISSIONS.MEDICAL_DISCLOSURE_REVIEW);
+
+    // Negative
+    expect(DEFAULT_ROLE_PERMISSIONS.parent).not.toContain(PERMISSIONS.EXCUSE_REVIEW);
+    expect(DEFAULT_ROLE_PERMISSIONS.parent).not.toContain(PERMISSIONS.MEDICAL_DISCLOSURE_REVIEW);
+    expect(DEFAULT_ROLE_PERMISSIONS.class_teacher).not.toContain(PERMISSIONS.MEDICAL_DISCLOSURE_REVIEW);
+    expect(DEFAULT_ROLE_PERMISSIONS.school_nurse).not.toContain(PERMISSIONS.EXCUSE_REVIEW);
   });
 
   it("all seeded roles should have permission mappings", () => {
