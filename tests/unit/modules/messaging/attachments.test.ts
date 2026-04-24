@@ -86,4 +86,23 @@ describe("buildAttachmentKey", () => {
     expect(keyForward).toMatch(/^messages\/school-1\/t-1\/[0-9a-f-]+-file$/);
     expect(keyBack).toMatch(/^messages\/school-1\/t-1\/[0-9a-f-]+-file$/);
   });
+
+  it("defaults prefix to 'messages' when omitted", () => {
+    const key = buildAttachmentKey({
+      schoolId: "school-1",
+      threadId: "t-1",
+      filename: "x.pdf",
+    });
+    expect(key.startsWith("messages/school-1/t-1/")).toBe(true);
+  });
+
+  it("uses a custom prefix when provided", () => {
+    const key = buildAttachmentKey({
+      schoolId: "school-1",
+      threadId: "t-1",
+      filename: "x.pdf",
+      prefix: "parent-requests",
+    });
+    expect(key.startsWith("parent-requests/school-1/t-1/")).toBe(true);
+  });
 });

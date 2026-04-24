@@ -37,17 +37,22 @@ export function validateAttachment(input: {
 
 /**
  * Deterministic R2 key generation. Sanitises filename and prefixes with a
- * random UUID to avoid collisions. Scoped by schoolId so a leaked key cannot
- * target another tenant's bucket space.
+ * random UUID to avoid collisions. Scoped by schoolId + prefix so a leaked key
+ * cannot target another tenant's bucket space.
+ *
+ * @param input.prefix Optional top-level key prefix (default "messages").
+ *                     Use "parent-requests" for excuse/medical attachments.
  */
 export function buildAttachmentKey(input: {
   schoolId: string;
   threadId: string;
   filename: string;
+  prefix?: string;
 }): string {
   const safeName = sanitiseFilename(input.filename);
   const uuid = randomUUID();
-  return `messages/${input.schoolId}/${input.threadId}/${uuid}-${safeName}`;
+  const prefix = input.prefix ?? "messages";
+  return `${prefix}/${input.schoolId}/${input.threadId}/${uuid}-${safeName}`;
 }
 
 function sanitiseFilename(name: string): string {
