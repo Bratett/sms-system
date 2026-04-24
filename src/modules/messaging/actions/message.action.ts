@@ -113,20 +113,23 @@ export async function postMessageAction(input: {
     return { error: "Too many messages. Please wait before sending another." };
   }
 
-  const message = await db.message.create({
-    data: {
-      threadId: input.threadId,
-      authorUserId: userId,
-      body,
-      attachmentKey: input.attachmentKey ?? null,
-      attachmentName: input.attachmentName ?? null,
-      attachmentSize: input.attachmentSize ?? null,
-      attachmentMime: input.attachmentMime ?? null,
-    },
-  });
-  await db.messageThread.update({
-    where: { id: input.threadId },
-    data: { lastMessageAt: message.createdAt },
+  const { message } = await db.$transaction(async (tx) => {
+    const m = await tx.message.create({
+      data: {
+        threadId: input.threadId,
+        authorUserId: userId,
+        body,
+        attachmentKey: input.attachmentKey ?? null,
+        attachmentName: input.attachmentName ?? null,
+        attachmentSize: input.attachmentSize ?? null,
+        attachmentMime: input.attachmentMime ?? null,
+      },
+    });
+    await tx.messageThread.update({
+      where: { id: input.threadId },
+      data: { lastMessageAt: m.createdAt },
+    });
+    return { message: m };
   });
 
   try {
@@ -168,8 +171,14 @@ export async function postMessageAction(input: {
       authorName,
       bodyPreview,
     });
-  } catch {
-    // swallowed
+  } catch (err) {
+    // Best-effort: the message is already persisted. Log so the fan-out
+    // failure is observable without breaking the post-message flow.
+    console.error("notification fan-out failed", {
+      threadId: thread.id,
+      messageId: message.id,
+      err,
+    });
   }
 
   return { data: message };
