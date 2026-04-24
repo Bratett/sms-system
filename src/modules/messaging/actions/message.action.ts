@@ -137,11 +137,37 @@ export async function reportMessageAction(input: {
   const reason = (input.reason ?? "").trim();
   if (!reason) return { error: "Please describe why you're reporting this message." };
 
+  const userId = ctx.session.user.id!;
+  const hasAdminRead = !assertPermission(ctx.session, PERMISSIONS.MESSAGING_ADMIN_READ);
+
   const message = await db.message.findFirst({
     where: { id: input.messageId, thread: { schoolId: ctx.schoolId } },
-    include: { thread: { select: { schoolId: true } } },
+    include: {
+      thread: {
+        select: {
+          schoolId: true,
+          teacherUserId: true,
+          student: {
+            select: {
+              guardians: { select: { guardian: { select: { userId: true } } } },
+            },
+          },
+        },
+      },
+    },
   });
   if (!message) return { error: "Message not found." };
+
+  const guardianUserIds = message.thread.student.guardians
+    .map((g) => g.guardian.userId)
+    .filter((id): id is string => id != null);
+  const isParticipant =
+    userId === message.thread.teacherUserId || guardianUserIds.includes(userId);
+  if (!isParticipant && !hasAdminRead) {
+    // Mirror the response shape used by getMessageAttachmentUrlAction to avoid
+    // leaking thread existence to non-participants holding messaging:report.
+    return { error: "Message not found." };
+  }
 
   const report = await db.messageReport.create({
     data: {

@@ -159,7 +159,11 @@ describe("reportMessageAction", () => {
   it("creates a MessageReport + writes audit", async () => {
     prismaMock.message.findFirst.mockResolvedValue({
       id: "m-1",
-      thread: { schoolId: "default-school" },
+      thread: {
+        schoolId: "default-school",
+        teacherUserId: "test-user-id",
+        student: { guardians: [] },
+      },
     } as never);
     prismaMock.messageReport.create.mockResolvedValue({
       id: "rep-1",
@@ -174,5 +178,20 @@ describe("reportMessageAction", () => {
         entityId: "rep-1",
       }),
     );
+  });
+
+  it("rejects non-participants without admin-read permission", async () => {
+    prismaMock.message.findFirst.mockResolvedValue({
+      id: "m-1",
+      thread: {
+        schoolId: "default-school",
+        teacherUserId: "user-someone-else",
+        student: { guardians: [{ guardian: { userId: "user-other-parent" } }] },
+      },
+    } as never);
+
+    const result = await reportMessageAction({ messageId: "m-1", reason: "abusive" });
+    expect(result).toHaveProperty("error");
+    expect(prismaMock.messageReport.create).not.toHaveBeenCalled();
   });
 });
