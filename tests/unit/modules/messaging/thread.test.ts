@@ -94,7 +94,10 @@ describe("createMessageThreadAction", () => {
   });
 
   it("returns existing thread when one already exists for (student, teacher)", async () => {
-    prismaMock.student.findFirst.mockResolvedValue(sampleStudent as never);
+    prismaMock.student.findFirst.mockResolvedValue({
+      ...sampleStudent,
+      guardians: [{ guardian: { userId: "test-user-id" } }],
+    } as never);
     prismaMock.user.findUnique.mockResolvedValue(sampleTeacher as never);
     prismaMock.userRole.findMany.mockResolvedValue([
       { userId: "user-teacher", role: { name: "class_teacher" } },
@@ -104,6 +107,8 @@ describe("createMessageThreadAction", () => {
       id: "existing",
       schoolId: "default-school",
     } as never);
+    prismaMock.message.create.mockResolvedValue({ createdAt: new Date() } as never);
+    prismaMock.messageThread.update.mockResolvedValue({} as never);
 
     const result = await createMessageThreadAction({
       studentId: "s-1",

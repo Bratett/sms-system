@@ -200,6 +200,18 @@ export async function createMessageThreadAction(input: {
   });
   if (!student) return { error: "Student not found." };
 
+  const guardianUserIds = student.guardians
+    .map((g) => g.guardian.userId)
+    .filter((id): id is string => id != null);
+  const callerIsGuardian = guardianUserIds.includes(userId);
+  const callerIsTheTeacher = userId === input.teacherUserId;
+
+  // Participation guard FIRST — prevents enumeration of existing (student, teacher) pairs
+  // by non-participants holding messaging:portal:use in the same school.
+  if (!callerIsGuardian && !callerIsTheTeacher) {
+    return { error: "You are not allowed to participate in this thread." };
+  }
+
   const existing = await db.messageThread.findUnique({
     where: {
       studentId_teacherUserId: {
@@ -209,34 +221,22 @@ export async function createMessageThreadAction(input: {
     },
   });
 
-  const guardianUserIds = student.guardians
-    .map((g) => g.guardian.userId)
-    .filter((id): id is string => id != null);
-  const callerIsGuardian = guardianUserIds.includes(userId);
-  const callerIsTheTeacher = userId === input.teacherUserId;
-
-  if (!existing && !callerIsGuardian && !callerIsTheTeacher) {
-    return { error: "You are not allowed to participate in this thread." };
-  }
-
   if (existing) {
-    if (callerIsGuardian || callerIsTheTeacher) {
-      const msg = await db.message.create({
-        data: {
-          threadId: existing.id,
-          authorUserId: userId,
-          body,
-          attachmentKey: input.attachmentKey ?? null,
-          attachmentName: input.attachmentName ?? null,
-          attachmentSize: input.attachmentSize ?? null,
-          attachmentMime: input.attachmentMime ?? null,
-        },
-      });
-      await db.messageThread.update({
-        where: { id: existing.id },
-        data: { lastMessageAt: msg.createdAt },
-      });
-    }
+    const msg = await db.message.create({
+      data: {
+        threadId: existing.id,
+        authorUserId: userId,
+        body,
+        attachmentKey: input.attachmentKey ?? null,
+        attachmentName: input.attachmentName ?? null,
+        attachmentSize: input.attachmentSize ?? null,
+        attachmentMime: input.attachmentMime ?? null,
+      },
+    });
+    await db.messageThread.update({
+      where: { id: existing.id },
+      data: { lastMessageAt: msg.createdAt },
+    });
     return { data: existing };
   }
 
