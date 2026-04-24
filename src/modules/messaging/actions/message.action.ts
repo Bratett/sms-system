@@ -46,7 +46,13 @@ export async function postMessageAction(input: {
         select: {
           firstName: true,
           lastName: true,
-          guardians: { select: { guardian: { select: { userId: true } } } },
+          guardians: {
+            select: {
+              guardian: {
+                select: { userId: true, firstName: true, lastName: true },
+              },
+            },
+          },
         },
       },
       teacher: { select: { firstName: true, lastName: true } },
@@ -104,8 +110,25 @@ export async function postMessageAction(input: {
       (body.length > 120 ? body.slice(0, 120) + "…" : body) +
       (input.attachmentName ? ` [attachment: ${input.attachmentName}]` : "");
 
-    const teacherName =
-      [thread.teacher?.firstName, thread.teacher?.lastName].filter(Boolean).join(" ") || "(user)";
+    let authorName = "(user)";
+    if (authorRole === "teacher") {
+      authorName =
+        [thread.teacher?.firstName, thread.teacher?.lastName]
+          .filter(Boolean)
+          .join(" ") || "(user)";
+    } else {
+      const guardianRow = thread.student.guardians.find(
+        (g) => g.guardian.userId === userId,
+      );
+      if (guardianRow) {
+        authorName =
+          [guardianRow.guardian.firstName, guardianRow.guardian.lastName]
+            .filter(Boolean)
+            .join(" ") || "Parent";
+      } else {
+        authorName = "Parent";
+      }
+    }
 
     await notifyNewMessage({
       messageId: message.id,
@@ -113,7 +136,7 @@ export async function postMessageAction(input: {
       recipientUserIds: recipients,
       authorRole,
       studentName: `${thread.student.firstName} ${thread.student.lastName}`,
-      authorName: teacherName,
+      authorName,
       bodyPreview,
     });
   } catch {
