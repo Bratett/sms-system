@@ -70,6 +70,12 @@ export const NOTIFICATION_EVENTS = {
   MESSAGE_RECEIVED_PARENT: "message_received_parent",
   MESSAGE_RECEIVED_TEACHER: "message_received_teacher",
 
+  // Parent-initiated workflows
+  EXCUSE_REQUEST_SUBMITTED:     "excuse_request_submitted",
+  EXCUSE_REQUEST_REVIEWED:      "excuse_request_reviewed",
+  MEDICAL_DISCLOSURE_SUBMITTED: "medical_disclosure_submitted",
+  MEDICAL_DISCLOSURE_REVIEWED:  "medical_disclosure_reviewed",
+
   // Discipline
   DISCIPLINE_INCIDENT: "discipline_incident",
   DISCIPLINE_RESOLVED: "discipline_resolved",
@@ -140,6 +146,10 @@ export const EVENT_CHANNELS: Record<NotificationEvent, ("in_app" | "sms" | "emai
   [NOTIFICATION_EVENTS.ANNOUNCEMENT_PUBLISHED]: ["in_app"],
   [NOTIFICATION_EVENTS.MESSAGE_RECEIVED_PARENT]: ["in_app", "email"],
   [NOTIFICATION_EVENTS.MESSAGE_RECEIVED_TEACHER]: ["in_app"],
+  [NOTIFICATION_EVENTS.EXCUSE_REQUEST_SUBMITTED]:     ["in_app"],
+  [NOTIFICATION_EVENTS.EXCUSE_REQUEST_REVIEWED]:      ["in_app", "email"],
+  [NOTIFICATION_EVENTS.MEDICAL_DISCLOSURE_SUBMITTED]: ["in_app"],
+  [NOTIFICATION_EVENTS.MEDICAL_DISCLOSURE_REVIEWED]:  ["in_app", "email"],
   [NOTIFICATION_EVENTS.DISCIPLINE_INCIDENT]: ["in_app", "sms"],
   [NOTIFICATION_EVENTS.DISCIPLINE_RESOLVED]: ["in_app"],
   [NOTIFICATION_EVENTS.LOW_STOCK_ALERT]: ["in_app"],

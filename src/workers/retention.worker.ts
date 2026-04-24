@@ -1,9 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 import { getActivePolicies, getCutoffDate, type RetentionPolicy } from "@/lib/retention/policy";
+import { deleteFile } from "@/lib/storage/r2";
 import { logger } from "@/lib/logger";
 
 const db = new PrismaClient();
 const log = logger.child({ worker: "retention" });
+
+/** Parent-request retention window: 7 years after terminal review. */
+const PARENT_REQUEST_RETENTION_DAYS = 365 * 7;
 
 /**
  * Data Retention Worker
@@ -18,6 +22,49 @@ export async function executeRetentionPolicies(): Promise<RetentionResult[]> {
   const results: RetentionResult[] = [];
 
   log.info("starting retention check", { policies: policies.length });
+
+  // Parent-initiated request sweeps (R2 attachments + DB rows)
+  try {
+    const excuseResult = await sweepExcuseRequests();
+    results.push(excuseResult);
+    if (excuseResult.affectedCount > 0) {
+      log.info("policy applied", {
+        entity: excuseResult.entity,
+        action: excuseResult.action,
+        affected: excuseResult.affectedCount,
+      });
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    log.error("policy failed", { entity: "ExcuseRequest (terminal)", error: msg });
+    results.push({
+      entity: "ExcuseRequest (terminal)",
+      action: "delete",
+      affectedCount: 0,
+      error: msg,
+    });
+  }
+
+  try {
+    const disclosureResult = await sweepMedicalDisclosures();
+    results.push(disclosureResult);
+    if (disclosureResult.affectedCount > 0) {
+      log.info("policy applied", {
+        entity: disclosureResult.entity,
+        action: disclosureResult.action,
+        affected: disclosureResult.affectedCount,
+      });
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    log.error("policy failed", { entity: "MedicalDisclosure (terminal)", error: msg });
+    results.push({
+      entity: "MedicalDisclosure (terminal)",
+      action: "delete",
+      affectedCount: 0,
+      error: msg,
+    });
+  }
 
   for (const policy of policies) {
     try {
@@ -142,4 +189,79 @@ async function executePolicy(policy: RetentionPolicy): Promise<RetentionResult> 
     default:
       return { entity: policy.entity, action: policy.action, affectedCount: 0 };
   }
+}
+
+/**
+ * Sweep terminal ExcuseRequest rows older than the retention window.
+ *
+ * - Targets rows with status in APPROVED, REJECTED, WITHDRAWN
+ * - Uses `reviewedAt` as the age cutoff (falls back implicitly: only rows
+ *   that have been reviewed have `reviewedAt`; withdrawn-without-review rows
+ *   keep `reviewedAt` null and are excluded by the `not: null` clause).
+ * - Deletes R2 attachments best-effort (404s swallowed) before deleting DB rows.
+ */
+async function sweepExcuseRequests(): Promise<RetentionResult> {
+  const cutoff = getCutoffDate(PARENT_REQUEST_RETENTION_DAYS);
+  const entity = "ExcuseRequest (terminal)";
+
+  const rows = await db.excuseRequest.findMany({
+    where: {
+      status: { in: ["APPROVED", "REJECTED", "WITHDRAWN"] },
+      reviewedAt: { lt: cutoff, not: null },
+    },
+    select: { id: true, attachmentKey: true },
+  });
+
+  if (rows.length === 0) {
+    return { entity, action: "delete", affectedCount: 0 };
+  }
+
+  for (const row of rows) {
+    if (row.attachmentKey) {
+      await deleteFile(row.attachmentKey).catch(() => {});
+    }
+  }
+
+  const result = await db.excuseRequest.deleteMany({
+    where: { id: { in: rows.map((r) => r.id) } },
+  });
+
+  return { entity, action: "delete", affectedCount: result.count };
+}
+
+/**
+ * Sweep terminal MedicalDisclosure rows older than the retention window.
+ *
+ * - Targets rows with status in APPROVED, REJECTED, WITHDRAWN
+ * - Uses `reviewedAt` as the age cutoff.
+ * - Deletes R2 attachments best-effort (404s swallowed) before deleting DB rows.
+ * - Does NOT delete the linked MedicalRecord (those have their own retention).
+ */
+async function sweepMedicalDisclosures(): Promise<RetentionResult> {
+  const cutoff = getCutoffDate(PARENT_REQUEST_RETENTION_DAYS);
+  const entity = "MedicalDisclosure (terminal)";
+
+  const rows = await db.medicalDisclosure.findMany({
+    where: {
+      status: { in: ["APPROVED", "REJECTED", "WITHDRAWN"] },
+      reviewedAt: { lt: cutoff, not: null },
+    },
+    select: { id: true, attachmentKey: true },
+  });
+
+  if (rows.length === 0) {
+    return { entity, action: "delete", affectedCount: 0 };
+  }
+
+  for (const row of rows) {
+    if (row.attachmentKey) {
+      await deleteFile(row.attachmentKey).catch(() => {});
+    }
+  }
+
+  const result = await db.medicalDisclosure.deleteMany({
+    where: { id: { in: rows.map((r) => r.id) } },
+  });
+
+  return { entity, action: "delete", affectedCount: result.count };
 }

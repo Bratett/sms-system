@@ -69,6 +69,12 @@ export const navigationGroups: NavGroup[] = [
             icon: "FileText",
             permission: PERMISSIONS.STUDENTS_IMPORT,
           },
+          {
+            title: "Medical Disclosures",
+            href: "/students/medical-disclosures",
+            icon: "HeartPulse",
+            permission: PERMISSIONS.MEDICAL_DISCLOSURE_REVIEW,
+          },
         ],
       },
       {

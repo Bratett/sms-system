@@ -12,6 +12,7 @@ const parentLinks = [
   { href: "/parent/results", label: "Results" },
   { href: "/parent/attendance", label: "Attendance" },
   { href: "/parent/messages", label: "Messages" },
+  { href: "/parent/requests", label: "My requests" },
 ];
 
 const studentLinks = [
@@ -25,6 +26,7 @@ const staffLinks = [
   { href: "/staff", label: "Dashboard" },
   { href: "/staff/profile", label: "My Profile" },
   { href: "/staff/messages", label: "Messages" },
+  { href: "/staff/excuse-reviews", label: "Excuse reviews" },
   { href: "/staff/leave", label: "My Leave" },
   { href: "/staff/payslips", label: "My Payslips" },
   { href: "/staff/attendance", label: "My Attendance" },

@@ -77,6 +77,12 @@ export const PERMISSIONS = {
   MESSAGING_ADMIN_READ:   "messaging:admin:read",
   MESSAGING_ADMIN_REVIEW: "messaging:admin:review",
 
+  // Parent-initiated workflows
+  EXCUSE_SUBMIT:             "parent_requests:excuse:submit",
+  EXCUSE_REVIEW:             "parent_requests:excuse:review",
+  MEDICAL_DISCLOSURE_SUBMIT: "parent_requests:medical:submit",
+  MEDICAL_DISCLOSURE_REVIEW: "parent_requests:medical:review",
+
   DOCUMENT_TYPES_MANAGE: "school:document-types:manage",
 
   // Classes
@@ -1289,6 +1295,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.STUDENTS_ID_CARD_GENERATE,
     PERMISSIONS.MESSAGING_PORTAL_USE,
     PERMISSIONS.MESSAGING_REPORT,
+    PERMISSIONS.EXCUSE_REVIEW,
   ],
   subject_teacher: [
     PERMISSIONS.ACADEMIC_YEAR_READ,
@@ -1375,6 +1382,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.ANNOUNCEMENTS_READ,
     PERMISSIONS.MESSAGING_PORTAL_USE,
     PERMISSIONS.MESSAGING_REPORT,
+    PERMISSIONS.EXCUSE_REVIEW,
   ],
   hr_officer: [
     PERMISSIONS.STAFF_CREATE,
@@ -1462,6 +1470,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.ACADEMIC_EVENTS_READ,
     PERMISSIONS.MESSAGING_PORTAL_USE,
     PERMISSIONS.MESSAGING_REPORT,
+    PERMISSIONS.EXCUSE_SUBMIT,
+    PERMISSIONS.MEDICAL_DISCLOSURE_SUBMIT,
   ],
   student: [
     PERMISSIONS.RESULTS_READ,
@@ -1483,5 +1493,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.MEDICAL_UPDATE,
     PERMISSIONS.MEDICAL_CONFIDENTIAL_READ,
     PERMISSIONS.ANNOUNCEMENTS_READ,
+    PERMISSIONS.MEDICAL_DISCLOSURE_REVIEW,
   ],
 };

@@ -23,6 +23,10 @@ model User {
   messageThreadReads       MessageThreadRead[] @relation("MessageThreadReads")
   reportedMessages         MessageReport[]     @relation("MessageReportReporter")
   resolvedMessageReports   MessageReport[]     @relation("MessageReportResolver")
+  submittedExcuses     ExcuseRequest[]     @relation("SubmittedExcuses")
+  reviewedExcuses      ExcuseRequest[]     @relation("ReviewedExcuses")
+  submittedDisclosures MedicalDisclosure[] @relation("SubmittedDisclosures")
+  reviewedDisclosures  MedicalDisclosure[] @relation("ReviewedDisclosures")
 
   @@index([email])
   @@index([username])

@@ -12,6 +12,7 @@ import {
 } from "../schemas/promotion.schema";
 import { audit } from "@/lib/audit";
 import { archiveThreadsForStudent } from "@/modules/messaging/lifecycle";
+import { cancelPendingRequestsForStudent } from "@/modules/parent-requests/lifecycle";
 
 // ---------------------------------------------------------------------------
 // Private transaction helpers (M-1 refactor): extracted from
@@ -594,11 +595,14 @@ export async function commitPromotionRunAction(runId: string) {
   // or skips the audit record. Fire in parallel (best-effort) since each
   // archive is independent and the list can be large on bulk runs.
   await Promise.allSettled(
-    result.data.archivedStudentIds.map((studentId) =>
+    result.data.archivedStudentIds.flatMap((studentId) => [
       archiveThreadsForStudent(studentId).catch((err) => {
         console.warn("archiveThreadsForStudent failed (promotion commit)", err);
       }),
-    ),
+      cancelPendingRequestsForStudent(studentId).catch((err) => {
+        console.warn("cancelPendingRequestsForStudent failed (promotion commit)", err);
+      }),
+    ]),
   );
 
   return result;

@@ -5,6 +5,7 @@ import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { archiveThreadsForStudent } from "@/modules/messaging/lifecycle";
+import { cancelPendingRequestsForStudent } from "@/modules/parent-requests/lifecycle";
 
 // ─── Get Promotion Candidates ─────────────────────────────────────────
 
@@ -255,6 +256,14 @@ export async function processPromotionsAction(data: {
           } catch (err) {
             console.warn(
               "archiveThreadsForStudent failed (academics graduation)",
+              err,
+            );
+          }
+          try {
+            await cancelPendingRequestsForStudent(promotion.studentId);
+          } catch (err) {
+            console.warn(
+              "cancelPendingRequestsForStudent failed (academics graduation)",
               err,
             );
           }

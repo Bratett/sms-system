@@ -41,6 +41,9 @@ model Student {
 
   messageThreads MessageThread[]
 
+  excuseRequests     ExcuseRequest[]
+  medicalDisclosures MedicalDisclosure[]
+
   @@index([schoolId])
   @@index([studentId])
   @@index([status])
@@ -634,4 +637,51 @@ enum PdfJobStatus {
   COMPLETE
   FAILED
   CANCELLED
+}
+
+// ─── Parent-Initiated: Medical Disclosures ────────────────────────────
+
+model MedicalDisclosure {
+  id                       String                    @id @default(cuid())
+  schoolId                 String
+  studentId                String
+  submittedByUserId        String
+  category                 MedicalDisclosureCategory
+  title                    String
+  description              String
+  isUrgent                 Boolean                   @default(false)
+  attachmentKey            String?
+  attachmentName           String?
+  attachmentSize           Int?
+  attachmentMime           String?
+  status                   MedicalDisclosureStatus   @default(PENDING)
+  reviewerUserId           String?
+  reviewNote               String?
+  reviewedAt               DateTime?
+  resultingMedicalRecordId String?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+
+  school      School  @relation("SchoolMedicalDisclosure", fields: [schoolId], references: [id])
+  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  submittedBy User    @relation("SubmittedDisclosures", fields: [submittedByUserId], references: [id])
+  reviewer    User?   @relation("ReviewedDisclosures", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, status])
+  @@index([schoolId, status, isUrgent])
+  @@index([studentId, status])
+  @@index([submittedByUserId])
+}
+
+enum MedicalDisclosureCategory {
+  ALLERGY
+  CONDITION
+  MEDICATION
+}
+
+enum MedicalDisclosureStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
 }
