@@ -72,6 +72,24 @@ export async function getSignedDownloadUrl(
   return getSignedUrl(getClient(), command, { expiresIn });
 }
 
+// ─── Upload (Signed URL) ───────────────────────────────────────────
+
+export async function getSignedUploadUrl(input: {
+  key: string;
+  contentType: string;
+  expiresInSeconds?: number;
+}): Promise<string> {
+  const command = new PutObjectCommand({
+    Bucket: getBucket(),
+    Key: input.key,
+    ContentType: input.contentType,
+  });
+
+  return getSignedUrl(getClient(), command, {
+    expiresIn: input.expiresInSeconds ?? 3600,
+  });
+}
+
 // ─── Delete ────────────────────────────────────────────────────────
 
 export async function deleteFile(key: string): Promise<void> {
