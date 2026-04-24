@@ -151,6 +151,10 @@ model School {
 
   reportCardPdfCaches ReportCardPdfCache[] @relation("SchoolReportCardCache")
   pdfJobs             PdfJob[]             @relation("SchoolPdfJob")
+
+  // Parent-initiated workflows
+  excuseRequests     ExcuseRequest[]     @relation("SchoolExcuseRequest")
+  medicalDisclosures MedicalDisclosure[] @relation("SchoolMedicalDisclosure")
 }
 
 model AcademicYear {

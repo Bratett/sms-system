@@ -163,3 +163,42 @@ model EventAttendance {
   @@index([eventId])
   @@index([studentId])
 }
+
+// ─── Parent-Initiated: Excuse Requests ────────────────────────────────
+
+model ExcuseRequest {
+  id                String              @id @default(cuid())
+  schoolId          String
+  studentId         String
+  submittedByUserId String
+  fromDate          DateTime
+  toDate            DateTime
+  reason            String
+  attachmentKey     String?
+  attachmentName    String?
+  attachmentSize    Int?
+  attachmentMime    String?
+  status            ExcuseRequestStatus @default(PENDING)
+  reviewerUserId    String?
+  reviewNote        String?
+  reviewedAt        DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  school      School  @relation("SchoolExcuseRequest", fields: [schoolId], references: [id])
+  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  submittedBy User    @relation("SubmittedExcuses", fields: [submittedByUserId], references: [id])
+  reviewer    User?   @relation("ReviewedExcuses", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, status])
+  @@index([studentId, status])
+  @@index([submittedByUserId])
+  @@index([fromDate, toDate])
+}
+
+enum ExcuseRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
