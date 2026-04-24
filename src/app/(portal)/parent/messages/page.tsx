@@ -8,11 +8,19 @@ export default async function ParentMessagesPage() {
   if (!session?.user) redirect("/login");
 
   const result = await getMessageThreadsAction();
-  const threads = "data" in result ? result.data : [];
+  if ("error" in result) {
+    return (
+      <div className="p-6">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          {result.error}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <MessagesClient
-      threads={threads}
+      threads={result.data}
       role="parent"
       currentUserId={session.user.id as string}
     />
