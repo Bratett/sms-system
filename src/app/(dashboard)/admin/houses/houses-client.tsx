@@ -17,8 +17,17 @@ interface House {
   motto: string | null;
   description: string | null;
   status: string;
+  housemasterId: string | null;
+  housemaster: { id: string; firstName: string; lastName: string } | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+interface EligibleHousemaster {
+  id: string;
+  firstName: string;
+  lastName: string;
+  userId: string | null;
 }
 
 interface FormData {
@@ -26,9 +35,16 @@ interface FormData {
   color: string;
   motto: string;
   description: string;
+  housemasterId: string;
 }
 
-export function HousesClient({ houses }: { houses: House[] }) {
+export function HousesClient({
+  houses,
+  eligibleHousemasters,
+}: {
+  houses: House[];
+  eligibleHousemasters: EligibleHousemaster[];
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showModal, setShowModal] = useState(false);
@@ -38,12 +54,19 @@ export function HousesClient({ houses }: { houses: House[] }) {
     color: "#3b82f6",
     motto: "",
     description: "",
+    housemasterId: "",
   });
   const [formError, setFormError] = useState<string | null>(null);
 
   function handleCreate() {
     setEditingHouse(null);
-    setFormData({ name: "", color: "#3b82f6", motto: "", description: "" });
+    setFormData({
+      name: "",
+      color: "#3b82f6",
+      motto: "",
+      description: "",
+      housemasterId: "",
+    });
     setFormError(null);
     setShowModal(true);
   }
@@ -55,6 +78,7 @@ export function HousesClient({ houses }: { houses: House[] }) {
       color: house.color ?? "#3b82f6",
       motto: house.motto ?? "",
       description: house.description ?? "",
+      housemasterId: house.housemasterId ?? "",
     });
     setFormError(null);
     setShowModal(true);
@@ -96,6 +120,7 @@ export function HousesClient({ houses }: { houses: House[] }) {
           color: formData.color,
           motto: formData.motto.trim(),
           description: formData.description.trim(),
+          housemasterId: formData.housemasterId,
         });
         if ("error" in result) {
           setFormError(result.error);
@@ -110,6 +135,7 @@ export function HousesClient({ houses }: { houses: House[] }) {
           color: formData.color || undefined,
           motto: formData.motto.trim() || undefined,
           description: formData.description.trim() || undefined,
+          housemasterId: formData.housemasterId,
         });
         if ("error" in result) {
           setFormError(result.error);
@@ -173,6 +199,15 @@ export function HousesClient({ houses }: { houses: House[] }) {
                 <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                   <span>Color:</span>
                   <span className="font-mono">{house.color}</span>
+                </div>
+              )}
+
+              {house.housemaster && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Housemaster:</span>
+                  <span className="font-medium text-foreground">
+                    {house.housemaster.firstName} {house.housemaster.lastName}
+                  </span>
                 </div>
               )}
 
@@ -272,6 +307,29 @@ export function HousesClient({ houses }: { houses: House[] }) {
                   placeholder="Brief description of the house"
                   rows={3}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Housemaster</label>
+                <select
+                  value={formData.housemasterId}
+                  onChange={(e) =>
+                    setFormData({ ...formData, housemasterId: e.target.value })
+                  }
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">— None —</option>
+                  {eligibleHousemasters.map((staff) => (
+                    <option key={staff.id} value={staff.id}>
+                      {staff.firstName} {staff.lastName}
+                    </option>
+                  ))}
+                </select>
+                {eligibleHousemasters.length === 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    No eligible staff found. Staff must be active and have a linked portal user.
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t border-border">
