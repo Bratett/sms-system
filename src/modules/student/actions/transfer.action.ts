@@ -5,6 +5,7 @@ import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { archiveThreadsForStudent } from "@/modules/messaging/lifecycle";
+import { cancelPendingRequestsForStudent } from "@/modules/parent-requests/lifecycle";
 
 // ─── Transfer Student ──────────────────────────────────────────────
 
@@ -69,6 +70,11 @@ export async function transferStudentAction(data: {
   } catch (err) {
     console.warn("archiveThreadsForStudent failed (transfer)", err);
   }
+  try {
+    await cancelPendingRequestsForStudent(data.studentId);
+  } catch (err) {
+    console.warn("cancelPendingRequestsForStudent failed (transfer)", err);
+  }
 
   return { data: updated };
 }
@@ -127,6 +133,11 @@ export async function withdrawStudentAction(data: {
     await archiveThreadsForStudent(data.studentId);
   } catch (err) {
     console.warn("archiveThreadsForStudent failed (withdraw)", err);
+  }
+  try {
+    await cancelPendingRequestsForStudent(data.studentId);
+  } catch (err) {
+    console.warn("cancelPendingRequestsForStudent failed (withdraw)", err);
   }
 
   return { data: updated };

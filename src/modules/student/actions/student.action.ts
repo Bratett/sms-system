@@ -11,6 +11,7 @@ import {
   type UpdateStudentInput,
 } from "@/modules/student/schemas/student.schema";
 import { archiveThreadsForStudent } from "@/modules/messaging/lifecycle";
+import { cancelPendingRequestsForStudent } from "@/modules/parent-requests/lifecycle";
 
 // ─── List Students (paginated, with search & filters) ───────────
 
@@ -501,6 +502,11 @@ export async function deleteStudentAction(id: string) {
     await archiveThreadsForStudent(id);
   } catch (err) {
     console.warn("archiveThreadsForStudent failed (deleteStudent)", err);
+  }
+  try {
+    await cancelPendingRequestsForStudent(id);
+  } catch (err) {
+    console.warn("cancelPendingRequestsForStudent failed (deleteStudent)", err);
   }
 
   return { success: true };
