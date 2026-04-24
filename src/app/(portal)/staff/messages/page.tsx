@@ -10,5 +10,11 @@ export default async function StaffMessagesPage() {
   const result = await getMessageThreadsAction();
   const threads = "data" in result ? result.data : [];
 
-  return <MessagesClient threads={threads} role="teacher" />;
+  return (
+    <MessagesClient
+      threads={threads}
+      role="teacher"
+      currentUserId={session.user.id as string}
+    />
+  );
 }

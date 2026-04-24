@@ -53,9 +53,11 @@ type ThreadDetail = {
 export function MessagesClient({
   threads,
   role,
+  currentUserId,
 }: {
   threads: ThreadRow[];
   role: "parent" | "teacher" | "admin";
+  currentUserId: string;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<ThreadDetail | null>(null);
@@ -113,7 +115,7 @@ export function MessagesClient({
         toast.error(res.error);
         return;
       }
-      window.open(res.data.url, "_blank");
+      window.open(res.data.url, "_blank", "noopener,noreferrer");
     });
   };
 
@@ -219,7 +221,7 @@ export function MessagesClient({
                         {m.attachmentSize ? ` (${Math.round(m.attachmentSize / 1024)} KB)` : ""}
                       </button>
                     )}
-                    {!m.systemNote && (
+                    {!m.systemNote && m.authorUserId !== currentUserId && (
                       <button
                         onClick={() => reportMessage(m.id)}
                         className="mt-1 ml-2 text-xs text-gray-400 hover:text-red-600"
