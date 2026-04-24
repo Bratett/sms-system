@@ -247,3 +247,94 @@ enum CommunicationCampaignStatus {
   FAILED
   CANCELLED
 }
+
+// ─── Messaging: Parent ↔ Teacher threads ─────────────────────────────
+
+model MessageThread {
+  id            String              @id @default(cuid())
+  schoolId      String
+  studentId     String
+  teacherUserId String
+  status        MessageThreadStatus @default(ACTIVE)
+  lockedAt      DateTime?
+  lockedBy      String?
+  lockReason    String?
+  lastMessageAt DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  school       School              @relation("SchoolMessageThread", fields: [schoolId], references: [id])
+  teacher      User                @relation("TeacherThreads", fields: [teacherUserId], references: [id])
+  lockedByUser User?               @relation("MessageThreadLockedBy", fields: [lockedBy], references: [id], onDelete: SetNull)
+  messages     Message[]
+  reads        MessageThreadRead[]
+
+  @@index([studentId, teacherUserId])
+  @@index([schoolId, status])
+  @@index([teacherUserId, status])
+  @@index([studentId])
+  @@index([lastMessageAt])
+}
+
+enum MessageThreadStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  threadId       String
+  authorUserId   String
+  body           String
+  attachmentKey  String?
+  attachmentName String?
+  attachmentSize Int?
+  attachmentMime String?
+  systemNote     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  thread  MessageThread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author  User            @relation("AuthoredMessages", fields: [authorUserId], references: [id])
+  reports MessageReport[]
+
+  @@index([threadId, createdAt])
+  @@index([authorUserId])
+}
+
+model MessageThreadRead {
+  id         String   @id @default(cuid())
+  threadId   String
+  userId     String
+  lastReadAt DateTime @default(now())
+
+  thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User          @relation("MessageThreadReads", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([userId])
+}
+
+model MessageReport {
+  id               String              @id @default(cuid())
+  messageId        String
+  reportedByUserId String
+  reason           String
+  status           MessageReportStatus @default(PENDING)
+  createdAt        DateTime            @default(now())
+  resolvedAt       DateTime?
+  resolvedByUserId String?
+
+  message        Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reportedByUser User    @relation("MessageReportReporter", fields: [reportedByUserId], references: [id], onDelete: Cascade)
+  resolvedByUser User?   @relation("MessageReportResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([messageId])
+}
+
+enum MessageReportStatus {
+  PENDING
+  DISMISSED
+  ACTIONED
+}

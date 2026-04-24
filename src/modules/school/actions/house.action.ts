@@ -14,6 +14,9 @@ export async function getHousesAction() {
   const houses = await db.house.findMany({
     where: { schoolId: ctx.schoolId },
     orderBy: { name: "asc" },
+    include: {
+      housemaster: { select: { id: true, firstName: true, lastName: true } },
+    },
   });
 
   const data = houses.map((house) => ({
@@ -23,6 +26,14 @@ export async function getHousesAction() {
     motto: house.motto,
     description: house.description,
     status: house.status,
+    housemasterId: house.housemasterId,
+    housemaster: house.housemaster
+      ? {
+          id: house.housemaster.id,
+          firstName: house.housemaster.firstName,
+          lastName: house.housemaster.lastName,
+        }
+      : null,
     createdAt: house.createdAt,
     updatedAt: house.updatedAt,
   }));
@@ -30,11 +41,39 @@ export async function getHousesAction() {
   return { data };
 }
 
+/**
+ * Returns staff eligible to be assigned as housemasters for the caller's school.
+ * Filters to active staff with a linked portal user (so the housemaster can
+ * actually receive messaging counterparts / portal notifications).
+ *
+ * @no-audit Read-only lookup; no mutation performed.
+ */
+export async function getEligibleHousemastersAction() {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.HOUSES_READ);
+  if (denied) return denied;
+
+  const staff = await db.staff.findMany({
+    where: {
+      schoolId: ctx.schoolId,
+      status: "ACTIVE",
+      deletedAt: null,
+      userId: { not: null },
+    },
+    select: { id: true, firstName: true, lastName: true, userId: true },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+  });
+
+  return { data: staff };
+}
+
 export async function createHouseAction(data: {
   name: string;
   color?: string;
   motto?: string;
   description?: string;
+  housemasterId?: string | null;
 }) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
@@ -55,6 +94,34 @@ export async function createHouseAction(data: {
     return { error: `A house named "${data.name}" already exists.` };
   }
 
+  // Normalize empty string to null so the admin can clear the relation.
+  const housemasterId =
+    data.housemasterId === undefined || data.housemasterId === ""
+      ? null
+      : data.housemasterId;
+
+  // If a housemaster is provided, verify it matches the same filter applied
+  // by getEligibleHousemastersAction: active + linked to a portal user. This
+  // prevents admins from assigning staff who wouldn't appear in the picker.
+  if (housemasterId) {
+    const staff = await db.staff.findFirst({
+      where: {
+        id: housemasterId,
+        schoolId: ctx.schoolId,
+        deletedAt: null,
+        status: "ACTIVE",
+        userId: { not: null },
+      },
+      select: { id: true },
+    });
+    if (!staff) {
+      return {
+        error:
+          "Selected housemaster is not eligible (must be active staff with a linked portal user).",
+      };
+    }
+  }
+
   const house = await db.house.create({
     data: {
       schoolId: ctx.schoolId,
@@ -62,6 +129,7 @@ export async function createHouseAction(data: {
       color: data.color || null,
       motto: data.motto || null,
       description: data.description || null,
+      housemasterId,
     },
   });
 
@@ -86,6 +154,7 @@ export async function updateHouseAction(
     motto?: string;
     description?: string;
     status?: "ACTIVE" | "INACTIVE";
+    housemasterId?: string | null;
   },
 ) {
   const ctx = await requireSchoolContext();
@@ -117,6 +186,32 @@ export async function updateHouseAction(
     }
   }
 
+  // Normalize empty string to null so the admin can clear the relation.
+  let housemasterId: string | null | undefined;
+  if (data.housemasterId === undefined) {
+    housemasterId = undefined; // no change
+  } else if (data.housemasterId === "" || data.housemasterId === null) {
+    housemasterId = null;
+  } else {
+    const staff = await db.staff.findFirst({
+      where: {
+        id: data.housemasterId,
+        schoolId: ctx.schoolId,
+        deletedAt: null,
+        status: "ACTIVE",
+        userId: { not: null },
+      },
+      select: { id: true },
+    });
+    if (!staff) {
+      return {
+        error:
+          "Selected housemaster is not eligible (must be active staff with a linked portal user).",
+      };
+    }
+    housemasterId = data.housemasterId;
+  }
+
   const previousData = { ...existing };
 
   const updated = await db.house.update({
@@ -127,6 +222,7 @@ export async function updateHouseAction(
       motto: data.motto !== undefined ? data.motto || null : existing.motto,
       description: data.description !== undefined ? data.description || null : existing.description,
       status: data.status ?? existing.status,
+      ...(housemasterId !== undefined ? { housemasterId } : {}),
     },
   });
 

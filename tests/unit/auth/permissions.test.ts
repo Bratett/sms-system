@@ -68,7 +68,11 @@ describe("Role-Permission Mappings", () => {
   it("parent role should be read-only except PTC booking", () => {
     const parent = DEFAULT_ROLE_PERMISSIONS.parent;
     if (!parent) return; // Skip if not defined yet
-    const allowedNonRead = [PERMISSIONS.PTC_BOOK];
+    const allowedNonRead = [
+      PERMISSIONS.PTC_BOOK,
+      PERMISSIONS.MESSAGING_PORTAL_USE,
+      PERMISSIONS.MESSAGING_REPORT,
+    ];
     for (const perm of parent) {
       const isAllowed = perm.endsWith("read") || allowedNonRead.includes(perm as any);
       expect(isAllowed).toBe(
@@ -127,6 +131,24 @@ describe("Role-Permission Mappings", () => {
 
     // Negative: guidance_counsellor should NOT have GUARDIANS_MERGE
     expect(DEFAULT_ROLE_PERMISSIONS.guidance_counsellor).not.toContain(PERMISSIONS.GUARDIANS_MERGE);
+  });
+
+  it("messaging permissions are granted to the expected roles", () => {
+    for (const role of ["parent", "class_teacher", "housemaster"]) {
+      expect(DEFAULT_ROLE_PERMISSIONS[role]).toContain(PERMISSIONS.MESSAGING_PORTAL_USE);
+      expect(DEFAULT_ROLE_PERMISSIONS[role]).toContain(PERMISSIONS.MESSAGING_REPORT);
+    }
+    for (const role of ["headmaster", "assistant_headmaster_academic", "assistant_headmaster_admin"]) {
+      expect(DEFAULT_ROLE_PERMISSIONS[role]).toContain(PERMISSIONS.MESSAGING_ADMIN_READ);
+    }
+    for (const role of ["headmaster", "assistant_headmaster_admin"]) {
+      expect(DEFAULT_ROLE_PERMISSIONS[role]).toContain(PERMISSIONS.MESSAGING_ADMIN_REVIEW);
+    }
+    // Negative: parent must NOT have MESSAGING_ADMIN_*
+    expect(DEFAULT_ROLE_PERMISSIONS.parent).not.toContain(PERMISSIONS.MESSAGING_ADMIN_READ);
+    expect(DEFAULT_ROLE_PERMISSIONS.parent).not.toContain(PERMISSIONS.MESSAGING_ADMIN_REVIEW);
+    // Negative: guidance_counsellor (not a thread participant) must NOT have MESSAGING_PORTAL_USE
+    expect(DEFAULT_ROLE_PERMISSIONS.guidance_counsellor).not.toContain(PERMISSIONS.MESSAGING_PORTAL_USE);
   });
 
   it("all seeded roles should have permission mappings", () => {

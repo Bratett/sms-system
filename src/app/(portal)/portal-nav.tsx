@@ -24,6 +24,7 @@ const studentLinks = [
 const staffLinks = [
   { href: "/staff", label: "Dashboard" },
   { href: "/staff/profile", label: "My Profile" },
+  { href: "/staff/messages", label: "Messages" },
   { href: "/staff/leave", label: "My Leave" },
   { href: "/staff/payslips", label: "My Payslips" },
   { href: "/staff/attendance", label: "My Attendance" },

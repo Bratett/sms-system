@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getMessageThreadsAction } from "@/modules/messaging/actions/thread.action";
-import { MessagesClient } from "./messages-client";
+import { MessagesClient } from "@/app/(portal)/parent/messages/messages-client";
 
-export default async function ParentMessagesPage() {
+export default async function StaffMessagesPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
@@ -21,7 +21,7 @@ export default async function ParentMessagesPage() {
   return (
     <MessagesClient
       threads={result.data}
-      role="parent"
+      role="teacher"
       currentUserId={session.user.id as string}
     />
   );

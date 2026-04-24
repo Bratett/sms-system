@@ -121,6 +121,7 @@ model School {
 
   // Communication
   graduationRecords GraduationRecord[] @relation("SchoolGraduationRecords")
+  messageThreads    MessageThread[]    @relation("SchoolMessageThread")
 
   // LMS
   lessons               Lesson[]               @relation("SchoolLessons")
@@ -242,21 +243,24 @@ model Programme {
 }
 
 model House {
-  id          String   @id @default(cuid())
-  schoolId    String
-  name        String
-  color       String?
-  motto       String?
-  description String?
-  status      Status   @default(ACTIVE)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  schoolId      String
+  name          String
+  color         String?
+  motto         String?
+  description   String?
+  housemasterId String?
+  status        Status   @default(ACTIVE)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  housemaster   Staff?         @relation("HouseHousemaster", fields: [housemasterId], references: [id], onDelete: SetNull)
   studentHouses StudentHouse[] @relation("StudentHouseHouse")
 
   @@unique([schoolId, name])
   @@index([schoolId])
+  @@index([housemasterId])
 }
 
 model GradingScale {

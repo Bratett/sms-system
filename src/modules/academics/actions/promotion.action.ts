@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import { archiveThreadsForStudent } from "@/modules/messaging/lifecycle";
 
 // ─── Get Promotion Candidates ─────────────────────────────────────────
 
@@ -247,6 +248,16 @@ export async function processPromotionsAction(data: {
             data: { status: "GRADUATED" },
           });
           results.graduated++;
+          // Best-effort thread archive AFTER primary mutations so a
+          // messaging failure can't stop the graduation path or the audit.
+          try {
+            await archiveThreadsForStudent(promotion.studentId);
+          } catch (err) {
+            console.warn(
+              "archiveThreadsForStudent failed (academics graduation)",
+              err,
+            );
+          }
           break;
       }
     } catch (error) {

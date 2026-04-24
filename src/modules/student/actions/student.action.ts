@@ -10,6 +10,7 @@ import {
   type CreateStudentInput,
   type UpdateStudentInput,
 } from "@/modules/student/schemas/student.schema";
+import { archiveThreadsForStudent } from "@/modules/messaging/lifecycle";
 
 // ─── List Students (paginated, with search & filters) ───────────
 
@@ -493,6 +494,14 @@ export async function deleteStudentAction(id: string) {
     previousData,
     newData: updated,
   });
+
+  // Best-effort thread archive AFTER primary mutations + audit so a failure
+  // here never prevents enrollment updates or the audit record.
+  try {
+    await archiveThreadsForStudent(id);
+  } catch (err) {
+    console.warn("archiveThreadsForStudent failed (deleteStudent)", err);
+  }
 
   return { success: true };
 }

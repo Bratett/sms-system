@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import { archiveThreadsForStudent } from "@/modules/messaging/lifecycle";
 
 // ─── Transfer Student ──────────────────────────────────────────────
 
@@ -61,6 +62,14 @@ export async function transferStudentAction(data: {
     },
   });
 
+  // Best-effort thread archive AFTER primary mutations + audit so a failure
+  // here never rolls back the transfer or blocks the audit record.
+  try {
+    await archiveThreadsForStudent(data.studentId);
+  } catch (err) {
+    console.warn("archiveThreadsForStudent failed (transfer)", err);
+  }
+
   return { data: updated };
 }
 
@@ -113,6 +122,12 @@ export async function withdrawStudentAction(data: {
     newData: { status: "WITHDRAWN" },
     metadata: { reason: data.reason, withdrawalDate: data.withdrawalDate },
   });
+
+  try {
+    await archiveThreadsForStudent(data.studentId);
+  } catch (err) {
+    console.warn("archiveThreadsForStudent failed (withdraw)", err);
+  }
 
   return { data: updated };
 }

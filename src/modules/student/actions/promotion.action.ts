@@ -11,6 +11,7 @@ import {
   revertPromotionRunSchema,
 } from "../schemas/promotion.schema";
 import { audit } from "@/lib/audit";
+import { archiveThreadsForStudent } from "@/modules/messaging/lifecycle";
 
 // ---------------------------------------------------------------------------
 // Private transaction helpers (M-1 refactor): extracted from
@@ -561,7 +562,14 @@ export async function commitPromotionRunAction(runId: string) {
       },
     });
 
-    return { data: { ...committed, counts, skipped, skippedStudentIds } };
+    // Collect studentIds that were graduated or withdrawn so threads can be
+    // archived after the transaction commits.
+    const archivedStudentIds = run.items
+      .filter((i) => i.outcome === "GRADUATE" || i.outcome === "WITHDRAW")
+      .map((i) => i.studentId)
+      .filter((id) => !skippedStudentIds.includes(id));
+
+    return { data: { ...committed, counts, skipped, skippedStudentIds, archivedStudentIds } };
   });
 
   if ("error" in result) return result;
@@ -580,6 +588,18 @@ export async function commitPromotionRunAction(runId: string) {
       skippedStudentIds: result.data.skippedStudentIds,
     },
   });
+
+  // Archive messaging threads for graduated/withdrawn students. Runs after
+  // commit + audit so a messaging-write failure never rolls back promotion
+  // or skips the audit record. Fire in parallel (best-effort) since each
+  // archive is independent and the list can be large on bulk runs.
+  await Promise.allSettled(
+    result.data.archivedStudentIds.map((studentId) =>
+      archiveThreadsForStudent(studentId).catch((err) => {
+        console.warn("archiveThreadsForStudent failed (promotion commit)", err);
+      }),
+    ),
+  );
 
   return result;
 }
