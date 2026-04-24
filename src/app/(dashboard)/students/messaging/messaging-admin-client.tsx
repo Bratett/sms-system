@@ -154,8 +154,15 @@ export function MessagingAdminClient({ threads }: { threads: ThreadRow[] }) {
                 <div>
                   <p className="font-semibold">{viewing.studentName}</p>
                   <p className="text-xs text-muted-foreground">
-                    with {viewing.teacherName}{viewing.locked ? " • LOCKED" : ""}
+                    with {viewing.teacherName}
                   </p>
+                  {viewing.locked && (
+                    <p className="mt-1 text-xs text-red-600">
+                      <span className="font-medium">LOCKED</span>
+                      {" — "}
+                      {viewing.lockReason ?? "No reason provided"}
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   {viewing.locked ? (
