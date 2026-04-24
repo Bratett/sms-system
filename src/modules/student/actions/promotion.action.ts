@@ -591,14 +591,15 @@ export async function commitPromotionRunAction(runId: string) {
 
   // Archive messaging threads for graduated/withdrawn students. Runs after
   // commit + audit so a messaging-write failure never rolls back promotion
-  // or skips the audit record.
-  for (const studentId of result.data.archivedStudentIds) {
-    try {
-      await archiveThreadsForStudent(studentId);
-    } catch (err) {
-      console.warn("archiveThreadsForStudent failed (promotion commit)", err);
-    }
-  }
+  // or skips the audit record. Fire in parallel (best-effort) since each
+  // archive is independent and the list can be large on bulk runs.
+  await Promise.allSettled(
+    result.data.archivedStudentIds.map((studentId) =>
+      archiveThreadsForStudent(studentId).catch((err) => {
+        console.warn("archiveThreadsForStudent failed (promotion commit)", err);
+      }),
+    ),
+  );
 
   return result;
 }
