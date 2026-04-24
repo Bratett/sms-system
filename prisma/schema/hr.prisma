@@ -35,6 +35,7 @@ model Staff {
   loans               StaffLoan[]
   promotions          StaffPromotion[]
   teacherLicences     TeacherLicence[]
+  housesManaged       House[]             @relation("HouseHousemaster")
 
   @@index([schoolId])
   @@index([staffId])

@@ -347,13 +347,14 @@ export async function getEligibleCounterpartsAction() {
                   },
                 },
               },
-              // Housemaster lookup is blocked: House has no housemaster field in the
-              // current schema (only an enum role reference in boarding workflows).
-              // We still read houseId so a future migration can plug in without
-              // restructuring this action.
               houseAssignment: {
                 select: {
-                  houseId: true,
+                  house: {
+                    select: {
+                      id: true,
+                      housemasterId: true,
+                    },
+                  },
                 },
               },
             },
@@ -366,20 +367,26 @@ export async function getEligibleCounterpartsAction() {
   const counterparts: CounterpartOption[] = [];
 
   if (guardian) {
-    // Collect distinct Staff IDs to batch-resolve into Users.
-    const teacherStaffIds = new Set<string>();
+    // Collect distinct Staff IDs (class teachers + housemasters) to batch-resolve into Users.
+    const staffIds = new Set<string>();
     for (const sg of guardian.students) {
       const s = sg.student;
       if (s.schoolId !== ctx.schoolId) continue;
       if (s.status !== "ACTIVE" && s.status !== "SUSPENDED") continue;
-      const staffId = s.enrollments[0]?.classArm?.classTeacherId;
-      if (staffId) teacherStaffIds.add(staffId);
+
+      const classTeacherId = s.enrollments[0]?.classArm?.classTeacherId;
+      if (classTeacherId) staffIds.add(classTeacherId);
+
+      if (s.boardingStatus === "BOARDING") {
+        const hmId = s.houseAssignment?.house?.housemasterId;
+        if (hmId) staffIds.add(hmId);
+      }
     }
 
     const staffRows =
-      teacherStaffIds.size > 0
+      staffIds.size > 0
         ? await db.staff.findMany({
-            where: { id: { in: [...teacherStaffIds] }, schoolId: ctx.schoolId },
+            where: { id: { in: [...staffIds] }, schoolId: ctx.schoolId },
             select: { id: true, userId: true, firstName: true, lastName: true },
           })
         : [];
@@ -390,15 +397,18 @@ export async function getEligibleCounterpartsAction() {
       if (s.schoolId !== ctx.schoolId) continue;
       if (s.status !== "ACTIVE" && s.status !== "SUSPENDED") continue;
 
-      const staffId = s.enrollments[0]?.classArm?.classTeacherId;
-      if (staffId) {
-        const staff = staffById.get(staffId);
+      const studentName = `${s.firstName} ${s.lastName}`;
+
+      // Class-teacher counterpart
+      const classTeacherId = s.enrollments[0]?.classArm?.classTeacherId;
+      if (classTeacherId) {
+        const staff = staffById.get(classTeacherId);
         if (staff?.userId) {
           const teacherName =
             [staff.firstName, staff.lastName].filter(Boolean).join(" ") || "Class teacher";
           counterparts.push({
             studentId: s.id,
-            studentName: `${s.firstName} ${s.lastName}`,
+            studentName,
             teacherUserId: staff.userId,
             teacherName,
             role: "class_teacher",
@@ -406,8 +416,24 @@ export async function getEligibleCounterpartsAction() {
         }
       }
 
-      // Housemaster path: intentionally skipped — see note on the schema select above.
-      // When House gains a housemasterId/userId, this is the spot to resolve + push.
+      // Housemaster counterpart (boarding students only)
+      if (s.boardingStatus === "BOARDING") {
+        const hmId = s.houseAssignment?.house?.housemasterId;
+        if (hmId) {
+          const staff = staffById.get(hmId);
+          if (staff?.userId) {
+            const teacherName =
+              [staff.firstName, staff.lastName].filter(Boolean).join(" ") || "Housemaster";
+            counterparts.push({
+              studentId: s.id,
+              studentName,
+              teacherUserId: staff.userId,
+              teacherName,
+              role: "housemaster",
+            });
+          }
+        }
+      }
     }
   }
 

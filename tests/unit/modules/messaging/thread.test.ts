@@ -6,6 +6,7 @@ import {
   createMessageThreadAction,
   markThreadReadAction,
   archiveThreadAction,
+  getEligibleCounterpartsAction,
 } from "@/modules/messaging/actions/thread.action";
 
 const sampleStudent = {
@@ -138,6 +139,49 @@ describe("markThreadReadAction", () => {
         where: { threadId_userId: { threadId: "t-1", userId: "test-user-id" } },
       }),
     );
+  });
+});
+
+describe("getEligibleCounterpartsAction (housemaster)", () => {
+  beforeEach(() => mockAuthenticatedUser({ permissions: ["messaging:portal:use"] }));
+
+  it("returns the housemaster for a BOARDING student whose house has housemasterId set", async () => {
+    prismaMock.guardian.findUnique.mockResolvedValue({
+      id: "g-1",
+      userId: "test-user-id",
+      students: [
+        {
+          student: {
+            id: "s-1",
+            firstName: "Kofi",
+            lastName: "Asante",
+            status: "ACTIVE",
+            boardingStatus: "BOARDING",
+            schoolId: "default-school",
+            enrollments: [],
+            houseAssignment: {
+              house: { id: "h-1", housemasterId: "staff-hm" },
+            },
+          },
+        },
+      ],
+    } as never);
+    prismaMock.staff.findMany.mockResolvedValue([
+      {
+        id: "staff-hm",
+        userId: "user-hm",
+        firstName: "Mr",
+        lastName: "Housemaster",
+        schoolId: "default-school",
+      },
+    ] as never);
+
+    const result = await getEligibleCounterpartsAction();
+    if (!("data" in result)) throw new Error("expected data: " + JSON.stringify(result));
+    const hmOption = result.data.find((o) => o.role === "housemaster");
+    expect(hmOption).toBeTruthy();
+    expect(hmOption?.teacherUserId).toBe("user-hm");
+    expect(hmOption?.studentId).toBe("s-1");
   });
 });
 
