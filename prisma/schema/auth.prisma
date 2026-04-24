@@ -27,6 +27,7 @@ model User {
   reviewedExcuses      ExcuseRequest[]     @relation("ReviewedExcuses")
   submittedDisclosures MedicalDisclosure[] @relation("SubmittedDisclosures")
   reviewedDisclosures  MedicalDisclosure[] @relation("ReviewedDisclosures")
+  acknowledgedCirculars CircularAcknowledgement[] @relation("AcknowledgedCirculars")
 
   @@index([email])
   @@index([username])
