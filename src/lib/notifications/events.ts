@@ -66,6 +66,10 @@ export const NOTIFICATION_EVENTS = {
   // Communication
   ANNOUNCEMENT_PUBLISHED: "announcement_published",
 
+  // Messaging
+  MESSAGE_RECEIVED_PARENT: "message_received_parent",
+  MESSAGE_RECEIVED_TEACHER: "message_received_teacher",
+
   // Discipline
   DISCIPLINE_INCIDENT: "discipline_incident",
   DISCIPLINE_RESOLVED: "discipline_resolved",
@@ -134,6 +138,8 @@ export const EVENT_CHANNELS: Record<NotificationEvent, ("in_app" | "sms" | "emai
   [NOTIFICATION_EVENTS.CONTRACT_EXPIRING]: ["in_app", "email"],
   [NOTIFICATION_EVENTS.STAFF_DISCIPLINE_REPORTED]: ["in_app"],
   [NOTIFICATION_EVENTS.ANNOUNCEMENT_PUBLISHED]: ["in_app"],
+  [NOTIFICATION_EVENTS.MESSAGE_RECEIVED_PARENT]: ["in_app", "email"],
+  [NOTIFICATION_EVENTS.MESSAGE_RECEIVED_TEACHER]: ["in_app"],
   [NOTIFICATION_EVENTS.DISCIPLINE_INCIDENT]: ["in_app", "sms"],
   [NOTIFICATION_EVENTS.DISCIPLINE_RESOLVED]: ["in_app"],
   [NOTIFICATION_EVENTS.LOW_STOCK_ALERT]: ["in_app"],
