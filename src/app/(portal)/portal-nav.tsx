@@ -12,6 +12,7 @@ const parentLinks = [
   { href: "/parent/results", label: "Results" },
   { href: "/parent/attendance", label: "Attendance" },
   { href: "/parent/messages", label: "Messages" },
+  { href: "/parent/requests", label: "My requests" },
 ];
 
 const studentLinks = [
