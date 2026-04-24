@@ -56,6 +56,11 @@ describe("buildAttachmentKey", () => {
     });
     expect(key).not.toContain("..");
     expect(key.startsWith("messages/school-1/t-1/")).toBe(true);
+    // Suffix after the prefix must not contain any path separators — the
+    // sanitiser has to flatten "../../etc/passwd" into a single segment.
+    const suffix = key.slice("messages/school-1/t-1/".length);
+    expect(suffix).not.toContain("/");
+    expect(suffix).not.toContain("\\");
   });
 
   it('falls back to "file" when the filename is empty', () => {

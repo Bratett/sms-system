@@ -142,4 +142,17 @@ describe("isRateLimited", () => {
     expect(isRateLimited(timestamps, now, 5 * 60_000, 2)).toBe(true);
     expect(isRateLimited(timestamps, now, 5 * 60_000, 3)).toBe(false);
   });
+
+  it("includes a timestamp exactly at the window boundary (now - windowMs)", () => {
+    // Default windowMs = 60 * 60 * 1000; default limit = 10.
+    // One timestamp sits at the exact boundary (still within window since
+    // the implementation uses >= threshold), and nine more inside — total
+    // of 10 counted, hitting the limit.
+    const windowMs = 60 * 60 * 1000;
+    const atBoundary = new Date(now.getTime() - windowMs);
+    const insideWindow = Array.from({ length: 9 }, (_, i) =>
+      new Date(now.getTime() - (i + 1) * 60_000),
+    );
+    expect(isRateLimited([atBoundary, ...insideWindow], now)).toBe(true);
+  });
 });

@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { prismaMock, mockAuthenticatedUser, mockUnauthenticated } from "../../setup";
+import { audit } from "@/lib/audit";
 import {
   getMessageThreadsAction,
   getMessageThreadAction,
@@ -92,6 +93,37 @@ describe("createMessageThreadAction", () => {
       initialBody: "Hello",
     });
     expect(result).toHaveProperty("error");
+  });
+
+  it("creates a new thread when no existing (student, teacher) thread is found", async () => {
+    prismaMock.student.findFirst.mockResolvedValue({
+      ...sampleStudent,
+      guardians: [{ guardian: { userId: "test-user-id" } }],
+    } as never);
+    prismaMock.user.findUnique.mockResolvedValue(sampleTeacher as never);
+    prismaMock.messageThread.findFirst.mockResolvedValue(null as never);
+    prismaMock.messageThread.findUnique.mockResolvedValue(null as never);
+    prismaMock.messageThread.create.mockResolvedValue({
+      id: "new-thread",
+      schoolId: "default-school",
+      studentId: "s-1",
+      teacherUserId: "user-teacher",
+      status: "ACTIVE",
+    } as never);
+    prismaMock.message.create.mockResolvedValue({
+      id: "msg-1",
+      createdAt: new Date(),
+    } as never);
+
+    const result = await createMessageThreadAction({
+      studentId: "s-1",
+      teacherUserId: "user-teacher",
+      initialBody: "First message",
+    });
+    if (!("data" in result)) throw new Error("expected data: " + JSON.stringify(result));
+    expect(result.data.id).toBe("new-thread");
+    expect(prismaMock.messageThread.create).toHaveBeenCalled();
+    expect(prismaMock.message.create).toHaveBeenCalled();
   });
 
   it("returns existing thread when one already exists for (student, teacher)", async () => {
@@ -200,6 +232,7 @@ describe("archiveThreadAction", () => {
   });
 
   it("archives + audits", async () => {
+    vi.mocked(audit).mockClear();
     prismaMock.messageThread.findFirst.mockResolvedValue({
       id: "t-1",
       schoolId: "default-school",
@@ -212,5 +245,6 @@ describe("archiveThreadAction", () => {
     expect(prismaMock.messageThread.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: "ARCHIVED" }) }),
     );
+    expect(vi.mocked(audit)).toHaveBeenCalled();
   });
 });

@@ -85,5 +85,9 @@ describe("notifyNewMessage", () => {
         bodyPreview: "hi",
       }),
     ).resolves.toBeUndefined();
+    // Default parent channels are [in_app, email]; after the first rejection
+    // we should still have been called a second time for the other channel,
+    // proving the inner loop continued rather than aborting on first error.
+    expect(vi.mocked(sendMessage).mock.calls.length).toBeGreaterThan(1);
   });
 });

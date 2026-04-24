@@ -120,5 +120,6 @@ describe("unlockThreadAction", () => {
         }),
       }),
     );
+    expect(vi.mocked(audit)).toHaveBeenCalled();
   });
 });
