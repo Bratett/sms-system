@@ -129,6 +129,13 @@ export async function lockThreadAction(input: {
   });
   if (!thread) return { error: "Thread not found." };
 
+  // Idempotent: don't overwrite the original lock's provenance (lockedAt /
+  // lockedBy) if the thread is already locked. Callers who want to change
+  // the reason must unlock first.
+  if (thread.lockedAt != null) {
+    return { error: "Thread is already locked." };
+  }
+
   await db.messageThread.update({
     where: { id: input.threadId },
     data: {
@@ -163,6 +170,12 @@ export async function unlockThreadAction(threadId: string) {
     where: { id: threadId, schoolId: ctx.schoolId },
   });
   if (!thread) return { error: "Thread not found." };
+
+  // No-op + no audit entry when the thread is already unlocked — avoids
+  // polluting the audit log with redundant "unlocked" events.
+  if (thread.lockedAt == null) {
+    return { success: true };
+  }
 
   await db.messageThread.update({
     where: { id: threadId },
