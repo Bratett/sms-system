@@ -574,12 +574,6 @@ export async function commitPromotionRunAction(runId: string) {
 
   if ("error" in result) return result;
 
-  // Archive messaging threads for graduated/withdrawn students. Runs after the
-  // commit transaction so a messaging-write failure doesn't roll back promotion.
-  for (const studentId of result.data.archivedStudentIds) {
-    await archiveThreadsForStudent(studentId);
-  }
-
   await audit({
     userId: ctx.session.user.id!,
     action: "UPDATE",
@@ -594,6 +588,17 @@ export async function commitPromotionRunAction(runId: string) {
       skippedStudentIds: result.data.skippedStudentIds,
     },
   });
+
+  // Archive messaging threads for graduated/withdrawn students. Runs after
+  // commit + audit so a messaging-write failure never rolls back promotion
+  // or skips the audit record.
+  for (const studentId of result.data.archivedStudentIds) {
+    try {
+      await archiveThreadsForStudent(studentId);
+    } catch (err) {
+      console.warn("archiveThreadsForStudent failed (promotion commit)", err);
+    }
+  }
 
   return result;
 }

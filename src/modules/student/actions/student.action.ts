@@ -478,8 +478,6 @@ export async function deleteStudentAction(id: string) {
     data: { status: "WITHDRAWN" },
   });
 
-  await archiveThreadsForStudent(id);
-
   // Also deactivate active enrollments
   await db.enrollment.updateMany({
     where: { studentId: id, status: "ACTIVE" },
@@ -496,6 +494,14 @@ export async function deleteStudentAction(id: string) {
     previousData,
     newData: updated,
   });
+
+  // Best-effort thread archive AFTER primary mutations + audit so a failure
+  // here never prevents enrollment updates or the audit record.
+  try {
+    await archiveThreadsForStudent(id);
+  } catch (err) {
+    console.warn("archiveThreadsForStudent failed (deleteStudent)", err);
+  }
 
   return { success: true };
 }

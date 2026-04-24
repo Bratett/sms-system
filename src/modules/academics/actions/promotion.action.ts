@@ -247,8 +247,17 @@ export async function processPromotionsAction(data: {
             where: { id: promotion.studentId },
             data: { status: "GRADUATED" },
           });
-          await archiveThreadsForStudent(promotion.studentId);
           results.graduated++;
+          // Best-effort thread archive AFTER primary mutations so a
+          // messaging failure can't stop the graduation path or the audit.
+          try {
+            await archiveThreadsForStudent(promotion.studentId);
+          } catch (err) {
+            console.warn(
+              "archiveThreadsForStudent failed (academics graduation)",
+              err,
+            );
+          }
           break;
       }
     } catch (error) {

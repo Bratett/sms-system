@@ -46,8 +46,6 @@ export async function transferStudentAction(data: {
     return updatedStudent;
   });
 
-  await archiveThreadsForStudent(data.studentId);
-
   await audit({
     userId: ctx.session.user.id!,
     action: "UPDATE",
@@ -63,6 +61,14 @@ export async function transferStudentAction(data: {
       transferDate: data.transferDate,
     },
   });
+
+  // Best-effort thread archive AFTER primary mutations + audit so a failure
+  // here never rolls back the transfer or blocks the audit record.
+  try {
+    await archiveThreadsForStudent(data.studentId);
+  } catch (err) {
+    console.warn("archiveThreadsForStudent failed (transfer)", err);
+  }
 
   return { data: updated };
 }
@@ -105,8 +111,6 @@ export async function withdrawStudentAction(data: {
     return updatedStudent;
   });
 
-  await archiveThreadsForStudent(data.studentId);
-
   await audit({
     userId: ctx.session.user.id!,
     action: "UPDATE",
@@ -118,6 +122,12 @@ export async function withdrawStudentAction(data: {
     newData: { status: "WITHDRAWN" },
     metadata: { reason: data.reason, withdrawalDate: data.withdrawalDate },
   });
+
+  try {
+    await archiveThreadsForStudent(data.studentId);
+  } catch (err) {
+    console.warn("archiveThreadsForStudent failed (withdraw)", err);
+  }
 
   return { data: updated };
 }
