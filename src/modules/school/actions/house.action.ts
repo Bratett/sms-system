@@ -100,14 +100,25 @@ export async function createHouseAction(data: {
       ? null
       : data.housemasterId;
 
-  // If a housemaster is provided, verify it belongs to this school.
+  // If a housemaster is provided, verify it matches the same filter applied
+  // by getEligibleHousemastersAction: active + linked to a portal user. This
+  // prevents admins from assigning staff who wouldn't appear in the picker.
   if (housemasterId) {
     const staff = await db.staff.findFirst({
-      where: { id: housemasterId, schoolId: ctx.schoolId, deletedAt: null },
+      where: {
+        id: housemasterId,
+        schoolId: ctx.schoolId,
+        deletedAt: null,
+        status: "ACTIVE",
+        userId: { not: null },
+      },
       select: { id: true },
     });
     if (!staff) {
-      return { error: "Selected housemaster was not found in this school." };
+      return {
+        error:
+          "Selected housemaster is not eligible (must be active staff with a linked portal user).",
+      };
     }
   }
 
@@ -183,11 +194,20 @@ export async function updateHouseAction(
     housemasterId = null;
   } else {
     const staff = await db.staff.findFirst({
-      where: { id: data.housemasterId, schoolId: ctx.schoolId, deletedAt: null },
+      where: {
+        id: data.housemasterId,
+        schoolId: ctx.schoolId,
+        deletedAt: null,
+        status: "ACTIVE",
+        userId: { not: null },
+      },
       select: { id: true },
     });
     if (!staff) {
-      return { error: "Selected housemaster was not found in this school." };
+      return {
+        error:
+          "Selected housemaster is not eligible (must be active staff with a linked portal user).",
+      };
     }
     housemasterId = data.housemasterId;
   }
