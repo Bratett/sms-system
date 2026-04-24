@@ -115,12 +115,22 @@ export function HousesClient({
 
     startTransition(async () => {
       if (editingHouse) {
+        // If the selected housemaster is the unchanged current assignment and
+        // the current Staff is no longer eligible (not in the picker list),
+        // omit housemasterId from the payload so the server's stricter
+        // eligibility validation won't reject the unchanged assignment.
+        const currentId = formData.housemasterId;
+        const unchangedStaleHm =
+          currentId &&
+          currentId === (editingHouse.housemasterId ?? "") &&
+          !eligibleHousemasters.some((s) => s.id === currentId);
+
         const result = await updateHouseAction(editingHouse.id, {
           name: formData.name.trim(),
           color: formData.color,
           motto: formData.motto.trim(),
           description: formData.description.trim(),
-          housemasterId: formData.housemasterId,
+          ...(unchangedStaleHm ? {} : { housemasterId: currentId }),
         });
         if ("error" in result) {
           setFormError(result.error);
@@ -311,25 +321,52 @@ export function HousesClient({
 
               <div>
                 <label className="block text-sm font-medium mb-1">Housemaster</label>
-                <select
-                  value={formData.housemasterId}
-                  onChange={(e) =>
-                    setFormData({ ...formData, housemasterId: e.target.value })
-                  }
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">— None —</option>
-                  {eligibleHousemasters.map((staff) => (
-                    <option key={staff.id} value={staff.id}>
-                      {staff.firstName} {staff.lastName}
-                    </option>
-                  ))}
-                </select>
-                {eligibleHousemasters.length === 0 && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    No eligible staff found. Staff must be active and have a linked portal user.
-                  </p>
-                )}
+                {(() => {
+                  const currentId = formData.housemasterId;
+                  const currentInEligible = eligibleHousemasters.some(
+                    (s) => s.id === currentId,
+                  );
+                  const staleCurrent =
+                    !!currentId && !currentInEligible && editingHouse?.housemaster
+                      ? editingHouse.housemaster
+                      : null;
+                  return (
+                    <>
+                      <select
+                        value={formData.housemasterId}
+                        onChange={(e) =>
+                          setFormData({ ...formData, housemasterId: e.target.value })
+                        }
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="">— None —</option>
+                        {staleCurrent && (
+                          <option value={currentId} disabled>
+                            Current: {staleCurrent.firstName} {staleCurrent.lastName}
+                            {" (inactive — keeps assignment)"}
+                          </option>
+                        )}
+                        {eligibleHousemasters.map((staff) => (
+                          <option key={staff.id} value={staff.id}>
+                            {staff.firstName} {staff.lastName}
+                          </option>
+                        ))}
+                      </select>
+                      {staleCurrent && (
+                        <p className="mt-1 text-xs text-amber-600">
+                          This housemaster is no longer eligible. Change the
+                          selection to replace them, or leave as-is to keep the
+                          current assignment.
+                        </p>
+                      )}
+                      {eligibleHousemasters.length === 0 && !staleCurrent && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          No eligible staff found. Staff must be active and have a linked portal user.
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t border-border">
