@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import { resolveTargetedHouseholdIds } from "../circular-targeting";
+import { notifyCircularPublished } from "../circular-notifications";
 
 // ─── Get Announcements (paginated) ──────────────────────────────────
 
@@ -78,9 +80,10 @@ export async function createAnnouncementAction(data: {
   title: string;
   content: string;
   targetType: string;
-  targetIds?: string[];
+  targetIds?: string[] | null;
   priority: string;
   expiresAt?: string;
+  requiresAcknowledgement?: boolean;
 }) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
@@ -98,6 +101,7 @@ export async function createAnnouncementAction(data: {
       expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
       createdBy: ctx.session.user.id,
       status: "DRAFT",
+      requiresAcknowledgement: data.requiresAcknowledgement ?? false,
     },
   });
 
@@ -122,7 +126,9 @@ export async function publishAnnouncementAction(id: string) {
   const denied = assertPermission(ctx.session, PERMISSIONS.ANNOUNCEMENTS_CREATE);
   if (denied) return denied;
 
-  const existing = await db.announcement.findUnique({ where: { id } });
+  const existing = await db.announcement.findFirst({
+    where: { id, schoolId: ctx.schoolId },
+  });
   if (!existing) {
     return { error: "Announcement not found." };
   }
@@ -145,6 +151,54 @@ export async function publishAnnouncementAction(id: string) {
     previousData: existing,
     newData: updated,
   });
+
+  // Resolve targeted households → guardian users → fan-out notifications.
+  // Best-effort: errors here should not fail the publish.
+  try {
+    const targeted = await resolveTargetedHouseholdIds({
+      schoolId: ctx.schoolId,
+      targetType: existing.targetType as never,
+      targetIds: Array.isArray(existing.targetIds)
+        ? (existing.targetIds as string[])
+        : null,
+    });
+
+    if (targeted.length > 0) {
+      const guardians = await db.guardian.findMany({
+        where: {
+          householdId: { in: targeted },
+          userId: { not: null },
+        },
+        select: { userId: true },
+      });
+      const recipientUserIds = [
+        ...new Set(
+          guardians
+            .map((g) => g.userId)
+            .filter((u): u is string => !!u),
+        ),
+      ];
+
+      if (recipientUserIds.length > 0) {
+        await notifyCircularPublished({
+          announcementId: existing.id,
+          title: existing.title,
+          priority: (existing.priority ?? "normal") as
+            | "low"
+            | "normal"
+            | "high"
+            | "urgent",
+          recipientUserIds,
+          requiresAcknowledgement: existing.requiresAcknowledgement ?? false,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("notifyCircularPublished failed", {
+      announcementId: existing.id,
+      err,
+    });
+  }
 
   return { data: updated };
 }
