@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -17,18 +17,32 @@ type Report = {
 
 export function ReportsClient({ reports }: { reports: Report[] }) {
   const router = useRouter();
-  const [pending, start] = useTransition();
+  const [, start] = useTransition();
+  const [activeReportId, setActiveReportId] = useState<string | null>(null);
 
   const resolve = (reportId: string, action: "DISMISS" | "ACTION") => {
-    const note = window.prompt(`Note (optional) for ${action.toLowerCase()}:`) ?? undefined;
+    if (action === "ACTION") {
+      const ok = window.confirm(
+        "Take action on this report? The author may be notified.",
+      );
+      if (!ok) return;
+    }
+    const rawNote = window.prompt(`Note (optional) for ${action.toLowerCase()}:`);
+    if (rawNote === null) return; // user cancelled
+    const note = rawNote.trim() === "" ? undefined : rawNote;
+    setActiveReportId(reportId);
     start(async () => {
-      const res = await resolveReportAction({ reportId, action, note });
-      if ("error" in res) {
-        toast.error(res.error);
-        return;
+      try {
+        const res = await resolveReportAction({ reportId, action, note });
+        if ("error" in res) {
+          toast.error(res.error);
+          return;
+        }
+        toast.success(`Report ${action === "DISMISS" ? "dismissed" : "actioned"}.`);
+        router.refresh();
+      } finally {
+        setActiveReportId(null);
       }
-      toast.success(`Report ${action === "DISMISS" ? "dismissed" : "actioned"}.`);
-      router.refresh();
     });
   };
 
@@ -60,15 +74,15 @@ export function ReportsClient({ reports }: { reports: Report[] }) {
                 <div className="flex gap-2">
                   <button
                     onClick={() => resolve(r.id, "DISMISS")}
-                    disabled={pending}
-                    className="text-xs rounded-lg border border-border px-3 py-1"
+                    disabled={activeReportId === r.id}
+                    className="text-xs rounded-lg border border-border px-3 py-1 disabled:opacity-50"
                   >
                     Dismiss
                   </button>
                   <button
                     onClick={() => resolve(r.id, "ACTION")}
-                    disabled={pending}
-                    className="text-xs rounded-lg bg-red-600 text-white px-3 py-1"
+                    disabled={activeReportId === r.id}
+                    className="text-xs rounded-lg bg-red-600 text-white px-3 py-1 disabled:opacity-50"
                   >
                     Action
                   </button>
