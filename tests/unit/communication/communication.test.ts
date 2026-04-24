@@ -155,7 +155,7 @@ describe("publishAnnouncementAction", () => {
   });
 
   it("should return error when announcement not found", async () => {
-    prismaMock.announcement.findUnique.mockResolvedValue(null as never);
+    prismaMock.announcement.findFirst.mockResolvedValue(null as never);
 
     const result = await publishAnnouncementAction("nonexistent");
     expect(result).toEqual({ error: "Announcement not found." });
@@ -166,8 +166,12 @@ describe("publishAnnouncementAction", () => {
       id: "ann-1",
       title: "Welcome Back",
       status: "DRAFT",
+      targetType: "all",
+      targetIds: null,
+      priority: "normal",
+      requiresAcknowledgement: false,
     };
-    prismaMock.announcement.findUnique.mockResolvedValue(existing as never);
+    prismaMock.announcement.findFirst.mockResolvedValue(existing as never);
 
     const updated = {
       ...existing,
@@ -177,7 +181,8 @@ describe("publishAnnouncementAction", () => {
     prismaMock.announcement.update.mockResolvedValue(updated as never);
 
     const result = await publishAnnouncementAction("ann-1");
-    expect(result.data!.status).toBe("PUBLISHED");
+    if (!("data" in result)) throw new Error("expected data: " + JSON.stringify(result));
+    expect(result.data.status).toBe("PUBLISHED");
     expect(prismaMock.announcement.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
