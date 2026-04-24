@@ -255,7 +255,7 @@ model House {
   updatedAt     DateTime @updatedAt
 
   school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  housemaster   Staff?         @relation("HouseHousemaster", fields: [housemasterId], references: [id])
+  housemaster   Staff?         @relation("HouseHousemaster", fields: [housemasterId], references: [id], onDelete: SetNull)
   studentHouses StudentHouse[] @relation("StudentHouseHouse")
 
   @@unique([schoolId, name])
