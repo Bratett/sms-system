@@ -133,6 +133,7 @@ export async function submitMedicalDisclosureAction(input: {
 
 // ─── Withdraw ─────────────────────────────────────────────────────
 
+/** @no-audit Parent self-service withdrawal; state change is purely opt-out and low-risk. */
 export async function withdrawMedicalDisclosureAction(disclosureId: string) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
