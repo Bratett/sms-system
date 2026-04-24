@@ -302,6 +302,118 @@ export async function markThreadReadAction(threadId: string) {
   return { success: true };
 }
 
+// ─── Eligible Counterparts (New-Conversation Picker) ──────────────
+
+export type CounterpartOption = {
+  studentId: string;
+  studentName: string;
+  teacherUserId: string;
+  teacherName: string;
+  role: "class_teacher" | "housemaster";
+};
+
+/** @no-audit Read-only helper for the new-conversation picker. */
+export async function getEligibleCounterpartsAction() {
+  const ctx = await requireSchoolContext();
+  if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.MESSAGING_PORTAL_USE);
+  if (denied) return denied;
+
+  const userId = ctx.session.user.id!;
+
+  // Guardian.userId is nullable — findUnique returns null for non-guardians, which is handled below.
+  const guardian = await db.guardian.findUnique({
+    where: { userId },
+    include: {
+      students: {
+        include: {
+          student: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              status: true,
+              boardingStatus: true,
+              schoolId: true,
+              enrollments: {
+                where: { status: "ACTIVE" },
+                take: 1,
+                select: {
+                  classArm: {
+                    select: {
+                      id: true,
+                      classTeacherId: true,
+                    },
+                  },
+                },
+              },
+              // Housemaster lookup is blocked: House has no housemaster field in the
+              // current schema (only an enum role reference in boarding workflows).
+              // We still read houseId so a future migration can plug in without
+              // restructuring this action.
+              houseAssignment: {
+                select: {
+                  houseId: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const counterparts: CounterpartOption[] = [];
+
+  if (guardian) {
+    // Collect distinct Staff IDs to batch-resolve into Users.
+    const teacherStaffIds = new Set<string>();
+    for (const sg of guardian.students) {
+      const s = sg.student;
+      if (s.schoolId !== ctx.schoolId) continue;
+      if (s.status !== "ACTIVE" && s.status !== "SUSPENDED") continue;
+      const staffId = s.enrollments[0]?.classArm?.classTeacherId;
+      if (staffId) teacherStaffIds.add(staffId);
+    }
+
+    const staffRows =
+      teacherStaffIds.size > 0
+        ? await db.staff.findMany({
+            where: { id: { in: [...teacherStaffIds] }, schoolId: ctx.schoolId },
+            select: { id: true, userId: true, firstName: true, lastName: true },
+          })
+        : [];
+    const staffById = new Map(staffRows.map((r) => [r.id, r]));
+
+    for (const sg of guardian.students) {
+      const s = sg.student;
+      if (s.schoolId !== ctx.schoolId) continue;
+      if (s.status !== "ACTIVE" && s.status !== "SUSPENDED") continue;
+
+      const staffId = s.enrollments[0]?.classArm?.classTeacherId;
+      if (staffId) {
+        const staff = staffById.get(staffId);
+        if (staff?.userId) {
+          const teacherName =
+            [staff.firstName, staff.lastName].filter(Boolean).join(" ") || "Class teacher";
+          counterparts.push({
+            studentId: s.id,
+            studentName: `${s.firstName} ${s.lastName}`,
+            teacherUserId: staff.userId,
+            teacherName,
+            role: "class_teacher",
+          });
+        }
+      }
+
+      // Housemaster path: intentionally skipped — see note on the schema select above.
+      // When House gains a housemasterId/userId, this is the spot to resolve + push.
+    }
+  }
+
+  return { data: counterparts };
+}
+
 // ─── Archive Thread (Admin-callable) ───────────────────────────────
 
 export async function archiveThreadAction(threadId: string) {

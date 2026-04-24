@@ -12,6 +12,7 @@ import {
   reportMessageAction,
 } from "@/modules/messaging/actions/message.action";
 import { getMessageAttachmentUrlAction } from "@/modules/messaging/actions/attachment.action";
+import { NewConversationModal } from "./new-conversation-modal";
 
 type ThreadRow = {
   id: string;
@@ -61,6 +62,7 @@ export function MessagesClient({
   const [loadingThread, setLoadingThread] = useState(false);
   const [pending, start] = useTransition();
   const [body, setBody] = useState("");
+  const [showNewModal, setShowNewModal] = useState(false);
 
   const openThread = (threadId: string) => {
     setLoadingThread(true);
@@ -125,6 +127,17 @@ export function MessagesClient({
   return (
     <div className="space-y-4">
       <PageHeader title={heading.title} description={heading.description} />
+
+      {role === "parent" && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowNewModal(true)}
+            className="rounded-lg bg-teal-600 text-white px-4 py-2 text-sm"
+          >
+            + New conversation
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="rounded-lg border border-gray-200 bg-white md:col-span-1">
@@ -243,6 +256,17 @@ export function MessagesClient({
           )}
         </div>
       </div>
+
+      {showNewModal && (
+        <NewConversationModal
+          onClose={() => setShowNewModal(false)}
+          onCreated={(threadId) => {
+            setShowNewModal(false);
+            openThread(threadId);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }
