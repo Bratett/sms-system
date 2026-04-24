@@ -263,11 +263,12 @@ model MessageThread {
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
 
-  student  Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  school   School              @relation("SchoolMessageThread", fields: [schoolId], references: [id])
-  teacher  User                @relation("TeacherThreads", fields: [teacherUserId], references: [id])
-  messages Message[]
-  reads    MessageThreadRead[]
+  student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  school       School              @relation("SchoolMessageThread", fields: [schoolId], references: [id])
+  teacher      User                @relation("TeacherThreads", fields: [teacherUserId], references: [id])
+  lockedByUser User?               @relation("MessageThreadLockedBy", fields: [lockedBy], references: [id], onDelete: SetNull)
+  messages     Message[]
+  reads        MessageThreadRead[]
 
   @@index([studentId, teacherUserId])
   @@index([schoolId, status])
@@ -308,6 +309,7 @@ model MessageThreadRead {
   lastReadAt DateTime @default(now())
 
   thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User          @relation("MessageThreadReads", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([threadId, userId])
   @@index([userId])
@@ -323,7 +325,9 @@ model MessageReport {
   resolvedAt       DateTime?
   resolvedByUserId String?
 
-  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  message        Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reportedByUser User    @relation("MessageReportReporter", fields: [reportedByUserId], references: [id], onDelete: Cascade)
+  resolvedByUser User?   @relation("MessageReportResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([messageId])

@@ -17,8 +17,12 @@ model User {
   notifications            Notification[]
   userSchools              UserSchool[]
   invigilatorExamSchedules ExamSchedule[]  @relation("InvigilatorExamSchedules")
-  teacherThreads           MessageThread[] @relation("TeacherThreads")
-  authoredMessages         Message[]       @relation("AuthoredMessages")
+  teacherThreads           MessageThread[]     @relation("TeacherThreads")
+  lockedMessageThreads     MessageThread[]     @relation("MessageThreadLockedBy")
+  authoredMessages         Message[]           @relation("AuthoredMessages")
+  messageThreadReads       MessageThreadRead[] @relation("MessageThreadReads")
+  reportedMessages         MessageReport[]     @relation("MessageReportReporter")
+  resolvedMessageReports   MessageReport[]     @relation("MessageReportResolver")
 
   @@index([email])
   @@index([username])
