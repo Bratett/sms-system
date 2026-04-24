@@ -269,7 +269,7 @@ model MessageThread {
   messages Message[]
   reads    MessageThreadRead[]
 
-  @@unique([studentId, teacherUserId])
+  @@index([studentId, teacherUserId])
   @@index([schoolId, status])
   @@index([teacherUserId, status])
   @@index([studentId])

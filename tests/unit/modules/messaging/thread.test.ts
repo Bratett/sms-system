@@ -104,9 +104,10 @@ describe("createMessageThreadAction", () => {
       { userId: "user-teacher", role: { name: "class_teacher" } },
     ] as never);
     prismaMock.class.findMany.mockResolvedValue([] as never);
-    prismaMock.messageThread.findUnique.mockResolvedValue({
+    prismaMock.messageThread.findFirst.mockResolvedValue({
       id: "existing",
       schoolId: "default-school",
+      status: "ACTIVE",
     } as never);
     prismaMock.message.create.mockResolvedValue({ createdAt: new Date() } as never);
     prismaMock.messageThread.update.mockResolvedValue({} as never);

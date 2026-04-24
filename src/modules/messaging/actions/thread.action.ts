@@ -212,12 +212,11 @@ export async function createMessageThreadAction(input: {
     return { error: "You are not allowed to participate in this thread." };
   }
 
-  const existing = await db.messageThread.findUnique({
+  const existing = await db.messageThread.findFirst({
     where: {
-      studentId_teacherUserId: {
-        studentId: input.studentId,
-        teacherUserId: input.teacherUserId,
-      },
+      studentId: input.studentId,
+      teacherUserId: input.teacherUserId,
+      status: "ACTIVE",
     },
   });
 
