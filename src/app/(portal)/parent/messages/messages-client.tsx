@@ -128,7 +128,7 @@ export function MessagesClient({
     <div className="space-y-4">
       <PageHeader title={heading.title} description={heading.description} />
 
-      {role === "parent" && (
+      {(role === "parent" || role === "teacher") && (
         <div className="flex justify-end">
           <button
             onClick={() => setShowNewModal(true)}

@@ -54,11 +54,12 @@ export function NewConversationModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-lg rounded-xl bg-white p-6 space-y-3">
         <h2 className="text-lg font-semibold">New conversation</h2>
+        <p className="text-xs text-gray-500">Choose a recipient.</p>
         {loading ? (
           <p className="text-sm text-gray-500">Loading options…</p>
         ) : options.length === 0 ? (
           <p className="text-sm text-gray-500">
-            No eligible recipients. This usually means the class teacher or housemaster hasn&apos;t been assigned yet — contact the school.
+            No eligible recipients yet. Parents: this usually means the class teacher or housemaster hasn&apos;t been assigned — contact the school. Teachers: this means you aren&apos;t assigned as a class teacher or housemaster for any active students.
           </p>
         ) : (
           <>
@@ -79,7 +80,7 @@ export function NewConversationModal({
                     <div className="text-sm">
                       <p className="font-medium">{o.studentName}</p>
                       <p className="text-xs text-gray-500">
-                        with {o.teacherName} ({o.role === "class_teacher" ? "Class Teacher" : "Housemaster"})
+                        {o.teacherName} ({o.role === "class_teacher" ? "Class Teacher" : "Housemaster"})
                       </p>
                     </div>
                   </label>

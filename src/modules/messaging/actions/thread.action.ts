@@ -383,6 +383,95 @@ export async function getEligibleCounterpartsAction() {
 
   const counterparts: CounterpartOption[] = [];
 
+  // ── Teacher/housemaster side ──
+  // If the caller is staff and class-teacher of one or more ClassArms or
+  // housemaster of one or more Houses, surface each eligible student as a
+  // potential counterpart. teacherUserId is the caller's own userId (they ARE
+  // the teacher of the future thread).
+  const callerStaff = await db.staff.findFirst({
+    where: { userId, schoolId: ctx.schoolId },
+    select: { id: true, firstName: true, lastName: true },
+  });
+
+  if (callerStaff) {
+    const callerName =
+      [callerStaff.firstName, callerStaff.lastName].filter(Boolean).join(" ") || "Teacher";
+
+    // Class-teacher relationship → students in ACTIVE enrollments on those arms.
+    const classArmsAsTeacher = await db.classArm.findMany({
+      where: { classTeacherId: callerStaff.id, schoolId: ctx.schoolId },
+      select: { id: true },
+    });
+    if (classArmsAsTeacher.length > 0) {
+      const classArmIds = classArmsAsTeacher.map((a) => a.id);
+      const enrollments = await db.enrollment.findMany({
+        where: {
+          classArmId: { in: classArmIds },
+          status: "ACTIVE",
+          schoolId: ctx.schoolId,
+        },
+        select: {
+          student: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              status: true,
+            },
+          },
+        },
+      });
+      for (const e of enrollments) {
+        const s = e.student;
+        if (!s) continue;
+        if (s.status !== "ACTIVE" && s.status !== "SUSPENDED") continue;
+        counterparts.push({
+          studentId: s.id,
+          studentName: `${s.firstName} ${s.lastName}`,
+          teacherUserId: userId,
+          teacherName: callerName,
+          role: "class_teacher",
+        });
+      }
+    }
+
+    // Housemaster relationship → boarding students assigned to those houses.
+    const housesAsHousemaster = await db.house.findMany({
+      where: { housemasterId: callerStaff.id, schoolId: ctx.schoolId },
+      select: { id: true },
+    });
+    if (housesAsHousemaster.length > 0) {
+      const houseIds = housesAsHousemaster.map((h) => h.id);
+      const studentHouses = await db.studentHouse.findMany({
+        where: { houseId: { in: houseIds }, schoolId: ctx.schoolId },
+        select: {
+          student: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              status: true,
+              boardingStatus: true,
+            },
+          },
+        },
+      });
+      for (const sh of studentHouses) {
+        const s = sh.student;
+        if (!s) continue;
+        if (s.status !== "ACTIVE" && s.status !== "SUSPENDED") continue;
+        if (s.boardingStatus !== "BOARDING") continue;
+        counterparts.push({
+          studentId: s.id,
+          studentName: `${s.firstName} ${s.lastName}`,
+          teacherUserId: userId,
+          teacherName: callerName,
+          role: "housemaster",
+        });
+      }
+    }
+  }
+
   if (guardian) {
     // Collect distinct Staff IDs (class teachers + housemasters) to batch-resolve into Users.
     const staffIds = new Set<string>();
