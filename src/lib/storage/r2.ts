@@ -94,7 +94,7 @@ export async function getSignedUploadUrl(input: {
   });
 
   return getSignedUrl(getClient(), command, {
-    expiresIn: input.expiresInSeconds ?? 3600,
+    expiresIn: input.expiresInSeconds ?? 300,
   });
 }
 
