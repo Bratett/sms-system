@@ -213,7 +213,7 @@ describe("confirmGraduateAction", () => {
       studentId: "stu-1",
       certificateNumber: null,
       honours: null,
-      batch: { id: "batch-1" },
+      batch: { id: "batch-1", ceremonyDate: null },
     } as never);
     prismaMock.graduationRecord.update.mockResolvedValue({
       id: "rec-1",
@@ -225,6 +225,16 @@ describe("confirmGraduateAction", () => {
       id: "stu-1",
       status: "GRADUATED",
     } as never);
+
+    // Hook internals: student lookup (no userId → skip role flip)
+    prismaMock.student.findUnique.mockResolvedValue({ userId: null } as never);
+    prismaMock.alumniProfile.upsert.mockResolvedValue({ id: "ap-x" } as never);
+
+    // $transaction passes the tx client to the callback
+    prismaMock.$transaction.mockImplementation(
+      async (fn: (tx: typeof prismaMock) => unknown) =>
+        typeof fn === "function" ? fn(prismaMock) : fn,
+    );
 
     const result = await confirmGraduateAction("rec-1", {
       certificateNumber: "CERT-001",
