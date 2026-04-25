@@ -23,7 +23,12 @@ export async function acknowledgeReportCardAction(input: {
     where: { id: input.releaseId, schoolId: ctx.schoolId },
     select: { id: true, classArmId: true, schoolId: true },
   });
-  if (!release) return { error: "Report card not found" };
+  if (!release) {
+    console.error("acknowledgeReportCard: release not found or wrong school", {
+      userId, releaseId: input.releaseId, studentId: input.studentId,
+    });
+    return { error: "Report card not found" };
+  }
 
   // Caller must be a guardian of this student
   const link = await db.studentGuardian.findFirst({
@@ -36,7 +41,12 @@ export async function acknowledgeReportCardAction(input: {
       guardian: { select: { userId: true, householdId: true } },
     },
   });
-  if (!link?.guardian.householdId) return { error: "Report card not found" };
+  if (!link?.guardian.householdId) {
+    console.error("acknowledgeReportCard: no guardian link or missing householdId", {
+      userId, releaseId: input.releaseId, studentId: input.studentId,
+    });
+    return { error: "Report card not found" };
+  }
 
   // Student must be currently enrolled in the released arm
   const studentInArm = await db.student.findFirst({
@@ -48,7 +58,12 @@ export async function acknowledgeReportCardAction(input: {
     },
     select: { id: true },
   });
-  if (!studentInArm) return { error: "Report card not found" };
+  if (!studentInArm) {
+    console.error("acknowledgeReportCard: student not enrolled in released arm", {
+      userId, releaseId: input.releaseId, studentId: input.studentId,
+    });
+    return { error: "Report card not found" };
+  }
 
   try {
     await db.reportCardAcknowledgement.create({
@@ -104,7 +119,12 @@ export async function getMyReportCardReleaseAction(input: {
       guardian: { select: { userId: true, householdId: true } },
     },
   });
-  if (!link) return { error: "Report card not found" };
+  if (!link) {
+    console.error("getMyReportCardRelease: no guardian link for user/student", {
+      userId, studentId: input.studentId, termId: input.termId,
+    });
+    return { error: "Report card not found" };
+  }
 
   const enrollment = await db.enrollment.findFirst({
     where: {
@@ -169,7 +189,12 @@ export async function getMyReportCardPdfUrlAction(input: {
     },
     select: { studentId: true, guardian: { select: { userId: true, householdId: true } } },
   });
-  if (!link) return { error: "Report card not found" };
+  if (!link) {
+    console.error("getMyReportCardPdfUrl: no guardian link for user/student", {
+      userId, studentId: input.studentId, termId: input.termId,
+    });
+    return { error: "Report card not found" };
+  }
 
   const enrollment = await db.enrollment.findFirst({
     where: {
@@ -179,13 +204,21 @@ export async function getMyReportCardPdfUrlAction(input: {
     },
     select: { classArmId: true },
   });
-  if (!enrollment?.classArmId) return { error: "Report card not yet released" };
+  if (!enrollment?.classArmId) {
+    console.error("getMyReportCardPdfUrl: no active enrollment found for student", {
+      userId, studentId: input.studentId, termId: input.termId,
+    });
+    return { error: "Report card not yet released" };
+  }
 
   const release = await db.reportCardRelease.findUnique({
     where: { termId_classArmId: { termId: input.termId, classArmId: enrollment.classArmId } },
     select: { id: true, schoolId: true },
   });
   if (!release || release.schoolId !== ctx.schoolId) {
+    console.warn("getMyReportCardPdfUrl: no release row for term/arm (expected before release)", {
+      userId, studentId: input.studentId, termId: input.termId,
+    });
     return { error: "Report card not yet released" };
   }
 

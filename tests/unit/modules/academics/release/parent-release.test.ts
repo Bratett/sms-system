@@ -105,6 +105,7 @@ describe("acknowledgeReportCardAction", () => {
 
     const res = await acknowledgeReportCardAction({ releaseId: "r-1", studentId: "s-1" });
     expect(res).toEqual({ success: true });
+    expect(vi.mocked(audit)).not.toHaveBeenCalled();
   });
 });
 
