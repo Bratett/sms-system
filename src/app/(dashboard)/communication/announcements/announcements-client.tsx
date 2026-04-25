@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -9,6 +9,11 @@ import {
   archiveAnnouncementAction,
   deleteAnnouncementAction,
 } from "@/modules/communication/actions/announcement.action";
+import {
+  getAnnouncementAcknowledgementStatsAction,
+  getAnnouncementAcknowledgementDetailsAction,
+  chaseAnnouncementAcknowledgementAction,
+} from "@/modules/communication/actions/circular-acknowledgement.action";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -23,6 +28,7 @@ interface AnnouncementRow {
   expiresAt: Date | string | null;
   createdByName: string;
   createdAt: Date | string;
+  requiresAcknowledgement?: boolean;
 }
 
 interface Pagination {
@@ -30,6 +36,23 @@ interface Pagination {
   pageSize: number;
   total: number;
   totalPages: number;
+}
+
+interface AckStats {
+  targeted: number;
+  acknowledged: number;
+  pending: number;
+  canSendReminder: boolean;
+  lastReminderSentAt: Date | string | null;
+  requiresAcknowledgement: boolean;
+}
+
+interface AckDetailRow {
+  householdId: string;
+  householdName: string;
+  acknowledged: boolean;
+  acknowledgedAt: Date | string | null;
+  acknowledgedBy: string | null;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -86,7 +109,65 @@ export function AnnouncementsClient({
     targetType: "all",
     priority: "normal",
     expiresAt: "",
+    requiresAcknowledgement: false,
   });
+
+  // Per-row acknowledgement stats
+  const [stats, setStats] = useState<Map<string, AckStats>>(new Map());
+
+  // Detail drawer state
+  const [openedRow, setOpenedRow] = useState<{
+    id: string;
+    title: string;
+    requiresAcknowledgement: boolean;
+  } | null>(null);
+  const [details, setDetails] = useState<AckDetailRow[]>([]);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+
+  // ─── Stats fetcher ────────────────────────────────────────────────
+
+  useEffect(() => {
+    const ackRequired = announcements.filter((r) => r.requiresAcknowledgement);
+    if (ackRequired.length === 0) {
+      setStats(new Map());
+      return;
+    }
+    let cancelled = false;
+    Promise.all(
+      ackRequired.map(async (r) => {
+        const res = await getAnnouncementAcknowledgementStatsAction(r.id);
+        if ("data" in res) return [r.id, res.data] as const;
+        return null;
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      const m = new Map<string, AckStats>();
+      for (const e of entries) if (e) m.set(e[0], e[1] as AckStats);
+      setStats(m);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [announcements]);
+
+  // ─── Detail fetcher ───────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!openedRow || !openedRow.requiresAcknowledgement) {
+      setDetails([]);
+      return;
+    }
+    setDetailsLoading(true);
+    let cancelled = false;
+    getAnnouncementAcknowledgementDetailsAction(openedRow.id).then((res) => {
+      if (cancelled) return;
+      setDetailsLoading(false);
+      if ("data" in res) setDetails(res.data as AckDetailRow[]);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [openedRow]);
 
   // ─── Handlers ─────────────────────────────────────────────────────
 
@@ -97,6 +178,7 @@ export function AnnouncementsClient({
       targetType: "all",
       priority: "normal",
       expiresAt: "",
+      requiresAcknowledgement: false,
     });
     setShowForm(true);
   }
@@ -118,6 +200,7 @@ export function AnnouncementsClient({
         targetType: form.targetType,
         priority: form.priority,
         expiresAt: form.expiresAt || undefined,
+        requiresAcknowledgement: form.requiresAcknowledgement,
       });
       if ("error" in result) {
         toast.error(result.error);
@@ -165,6 +248,49 @@ export function AnnouncementsClient({
       toast.success("Announcement deleted.");
       router.refresh();
     });
+  }
+
+  function handleChase(id: string) {
+    startTransition(async () => {
+      const res = await chaseAnnouncementAcknowledgementAction(id);
+      if ("error" in res) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(
+        `Reminder sent to ${res.notifiedCount} recipient(s).`,
+      );
+      const fresh = await getAnnouncementAcknowledgementStatsAction(id);
+      if ("data" in fresh) {
+        setStats((prev) => new Map(prev).set(id, fresh.data as AckStats));
+      }
+      router.refresh();
+    });
+  }
+
+  function downloadCsv() {
+    if (!openedRow) return;
+    const csv = ["Household,Status,AcknowledgedBy,AcknowledgedAt"]
+      .concat(
+        details.map((d) =>
+          [
+            JSON.stringify(d.householdName),
+            d.acknowledged ? "Acknowledged" : "Pending",
+            JSON.stringify(d.acknowledgedBy ?? ""),
+            d.acknowledgedAt
+              ? new Date(d.acknowledgedAt).toISOString()
+              : "",
+          ].join(","),
+        ),
+      )
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `acknowledgements-${openedRow.id}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // ─── Filter ───────────────────────────────────────────────────────
@@ -230,6 +356,9 @@ export function AnnouncementsClient({
                 Target
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+                Acks
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                 Created By
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
@@ -242,7 +371,17 @@ export function AnnouncementsClient({
           </thead>
           <tbody className="divide-y bg-card">
             {filtered.map((a) => (
-              <tr key={a.id}>
+              <tr
+                key={a.id}
+                onClick={() =>
+                  setOpenedRow({
+                    id: a.id,
+                    title: a.title,
+                    requiresAcknowledgement: !!a.requiresAcknowledgement,
+                  })
+                }
+                className="cursor-pointer hover:bg-muted/40"
+              >
                 <td className="px-4 py-3">
                   <div>
                     <p className="text-sm font-medium">{a.title}</p>
@@ -266,11 +405,44 @@ export function AnnouncementsClient({
                 <td className="px-4 py-3 text-sm capitalize text-muted-foreground">
                   {a.targetType}
                 </td>
+                <td className="px-4 py-3 text-xs">
+                  {a.requiresAcknowledgement ? (
+                    (() => {
+                      const s = stats.get(a.id);
+                      if (!s) return <span className="text-muted-foreground">…</span>;
+                      const pct =
+                        s.targeted === 0
+                          ? 0
+                          : Math.round((s.acknowledged / s.targeted) * 100);
+                      return (
+                        <div className="min-w-24">
+                          <div className="flex justify-between">
+                            <span>
+                              {s.acknowledged} / {s.targeted}
+                            </span>
+                            <span className="text-muted-foreground">{pct}%</span>
+                          </div>
+                          <div className="w-full h-1 bg-muted rounded-full mt-1">
+                            <div
+                              className="h-1 bg-green-500 rounded-full"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-sm text-muted-foreground">{a.createdByName}</td>
                 <td className="px-4 py-3 text-sm text-muted-foreground">
                   {formatDate(a.createdAt)}
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td
+                  className="px-4 py-3 text-right"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div className="flex items-center justify-end gap-2">
                     {a.status === "DRAFT" && (
                       <>
@@ -305,7 +477,7 @@ export function AnnouncementsClient({
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">
                   No announcements found.
                 </td>
               </tr>
@@ -385,6 +557,19 @@ export function AnnouncementsClient({
                   className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.requiresAcknowledgement}
+                  onChange={(e) =>
+                    setForm({ ...form, requiresAcknowledgement: e.target.checked })
+                  }
+                />
+                Require parents to acknowledge this circular
+                <span className="text-xs text-muted-foreground">
+                  (targeted households will see an &quot;I acknowledge&quot; button)
+                </span>
+              </label>
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button
@@ -401,6 +586,151 @@ export function AnnouncementsClient({
                 {isPending ? "Creating..." : "Create Draft"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Acknowledgement Detail Drawer */}
+      {openedRow && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setOpenedRow(null)}
+        >
+          <div
+            className="w-full max-w-3xl rounded-xl bg-card p-6 space-y-4 max-h-[85vh] overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <h2 className="text-lg font-semibold">{openedRow.title}</h2>
+              <button
+                onClick={() => setOpenedRow(null)}
+                className="text-muted-foreground"
+              >
+                ✕
+              </button>
+            </div>
+
+            {openedRow.requiresAcknowledgement ? (
+              (() => {
+                const s = stats.get(openedRow.id);
+                if (!s)
+                  return (
+                    <p className="text-sm text-muted-foreground">Loading…</p>
+                  );
+                const pct =
+                  s.targeted === 0 ? 0 : (s.acknowledged / s.targeted) * 100;
+                return (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium">
+                        {s.acknowledged} of {s.targeted} households acknowledged
+                        ({s.pending} pending)
+                      </p>
+                      <div className="w-full h-2 bg-muted rounded-full mt-1">
+                        <div
+                          className="h-2 bg-green-500 rounded-full"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {s.lastReminderSentAt
+                          ? `Last reminder sent: ${new Date(s.lastReminderSentAt).toLocaleString()}`
+                          : "No reminders sent yet"}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => handleChase(openedRow.id)}
+                      disabled={
+                        !s.canSendReminder || s.pending === 0 || isPending
+                      }
+                      className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm disabled:opacity-50"
+                      title={
+                        !s.canSendReminder
+                          ? "Within 24-hour cooldown"
+                          : s.pending === 0
+                            ? "Everyone has acknowledged"
+                            : undefined
+                      }
+                    >
+                      Send reminder to {s.pending} pending household
+                      {s.pending === 1 ? "" : "s"}
+                    </button>
+
+                    <div className="border border-border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted">
+                          <tr>
+                            <th className="p-2 text-left">Household</th>
+                            <th className="p-2 text-left">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detailsLoading ? (
+                            <tr>
+                              <td
+                                colSpan={2}
+                                className="p-4 text-center text-muted-foreground"
+                              >
+                                Loading…
+                              </td>
+                            </tr>
+                          ) : details.length === 0 ? (
+                            <tr>
+                              <td
+                                colSpan={2}
+                                className="p-4 text-center text-muted-foreground"
+                              >
+                                No households targeted.
+                              </td>
+                            </tr>
+                          ) : (
+                            details.map((d) => (
+                              <tr
+                                key={d.householdId}
+                                className="border-t border-border"
+                              >
+                                <td className="p-2">{d.householdName}</td>
+                                <td className="p-2">
+                                  {d.acknowledged ? (
+                                    <span className="text-green-700">
+                                      Acknowledged by{" "}
+                                      {d.acknowledgedBy ?? "(deleted user)"} on{" "}
+                                      {d.acknowledgedAt
+                                        ? new Date(
+                                            d.acknowledgedAt,
+                                          ).toLocaleDateString()
+                                        : "—"}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">
+                                      Pending
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button
+                        onClick={downloadCsv}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Download CSV
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                This circular does not require acknowledgement.
+              </p>
+            )}
           </div>
         </div>
       )}
