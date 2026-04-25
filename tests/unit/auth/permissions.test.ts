@@ -201,6 +201,17 @@ describe("Role-Permission Mappings", () => {
     expect(DEFAULT_ROLE_PERMISSIONS.class_teacher).not.toContain(PERMISSIONS.REPORT_CARDS_RELEASE_TRACK);
   });
 
+  it("alumni role has exactly the expected permissions", () => {
+    expect(DEFAULT_ROLE_PERMISSIONS.alumni).toEqual([
+      PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN,
+      PERMISSIONS.ALUMNI_DIRECTORY_READ,
+    ]);
+    expect(DEFAULT_ROLE_PERMISSIONS.student).not.toContain(PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN);
+    expect(DEFAULT_ROLE_PERMISSIONS.student).not.toContain(PERMISSIONS.ALUMNI_DIRECTORY_READ);
+    expect(DEFAULT_ROLE_PERMISSIONS.parent).not.toContain(PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN);
+    expect(DEFAULT_ROLE_PERMISSIONS.class_teacher).not.toContain(PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN);
+  });
+
   it("all seeded roles should have permission mappings", () => {
     const expectedRoles = [
       "super_admin",
@@ -218,6 +229,7 @@ describe("Role-Permission Mappings", () => {
       "guidance_counsellor",
       "parent",
       "student",
+      "alumni",
     ];
     for (const role of expectedRoles) {
       expect(DEFAULT_ROLE_PERMISSIONS[role]).toBeDefined(
