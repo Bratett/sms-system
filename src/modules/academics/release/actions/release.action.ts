@@ -412,17 +412,6 @@ export async function chaseReleaseAction(releaseId: string) {
     data: { lastReminderSentAt: new Date() },
   });
 
-  await audit({
-    userId,
-    schoolId: ctx.schoolId,
-    action: "UPDATE",
-    entity: "ReportCardRelease",
-    entityId: releaseId,
-    module: "academics",
-    description: `Sent acknowledgement reminder to ${groups.householdIds.length} household(s)`,
-    newData: { recipientUserCount: groups.recipientUserIds.length },
-  });
-
   try {
     if (groups.recipientUserIds.length > 0) {
       await notifyReportCardReminder({
@@ -436,6 +425,17 @@ export async function chaseReleaseAction(releaseId: string) {
   } catch (err) {
     console.error("notifyReportCardReminder failed", { releaseId, err });
   }
+
+  await audit({
+    userId,
+    schoolId: ctx.schoolId,
+    action: "UPDATE",
+    entity: "ReportCardRelease",
+    entityId: releaseId,
+    module: "academics",
+    description: `Sent acknowledgement reminder to ${groups.householdIds.length} household(s)`,
+    newData: { recipientUserCount: groups.recipientUserIds.length },
+  });
 
   return { success: true, notifiedCount: groups.recipientUserIds.length };
 }
@@ -481,6 +481,7 @@ export async function getReleaseQueueAction(input?: { termId?: string }) {
   });
   const releaseByArm = new Map(releases.map((r) => [r.classArmId, r]));
 
+  // TODO: batch these counts into a single groupBy or raw SQL when arm counts exceed ~30.
   const rows = await Promise.all(
     arms.map(async (arm) => {
       const studentsEnrolled = await db.enrollment.count({

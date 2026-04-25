@@ -270,3 +270,97 @@ describe("chaseReleaseAction", () => {
     expect(vi.mocked(audit)).toHaveBeenCalled();
   });
 });
+
+describe("getReleaseDetailsAction", () => {
+  beforeEach(() => {
+    mockAuthenticatedUser({ permissions: ["academics:report-cards:release-track"] });
+  });
+
+  it("rejects unauthorized", async () => {
+    mockAuthenticatedUser({ permissions: [] });
+    const res = await getReleaseDetailsAction("r-1");
+    expect(res).toEqual({ error: "Insufficient permissions" });
+  });
+
+  it("returns deduplicated student/household rows with acknowledged flags", async () => {
+    prismaMock.reportCardRelease.findFirst.mockResolvedValue({
+      id: "r-1",
+      schoolId: "default-school",
+      classArmId: "arm-1",
+      termId: "t-1",
+    } as never);
+    prismaMock.student.findMany.mockResolvedValue([
+      {
+        id: "s1",
+        firstName: "Kofi",
+        lastName: "Asante",
+        guardians: [
+          { guardian: { householdId: "hh-1", household: { name: "Asante Family" } } },
+          { guardian: { householdId: "hh-1", household: { name: "Asante Family" } } },
+        ],
+      },
+      {
+        id: "s2",
+        firstName: "Akua",
+        lastName: "Mensah",
+        guardians: [
+          { guardian: { householdId: "hh-2", household: { name: "Mensah Family" } } },
+        ],
+      },
+    ] as never);
+    prismaMock.reportCardAcknowledgement.findMany.mockResolvedValue([
+      {
+        studentId: "s1",
+        householdId: "hh-1",
+        acknowledgedAt: new Date("2026-04-25"),
+        acknowledgedBy: { firstName: "Mr", lastName: "Asante" },
+      },
+    ] as never);
+
+    const res = await getReleaseDetailsAction("r-1");
+    if (!("data" in res)) throw new Error("expected data");
+    // Two unique (student, household) pairs after dedupe (s1 had two guardians in same household)
+    expect(res.data.length).toBe(2);
+    const s1Row = res.data.find((r) => r.studentId === "s1");
+    expect(s1Row?.acknowledged).toBe(true);
+    expect(s1Row?.acknowledgedBy).toBe("Mr Asante");
+    const s2Row = res.data.find((r) => r.studentId === "s2");
+    expect(s2Row?.acknowledged).toBe(false);
+  });
+});
+
+describe("getReleaseQueueAction", () => {
+  beforeEach(() => {
+    mockAuthenticatedUser({ permissions: ["academics:report-cards:release-track"] });
+  });
+
+  it("rejects unauthorized", async () => {
+    mockAuthenticatedUser({ permissions: [] });
+    const res = await getReleaseQueueAction();
+    expect(res).toEqual({ error: "Insufficient permissions" });
+  });
+
+  it("returns rows for current term mixing released and unreleased arms", async () => {
+    prismaMock.term.findFirst.mockResolvedValue({ id: "t-current" } as never);
+    prismaMock.classArm.findMany.mockResolvedValue([
+      { id: "arm-1", name: "JSS2-A", class: { programme: { name: "JHS" } } },
+      { id: "arm-2", name: "JSS2-B", class: { programme: { name: "JHS" } } },
+    ] as never);
+    prismaMock.reportCardRelease.findMany.mockResolvedValue([
+      { id: "r-1", classArmId: "arm-1", releasedAt: new Date(), releasedByUserId: "u-1", lastReminderSentAt: null },
+    ] as never);
+    prismaMock.enrollment.count.mockResolvedValue(30 as never);
+    prismaMock.terminalResult.count.mockResolvedValue(28 as never);
+    prismaMock.reportCardAcknowledgement.count.mockResolvedValue(15 as never);
+
+    const res = await getReleaseQueueAction();
+    if (!("data" in res)) throw new Error("expected data");
+    expect(res.data.termId).toBe("t-current");
+    expect(res.data.rows.length).toBe(2);
+    const arm1Row = res.data.rows.find((r) => r.classArmId === "arm-1");
+    expect(arm1Row?.release?.id).toBe("r-1");
+    expect(arm1Row?.acknowledgedStudents).toBe(15);
+    const arm2Row = res.data.rows.find((r) => r.classArmId === "arm-2");
+    expect(arm2Row?.release).toBeNull();
+  });
+});
