@@ -102,7 +102,10 @@ describe("notifyReportCardReleased", () => {
         isReRelease: false,
       }),
     ).resolves.toBeUndefined();
-    expect(vi.mocked(sendMessage).mock.calls.length).toBeGreaterThan(1);
+    // All 6 calls completed (1 fail + 5 succeed), proving user-2 was reached
+    expect(vi.mocked(sendMessage).mock.calls.length).toBe(6);
+    const recipientsNotified = vi.mocked(sendMessage).mock.calls.map((c) => c[1].to);
+    expect(recipientsNotified).toContain("user-2");
   });
 });
 
