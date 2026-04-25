@@ -25,19 +25,21 @@ export async function seedAlumniOnGraduation(
     };
   },
 ): Promise<{ profileId: string; userRoleFlipped: boolean }> {
-  // NOTE: Student has no Prisma relation to User. We use a plain select for
-  // `userId` and retrieve the email by a separate user lookup. The `user`
-  // field on the raw result is populated only when callers (e.g. tests) inject
-  // a pre-fetched user object; we therefore type the result with an optional
-  // `user` field via a cast so TypeScript stays happy while tests can supply
-  // the field directly.
-  const student = (await tx.student.findUnique({
+  const student = await tx.student.findUnique({
     where: { id: input.studentId },
     select: { userId: true },
-  })) as { userId: string | null; user?: { email: string | null } | null } | null;
-
+  });
   if (!student) {
     throw new Error(`Student ${input.studentId} not found`);
+  }
+
+  let userEmail: string | null = null;
+  if (student.userId) {
+    const user = await tx.user.findUnique({
+      where: { id: student.userId },
+      select: { email: true },
+    });
+    userEmail = user?.email ?? null;
   }
 
   const ceremonyDate = input.graduationRecord.batch.ceremonyDate;
@@ -58,7 +60,7 @@ export async function seedAlumniOnGraduation(
       studentId: input.studentId,
       schoolId: input.schoolId,
       graduationYear,
-      email: student.user?.email ?? null,
+      email: userEmail,
       isPublic: false,
     },
     update: {}, // No-op for existing profiles; preserves alumnus edits.

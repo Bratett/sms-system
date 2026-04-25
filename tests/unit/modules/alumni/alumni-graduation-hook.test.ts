@@ -5,6 +5,7 @@ import { seedAlumniOnGraduation } from "@/modules/alumni/alumni-graduation-hook"
 describe("seedAlumniOnGraduation", () => {
   beforeEach(() => {
     prismaMock.student.findUnique.mockReset();
+    prismaMock.user.findUnique.mockReset();
     prismaMock.alumniProfile.upsert.mockReset();
     prismaMock.role.findUnique.mockReset();
     prismaMock.userRole.deleteMany.mockReset();
@@ -12,10 +13,8 @@ describe("seedAlumniOnGraduation", () => {
   });
 
   it("creates profile with isPublic=false and graduationYear from ceremonyDate", async () => {
-    prismaMock.student.findUnique.mockResolvedValue({
-      userId: "u-1",
-      user: { email: "k@a.com" },
-    } as never);
+    prismaMock.student.findUnique.mockResolvedValue({ userId: "u-1" } as never);
+    prismaMock.user.findUnique.mockResolvedValue({ email: "k@a.com" } as never);
     prismaMock.alumniProfile.upsert.mockResolvedValue({ id: "ap-1" } as never);
     prismaMock.role.findUnique.mockResolvedValue({ id: "role-alumni" } as never);
     prismaMock.userRole.deleteMany.mockResolvedValue({ count: 1 } as never);
@@ -44,10 +43,8 @@ describe("seedAlumniOnGraduation", () => {
   });
 
   it("flips user role: deletes student UserRole, creates alumni UserRole", async () => {
-    prismaMock.student.findUnique.mockResolvedValue({
-      userId: "u-1",
-      user: { email: "x@a.com" },
-    } as never);
+    prismaMock.student.findUnique.mockResolvedValue({ userId: "u-1" } as never);
+    prismaMock.user.findUnique.mockResolvedValue({ email: "x@a.com" } as never);
     prismaMock.alumniProfile.upsert.mockResolvedValue({ id: "ap-1" } as never);
     prismaMock.role.findUnique.mockResolvedValue({ id: "role-alumni" } as never);
     prismaMock.userRole.deleteMany.mockResolvedValue({ count: 1 } as never);
@@ -87,7 +84,7 @@ describe("seedAlumniOnGraduation", () => {
   });
 
   it("falls back to current year when ceremonyDate is null", async () => {
-    prismaMock.student.findUnique.mockResolvedValue({ userId: null, user: null } as never);
+    prismaMock.student.findUnique.mockResolvedValue({ userId: null } as never);
     prismaMock.alumniProfile.upsert.mockResolvedValue({ id: "ap-1" } as never);
 
     const currentYear = new Date().getFullYear();
@@ -105,7 +102,7 @@ describe("seedAlumniOnGraduation", () => {
   });
 
   it("upsert update branch is empty (preserves edits on re-confirmation)", async () => {
-    prismaMock.student.findUnique.mockResolvedValue({ userId: null, user: null } as never);
+    prismaMock.student.findUnique.mockResolvedValue({ userId: null } as never);
     prismaMock.alumniProfile.upsert.mockResolvedValue({ id: "ap-1" } as never);
 
     await seedAlumniOnGraduation(prismaMock as never, {
@@ -132,10 +129,8 @@ describe("seedAlumniOnGraduation", () => {
   });
 
   it("throws when alumni Role row is missing in DB", async () => {
-    prismaMock.student.findUnique.mockResolvedValue({
-      userId: "u-1",
-      user: { email: "x" },
-    } as never);
+    prismaMock.student.findUnique.mockResolvedValue({ userId: "u-1" } as never);
+    prismaMock.user.findUnique.mockResolvedValue({ email: "x" } as never);
     prismaMock.alumniProfile.upsert.mockResolvedValue({ id: "ap-1" } as never);
     prismaMock.role.findUnique.mockResolvedValue(null as never);
 
