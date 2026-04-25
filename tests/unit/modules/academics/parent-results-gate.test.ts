@@ -43,7 +43,7 @@ describe("getChildResultsAction (release gate)", () => {
 
   it("returns released=false when no release row exists", async () => {
     // term lookup for academic year resolution
-    prismaMock.term.findUnique.mockResolvedValue({ academicYearId: "ay-1" } as never);
+    prismaMock.term.findFirst.mockResolvedValue({ academicYearId: "ay-1" } as never);
 
     // enrollment lookup to get classArmId
     prismaMock.enrollment.findFirst.mockResolvedValue({
@@ -74,7 +74,7 @@ describe("getChildResultsAction (release gate)", () => {
 
   it("returns full results + released=true + isAcknowledged when release exists", async () => {
     // term lookup for academic year resolution
-    prismaMock.term.findUnique.mockResolvedValue({ academicYearId: "ay-1" } as never);
+    prismaMock.term.findFirst.mockResolvedValue({ academicYearId: "ay-1" } as never);
 
     // enrollment lookup
     prismaMock.enrollment.findFirst.mockResolvedValue({
@@ -145,7 +145,7 @@ describe("getChildResultsAction (release gate)", () => {
 
   it("returns released=false when release.schoolId mismatches caller's school", async () => {
     // term lookup for academic year resolution
-    prismaMock.term.findUnique.mockResolvedValue({ academicYearId: "ay-1" } as never);
+    prismaMock.term.findFirst.mockResolvedValue({ academicYearId: "ay-1" } as never);
 
     // enrollment lookup
     prismaMock.enrollment.findFirst.mockResolvedValue({ classArmId: "arm-1" } as never);
@@ -173,7 +173,7 @@ describe("getChildResultsAction (release gate)", () => {
 
   it("returns released=true with isAcknowledged=false when no ack row exists", async () => {
     // term lookup for academic year resolution
-    prismaMock.term.findUnique.mockResolvedValue({ academicYearId: "ay-1" } as never);
+    prismaMock.term.findFirst.mockResolvedValue({ academicYearId: "ay-1" } as never);
 
     // enrollment lookup
     prismaMock.enrollment.findFirst.mockResolvedValue({ classArmId: "arm-1" } as never);

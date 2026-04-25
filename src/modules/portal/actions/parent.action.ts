@@ -195,8 +195,9 @@ export async function getChildResultsAction(studentId: string, termId?: string) 
 
   // Look up the term to get its academicYearId so we can find the
   // correct historical enrollment (not just the most-recent active one).
-  const term = await db.term.findUnique({
-    where: { id: selectedTermId },
+  // Scope by schoolId so a forged termId cannot resolve a foreign-tenant year.
+  const term = await db.term.findFirst({
+    where: { id: selectedTermId, schoolId: ctx.session.user.schoolId ?? "__none__" },
     select: { academicYearId: true },
   });
 
