@@ -42,6 +42,9 @@ describe("getChildResultsAction (release gate)", () => {
   });
 
   it("returns released=false when no release row exists", async () => {
+    // term lookup for academic year resolution
+    prismaMock.term.findUnique.mockResolvedValue({ academicYearId: "ay-1" } as never);
+
     // enrollment lookup to get classArmId
     prismaMock.enrollment.findFirst.mockResolvedValue({
       classArmId: "arm-1",
@@ -70,6 +73,9 @@ describe("getChildResultsAction (release gate)", () => {
   });
 
   it("returns full results + released=true + isAcknowledged when release exists", async () => {
+    // term lookup for academic year resolution
+    prismaMock.term.findUnique.mockResolvedValue({ academicYearId: "ay-1" } as never);
+
     // enrollment lookup
     prismaMock.enrollment.findFirst.mockResolvedValue({
       classArmId: "arm-1",
@@ -135,5 +141,80 @@ describe("getChildResultsAction (release gate)", () => {
     expect(res.data.isAcknowledged).toBe(true);
     expect(res.data.result).not.toBeNull();
     expect(res.data.result?.subjectResults.length).toBeGreaterThan(0);
+  });
+
+  it("returns released=false when release.schoolId mismatches caller's school", async () => {
+    // term lookup for academic year resolution
+    prismaMock.term.findUnique.mockResolvedValue({ academicYearId: "ay-1" } as never);
+
+    // enrollment lookup
+    prismaMock.enrollment.findFirst.mockResolvedValue({ classArmId: "arm-1" } as never);
+
+    // student info
+    prismaMock.student.findUnique.mockResolvedValue({
+      id: "s-1",
+      studentId: "STU001",
+      firstName: "Kofi",
+      lastName: "Asante",
+      otherNames: null,
+    } as never);
+
+    // release exists but belongs to a different school
+    prismaMock.reportCardRelease.findUnique.mockResolvedValue({
+      id: "r-1",
+      releasedAt: new Date(),
+      schoolId: "OTHER-SCHOOL",
+    } as never);
+
+    const res = await getChildResultsAction("s-1", "t-1");
+    if (!("data" in res)) throw new Error("expected data");
+    expect(res.data.released).toBe(false);
+  });
+
+  it("returns released=true with isAcknowledged=false when no ack row exists", async () => {
+    // term lookup for academic year resolution
+    prismaMock.term.findUnique.mockResolvedValue({ academicYearId: "ay-1" } as never);
+
+    // enrollment lookup
+    prismaMock.enrollment.findFirst.mockResolvedValue({ classArmId: "arm-1" } as never);
+
+    // student info
+    prismaMock.student.findUnique.mockResolvedValue({
+      id: "s-1",
+      studentId: "STU001",
+      firstName: "Kofi",
+      lastName: "Asante",
+      otherNames: null,
+    } as never);
+
+    // release exists and matches the caller's school
+    prismaMock.reportCardRelease.findUnique.mockResolvedValue({
+      id: "r-1",
+      releasedAt: new Date(),
+      schoolId: "default-school",
+    } as never);
+
+    // no acknowledgement row
+    prismaMock.reportCardAcknowledgement.findUnique.mockResolvedValue(null as never);
+
+    // terminal result with no subject results
+    prismaMock.terminalResult.findFirst.mockResolvedValue({
+      id: "tr-1",
+      studentId: "s-1",
+      termId: "t-1",
+      totalScore: 70,
+      averageScore: 65,
+      classPosition: 5,
+      overallGrade: "C",
+      teacherRemarks: null,
+      headmasterRemarks: null,
+      promotionStatus: "PROMOTED",
+      subjectResults: [],
+    } as never);
+
+    const res = await getChildResultsAction("s-1", "t-1");
+    if (!("data" in res)) throw new Error("expected data");
+    expect(res.data.released).toBe(true);
+    expect(res.data.isAcknowledged).toBe(false);
   });
 });

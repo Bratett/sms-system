@@ -193,11 +193,11 @@ export async function getChildResultsAction(studentId: string, termId?: string) 
     },
   });
 
-  // Get the student's current enrollment to resolve classArmId
-  const enrollment = await db.enrollment.findFirst({
-    where: { studentId, status: "ACTIVE" },
-    orderBy: { academicYearId: "desc" },
-    select: { classArmId: true },
+  // Look up the term to get its academicYearId so we can find the
+  // correct historical enrollment (not just the most-recent active one).
+  const term = await db.term.findUnique({
+    where: { id: selectedTermId },
+    select: { academicYearId: true },
   });
 
   // ── Release gate ────────────────────────────────────────────────────
@@ -215,6 +215,26 @@ export async function getChildResultsAction(studentId: string, termId?: string) 
         fullName: `${student.firstName} ${student.lastName}${student.otherNames ? " " + student.otherNames : ""}`,
       }
     : null;
+
+  if (!term) {
+    // Term doesn't exist or belongs to a different school — treat as unreleased.
+    return {
+      data: {
+        released: false as const,
+        terms: formattedTerms,
+        result: null,
+        student: formattedStudent,
+      },
+    };
+  }
+
+  // Find the enrollment for the academic year that owns the selected term.
+  // Historical enrollments may have status INACTIVE/COMPLETED, so we omit the
+  // status filter to avoid incorrectly blocking historical release lookups.
+  const enrollment = await db.enrollment.findFirst({
+    where: { studentId, academicYearId: term.academicYearId },
+    select: { classArmId: true },
+  });
 
   const release = enrollment?.classArmId
     ? await db.reportCardRelease.findUnique({
