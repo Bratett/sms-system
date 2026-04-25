@@ -1,9 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect, useTransition } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { getChildResultsAction } from "@/modules/portal/actions/parent.action";
+import {
+  acknowledgeReportCardAction,
+  getMyReportCardPdfUrlAction,
+} from "@/modules/academics/release/actions/parent-release.action";
 
 interface ChildData {
   id: string;
@@ -47,6 +52,10 @@ interface ResultsResponse {
   terms: TermOption[];
   result: ResultData | null;
   student: { id: string; studentId: string; fullName: string } | null;
+  released: boolean;
+  releaseId?: string;
+  releasedAt?: string | Date | null;
+  isAcknowledged?: boolean;
 }
 
 interface ResultsClientProps {
@@ -55,12 +64,14 @@ interface ResultsClientProps {
 
 export function ResultsClient({ students }: ResultsClientProps) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initialStudentId = searchParams.get("studentId") || students[0]?.id || "";
 
   const [selectedStudentId, setSelectedStudentId] = useState(initialStudentId);
   const [selectedTermId, setSelectedTermId] = useState("");
   const [resultsData, setResultsData] = useState<ResultsResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pending, start] = useTransition();
 
   useEffect(() => {
     if (!selectedStudentId) return;
@@ -83,6 +94,40 @@ export function ResultsClient({ students }: ResultsClientProps) {
       cancelled = true;
     };
   }, [selectedStudentId, selectedTermId]);
+
+  const selectedTermName = resultsData?.terms.find((t) => t.id === selectedTermId)
+    ? `${resultsData.terms.find((t) => t.id === selectedTermId)!.academicYearName} - ${resultsData.terms.find((t) => t.id === selectedTermId)!.name}`
+    : "the selected term";
+
+  const downloadPdf = () => {
+    start(async () => {
+      const res = await getMyReportCardPdfUrlAction({
+        studentId: selectedStudentId,
+        termId: selectedTermId,
+      });
+      if ("error" in res) {
+        toast.error(res.error);
+        return;
+      }
+      window.open(res.data.url, "_blank", "noopener,noreferrer");
+    });
+  };
+
+  const acknowledge = () => {
+    if (!resultsData?.releaseId) return;
+    start(async () => {
+      const res = await acknowledgeReportCardAction({
+        releaseId: resultsData.releaseId!,
+        studentId: selectedStudentId,
+      });
+      if ("error" in res) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success("Acknowledged.");
+      router.refresh();
+    });
+  };
 
   const gradeColorClass = (grade: string | null) => {
     if (!grade) return "bg-gray-100 text-gray-700";
@@ -111,6 +156,13 @@ export function ResultsClient({ students }: ResultsClientProps) {
         return "bg-gray-100 text-gray-700";
     }
   };
+
+  // Determine render state
+  const isUnreleased = resultsData && resultsData.released === false;
+  const isReleased = resultsData && resultsData.released === true;
+  const hasSubjectResults =
+    isReleased && resultsData.result && resultsData.result.subjectResults.length > 0;
+  const isReleasedWithoutResults = isReleased && !hasSubjectResults;
 
   return (
     <div className="space-y-6">
@@ -163,8 +215,57 @@ export function ResultsClient({ students }: ResultsClientProps) {
         <div className="flex items-center justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" />
         </div>
-      ) : resultsData?.result ? (
+      ) : isUnreleased ? (
+        /* ── Unreleased term empty state ── */
+        <div className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
+          <p className="font-medium mb-1">Results not yet released for {selectedTermName}</p>
+          <p>
+            Your child&apos;s results are still being finalised. You&apos;ll be notified
+            when they&apos;re available.
+          </p>
+        </div>
+      ) : isReleasedWithoutResults ? (
+        /* ── Released but student has no results in this release ── */
+        <div className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
+          <p className="font-medium mb-1">No results found for {selectedTermName}</p>
+          <p>Your child&apos;s results aren&apos;t part of this release. Please contact the school.</p>
+        </div>
+      ) : isReleased && resultsData.result ? (
         <>
+          {/* ── Release header ── */}
+          <div className="rounded-xl border border-gray-200 bg-white p-4 mb-3 flex items-center justify-between">
+            <div>
+              <p className="font-semibold text-sm">
+                {selectedTermName} — released{" "}
+                {resultsData.releasedAt
+                  ? new Date(resultsData.releasedAt).toLocaleDateString()
+                  : ""}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={downloadPdf}
+                disabled={pending}
+                className="rounded-lg border border-teal-600 text-teal-700 px-3 py-1.5 text-sm hover:bg-teal-50 disabled:opacity-50"
+              >
+                📄 Download PDF
+              </button>
+              {resultsData.isAcknowledged ? (
+                <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                  Acknowledged
+                </span>
+              ) : (
+                <button
+                  onClick={acknowledge}
+                  disabled={pending}
+                  className="rounded-lg bg-teal-600 text-white px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  I acknowledge receipt
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Summary Card */}
           <div className="rounded-lg border border-gray-200 bg-white">
             <div className="border-b border-gray-200 bg-gradient-to-r from-teal-50 to-cyan-50 px-5 py-4">
