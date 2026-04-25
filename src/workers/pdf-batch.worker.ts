@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { uploadFile, generateFileKey } from "@/lib/storage/r2";
 import { stitchPdfsFromUrls } from "@/lib/pdf/stitch";
 import { renderStudentIdCardAction } from "@/modules/student/actions/id-card.action";
-import { renderReportCardPdfAction } from "@/modules/academics/actions/report-card.action";
+import { _renderReportCardPdfInternal } from "@/modules/academics/actions/report-card.action";
 import { renderTranscriptPdfAction } from "@/modules/academics/actions/transcript.action";
 
 const log = logger.child({ worker: "pdf-batch" });
@@ -66,9 +66,17 @@ export function startPdfBatchWorker() {
             select: { studentId: true },
           });
           for (const e of enrollments) {
-            const res = await renderReportCardPdfAction({
+            // Worker calls the non-permissioned internal helper directly:
+            //  1. The pdfJob row was loaded above, so we trust its schoolId
+            //     (set when the requester enqueued through the gated server
+            //     action) and requestedBy.
+            //  2. BullMQ workers have no HTTP session, so the gated wrapper
+            //     would fail at requireSchoolContext() per item.
+            const res = await _renderReportCardPdfInternal({
               studentId: e.studentId,
               termId: params.termId as string,
+              schoolId: pdfJob.schoolId,
+              callerUserId: pdfJob.requestedBy,
             });
             if ("data" in res) {
               urls.push(res.data.url);
