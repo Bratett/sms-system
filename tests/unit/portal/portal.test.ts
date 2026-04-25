@@ -247,25 +247,46 @@ describe("getParentAnnouncementsAction", () => {
   });
 
   it("should return active announcements and filter expired", async () => {
-    const past = new Date("2020-01-01");
     const future = new Date("2030-01-01");
 
+    // Guardian with one active enrolled student (so "all"-targeted circulars match).
+    prismaMock.guardian.findUnique.mockResolvedValue({
+      userId: "test-user-id",
+      householdId: "hh-1",
+      students: [
+        {
+          student: {
+            id: "stu-1",
+            status: "ACTIVE",
+            enrollments: [
+              {
+                status: "ACTIVE",
+                classArmId: "arm-1",
+                classArm: {
+                  id: "arm-1",
+                  classId: "class-1",
+                  class: { programmeId: "prog-1" },
+                },
+              },
+            ],
+            houseAssignment: null,
+          },
+        },
+      ],
+    } as never);
+
+    // DB-level expiry filter means `ann-2` would not be returned by Prisma;
+    // mock only the active one to mirror real query behavior.
     prismaMock.announcement.findMany.mockResolvedValue([
       {
         id: "ann-1",
         title: "Active",
         content: "Content",
         priority: "NORMAL",
+        targetType: "all",
+        targetIds: null,
         publishedAt: new Date(),
         expiresAt: future,
-      },
-      {
-        id: "ann-2",
-        title: "Expired",
-        content: "Content",
-        priority: "NORMAL",
-        publishedAt: new Date(),
-        expiresAt: past,
       },
     ] as never);
 

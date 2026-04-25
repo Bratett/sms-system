@@ -76,6 +76,10 @@ export const NOTIFICATION_EVENTS = {
   MEDICAL_DISCLOSURE_SUBMITTED: "medical_disclosure_submitted",
   MEDICAL_DISCLOSURE_REVIEWED:  "medical_disclosure_reviewed",
 
+  // Circular acknowledgements
+  CIRCULAR_ACKNOWLEDGEMENT_REQUIRED: "circular_acknowledgement_required",
+  CIRCULAR_REMINDER_SENT:            "circular_reminder_sent",
+
   // Discipline
   DISCIPLINE_INCIDENT: "discipline_incident",
   DISCIPLINE_RESOLVED: "discipline_resolved",
@@ -150,6 +154,8 @@ export const EVENT_CHANNELS: Record<NotificationEvent, ("in_app" | "sms" | "emai
   [NOTIFICATION_EVENTS.EXCUSE_REQUEST_REVIEWED]:      ["in_app", "email"],
   [NOTIFICATION_EVENTS.MEDICAL_DISCLOSURE_SUBMITTED]: ["in_app"],
   [NOTIFICATION_EVENTS.MEDICAL_DISCLOSURE_REVIEWED]:  ["in_app", "email"],
+  [NOTIFICATION_EVENTS.CIRCULAR_ACKNOWLEDGEMENT_REQUIRED]: ["in_app", "email"],
+  [NOTIFICATION_EVENTS.CIRCULAR_REMINDER_SENT]:            ["in_app", "email", "sms"],
   [NOTIFICATION_EVENTS.DISCIPLINE_INCIDENT]: ["in_app", "sms"],
   [NOTIFICATION_EVENTS.DISCIPLINE_RESOLVED]: ["in_app"],
   [NOTIFICATION_EVENTS.LOW_STOCK_ALERT]: ["in_app"],

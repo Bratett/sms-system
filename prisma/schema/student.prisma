@@ -110,6 +110,7 @@ model Household {
   guardians Guardian[]
   students  Student[]
   school    School @relation("SchoolHousehold", fields: [schoolId], references: [id])
+  circularAcknowledgements CircularAcknowledgement[]
 
   @@index([schoolId])
   @@index([schoolId, name])

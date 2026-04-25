@@ -13,8 +13,14 @@ model Announcement {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  requiresAcknowledgement Boolean   @default(false)
+  lastReminderSentAt      DateTime?
+
+  acknowledgements CircularAcknowledgement[]
+
   @@index([schoolId])
   @@index([status])
+  @@index([schoolId, status, requiresAcknowledgement])
 }
 
 model SmsLog {
@@ -337,4 +343,24 @@ enum MessageReportStatus {
   PENDING
   DISMISSED
   ACTIONED
+}
+
+// ─── Circular Acknowledgements (Tier 2 #6 sub-project D1) ────────────
+
+model CircularAcknowledgement {
+  id                    String    @id @default(cuid())
+  announcementId        String
+  householdId           String
+  acknowledgedByUserId  String?
+  acknowledgedAt        DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  household      Household    @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  acknowledgedBy User?        @relation("AcknowledgedCirculars", fields: [acknowledgedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([announcementId, householdId])
+  @@index([announcementId])
+  @@index([householdId])
+  @@index([acknowledgedByUserId])
 }
