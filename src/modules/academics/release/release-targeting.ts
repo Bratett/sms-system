@@ -8,7 +8,7 @@ export type TargetedStudent = {
 
 /**
  * Returns students with active enrollment in the given (termId, classArmId)
- * for the given school. Filters out WITHDRAWN/GRADUATED/TRANSFERRED.
+ * for the given school. Filters out WITHDRAWN, TRANSFERRED, GRADUATED, COMPLETED, and DECEASED students.
  *
  * Pure-ish: single Prisma read, no side effects. Used by:
  *  - releaseReportCardsAction (initial fan-out targeting)
@@ -35,7 +35,7 @@ export async function resolveTargetedStudentsForRelease(input: {
   return students;
 }
 
-type StudentWithGuardians = {
+export type StudentWithGuardians = {
   id: string;
   firstName: string;
   lastName: string;
