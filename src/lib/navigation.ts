@@ -75,6 +75,12 @@ export const navigationGroups: NavGroup[] = [
             icon: "HeartPulse",
             permission: PERMISSIONS.MEDICAL_DISCLOSURE_REVIEW,
           },
+          {
+            title: "Report Card Release",
+            href: "/students/results-release",
+            icon: "ClipboardCheck",
+            permission: PERMISSIONS.REPORT_CARDS_RELEASE_TRACK,
+          },
         ],
       },
       {

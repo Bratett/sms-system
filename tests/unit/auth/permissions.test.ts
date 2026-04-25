@@ -75,6 +75,7 @@ describe("Role-Permission Mappings", () => {
       PERMISSIONS.EXCUSE_SUBMIT,
       PERMISSIONS.MEDICAL_DISCLOSURE_SUBMIT,
       PERMISSIONS.CIRCULAR_ACKNOWLEDGE,
+      PERMISSIONS.REPORT_CARDS_DOWNLOAD_OWN,
     ];
     for (const perm of parent) {
       const isAllowed = perm.endsWith("read") || allowedNonRead.includes(perm as any);
@@ -181,6 +182,23 @@ describe("Role-Permission Mappings", () => {
     expect(DEFAULT_ROLE_PERMISSIONS.parent).not.toContain(PERMISSIONS.CIRCULAR_ACKNOWLEDGEMENT_TRACK);
     expect(DEFAULT_ROLE_PERMISSIONS.class_teacher).not.toContain(PERMISSIONS.CIRCULAR_ACKNOWLEDGE);
     expect(DEFAULT_ROLE_PERMISSIONS.class_teacher).not.toContain(PERMISSIONS.CIRCULAR_ACKNOWLEDGEMENT_TRACK);
+  });
+
+  it("report-card release permissions are granted to the expected roles", () => {
+    expect(DEFAULT_ROLE_PERMISSIONS.parent).toContain(PERMISSIONS.REPORT_CARDS_DOWNLOAD_OWN);
+
+    for (const role of [
+      "headmaster",
+      "assistant_headmaster_academic",
+      "assistant_headmaster_admin",
+    ]) {
+      expect(DEFAULT_ROLE_PERMISSIONS[role]).toContain(PERMISSIONS.REPORT_CARDS_RELEASE_TRACK);
+    }
+
+    // Negative
+    expect(DEFAULT_ROLE_PERMISSIONS.parent).not.toContain(PERMISSIONS.REPORT_CARDS_RELEASE_TRACK);
+    expect(DEFAULT_ROLE_PERMISSIONS.class_teacher).not.toContain(PERMISSIONS.REPORT_CARDS_DOWNLOAD_OWN);
+    expect(DEFAULT_ROLE_PERMISSIONS.class_teacher).not.toContain(PERMISSIONS.REPORT_CARDS_RELEASE_TRACK);
   });
 
   it("all seeded roles should have permission mappings", () => {

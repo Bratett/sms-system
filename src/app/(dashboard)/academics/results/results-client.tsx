@@ -238,9 +238,7 @@ export function ResultsClient({
       if ("error" in result) {
         toast.error(result.error);
       } else {
-        toast.success(
-          `Results published for ${result.data?.published} student(s).`,
-        );
+        toast.success("Results released successfully.");
       }
     });
   }

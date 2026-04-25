@@ -155,6 +155,8 @@ model School {
   // Parent-initiated workflows
   excuseRequests     ExcuseRequest[]     @relation("SchoolExcuseRequest")
   medicalDisclosures MedicalDisclosure[] @relation("SchoolMedicalDisclosure")
+
+  reportCardReleases ReportCardRelease[] @relation("SchoolReportCardRelease")
 }
 
 model AcademicYear {
@@ -202,6 +204,7 @@ model Term {
   examSchedules ExamSchedule[]
 
   reportCardPdfCaches ReportCardPdfCache[]
+  reportCardReleases  ReportCardRelease[]
 
   @@index([schoolId])
   @@index([academicYearId])

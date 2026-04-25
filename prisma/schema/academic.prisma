@@ -41,6 +41,7 @@ model ClassArm {
 
   sourcePromotionRuns       PromotionRun[]     @relation("SourcePromotionArm")
   destinationPromotionItems PromotionRunItem[] @relation("DestinationPromotionArm")
+  reportCardReleases        ReportCardRelease[]
 
   @@unique([classId, name])
   @@index([classId])
@@ -388,4 +389,50 @@ model SubjectAnnualResult {
   @@index([annualResultId])
   @@index([subjectId])
   @@index([schoolId])
+}
+
+// ─── Report Card Release (Tier 2 #6 sub-project D2) ──────────────────
+
+model ReportCardRelease {
+  id                  String   @id @default(cuid())
+  schoolId            String
+  termId              String
+  classArmId          String
+  releasedByUserId    String?
+  releasedAt          DateTime @default(now())
+  lastReminderSentAt  DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  school          School      @relation("SchoolReportCardRelease", fields: [schoolId], references: [id])
+  term            Term        @relation(fields: [termId], references: [id], onDelete: Cascade)
+  classArm        ClassArm    @relation(fields: [classArmId], references: [id], onDelete: Cascade)
+  releasedBy      User?       @relation("ReleasedReportCards", fields: [releasedByUserId], references: [id], onDelete: SetNull)
+  acknowledgements ReportCardAcknowledgement[]
+
+  @@unique([termId, classArmId])
+  @@index([schoolId, termId])
+  @@index([classArmId])
+  @@index([releasedByUserId])
+}
+
+model ReportCardAcknowledgement {
+  id                    String    @id @default(cuid())
+  releaseId             String
+  studentId             String
+  householdId           String
+  acknowledgedByUserId  String?
+  acknowledgedAt        DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+
+  release        ReportCardRelease @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  student        Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  household      Household         @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  acknowledgedBy User?             @relation("AcknowledgedReportCards", fields: [acknowledgedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([releaseId, studentId, householdId])
+  @@index([releaseId])
+  @@index([studentId])
+  @@index([householdId])
+  @@index([acknowledgedByUserId])
 }

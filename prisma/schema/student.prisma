@@ -44,6 +44,8 @@ model Student {
   excuseRequests     ExcuseRequest[]
   medicalDisclosures MedicalDisclosure[]
 
+  reportCardAcknowledgements ReportCardAcknowledgement[]
+
   @@index([schoolId])
   @@index([studentId])
   @@index([status])
@@ -110,7 +112,8 @@ model Household {
   guardians Guardian[]
   students  Student[]
   school    School @relation("SchoolHousehold", fields: [schoolId], references: [id])
-  circularAcknowledgements CircularAcknowledgement[]
+  circularAcknowledgements   CircularAcknowledgement[]
+  reportCardAcknowledgements ReportCardAcknowledgement[]
 
   @@index([schoolId])
   @@index([schoolId, name])
