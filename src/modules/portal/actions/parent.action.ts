@@ -193,6 +193,72 @@ export async function getChildResultsAction(studentId: string, termId?: string) 
     },
   });
 
+  // Get the student's current enrollment to resolve classArmId
+  const enrollment = await db.enrollment.findFirst({
+    where: { studentId, status: "ACTIVE" },
+    orderBy: { academicYearId: "desc" },
+    select: { classArmId: true },
+  });
+
+  // ── Release gate ────────────────────────────────────────────────────
+  const formattedTerms = terms.map((t) => ({
+    id: t.id,
+    name: t.name,
+    termNumber: t.termNumber,
+    academicYearName: t.academicYear.name,
+  }));
+
+  const formattedStudent = student
+    ? {
+        id: student.id,
+        studentId: student.studentId,
+        fullName: `${student.firstName} ${student.lastName}${student.otherNames ? " " + student.otherNames : ""}`,
+      }
+    : null;
+
+  const release = enrollment?.classArmId
+    ? await db.reportCardRelease.findUnique({
+        where: {
+          termId_classArmId: {
+            termId: selectedTermId,
+            classArmId: enrollment.classArmId,
+          },
+        },
+        select: { id: true, releasedAt: true, schoolId: true },
+      })
+    : null;
+
+  if (!release || release.schoolId !== ctx.session.user.schoolId) {
+    return {
+      data: {
+        released: false as const,
+        terms: formattedTerms,
+        result: null,
+        student: formattedStudent,
+      },
+    };
+  }
+
+  // Resolve household for ack lookup
+  const guardianForAck = await db.guardian.findUnique({
+    where: { userId: ctx.session.user.id! },
+    select: { householdId: true },
+  });
+  let isAcknowledged = false;
+  if (guardianForAck?.householdId) {
+    const ack = await db.reportCardAcknowledgement.findUnique({
+      where: {
+        releaseId_studentId_householdId: {
+          releaseId: release.id,
+          studentId,
+          householdId: guardianForAck.householdId,
+        },
+      },
+    });
+    isAcknowledged = !!ack;
+  }
+  // ── End release gate ────────────────────────────────────────────────
+
   // Get terminal result
   const result = await db.terminalResult.findFirst({
     where: { studentId, termId: selectedTermId },
@@ -234,20 +300,13 @@ export async function getChildResultsAction(studentId: string, termId?: string) 
 
   return {
     data: {
-      terms: terms.map((t) => ({
-        id: t.id,
-        name: t.name,
-        termNumber: t.termNumber,
-        academicYearName: t.academicYear.name,
-      })),
+      released: true as const,
+      releaseId: release.id,
+      releasedAt: release.releasedAt,
+      isAcknowledged,
+      terms: formattedTerms,
       result: formattedResult,
-      student: student
-        ? {
-            id: student.id,
-            studentId: student.studentId,
-            fullName: `${student.firstName} ${student.lastName}${student.otherNames ? " " + student.otherNames : ""}`,
-          }
-        : null,
+      student: formattedStudent,
     },
   };
 }
