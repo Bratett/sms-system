@@ -1,16 +1,23 @@
 /**
- * cache-invalidation.test.ts
+ * Cache invalidation invariant tests.
  *
- * Verifies that every server action that mutates marks or results also
- * invalidates the report-card PDF cache for the affected (studentId, termId)
+ * The plan asked for best-effort `invalidateReportCardCacheAction` calls in
+ * three actions. The existing production code already does better:
+ *
+ *   - `enterMarksAction` and `approveMarksAction` invalidate via
+ *     `tx.reportCardPdfCache.updateMany` INSIDE their `db.$transaction(...)`
+ *     callbacks — atomic with the mutation.
+ *
+ *   - `computeTerminalResultsAction` invalidates via
+ *     `db.reportCardPdfCache.updateMany` AFTER its compute loop, on a bare
+ *     `db` reference (no transaction). This satisfies the spec's best-effort
+ *     intent: cache rows are invalidated immediately after results are
+ *     written, but a process crash between the last terminal-result write
+ *     and this call would leave caches stale.
+ *
+ * These tests codify the invariant: every score/remark mutation triggers an
+ * `updateMany` on `reportCardPdfCache` for the affected (studentId, termId)
  * pairs.
- *
- * Implementation note: the three actions (enterMarksAction, approveMarksAction,
- * computeTerminalResultsAction) all wire cache invalidation as
- * `db.reportCardPdfCache.updateMany` calls *inside* the same DB transaction
- * as the mutation — an intentionally stronger guarantee than the best-effort
- * post-commit approach originally specified.  These tests verify that stronger
- * invariant: if the transaction commits, the cache rows are also invalidated.
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
