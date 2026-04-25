@@ -327,15 +327,38 @@ export async function renderReportCardPdfAction(input: {
   );
   if (denied) return denied;
 
-  // Cache check — use findFirst so we can belt-and-braces add schoolId to the
-  // filter alongside the (studentId, termId) composite. studentId is globally
-  // unique per student so a cross-tenant hit is very unlikely in practice, but
-  // being explicit here keeps tenant isolation uniform across the codebase.
+  return _renderReportCardPdfInternal({
+    studentId: input.studentId,
+    termId: input.termId,
+    schoolId: ctx.schoolId,
+    callerUserId: ctx.session.user.id!,
+  });
+}
+
+/**
+ * Non-permissioned internal helper. Called by:
+ *  - renderReportCardPdfAction (gates on REPORT_CARDS_GENERATE)
+ *  - getMyReportCardPdfUrlAction (parent path: gates on REPORT_CARDS_DOWNLOAD_OWN
+ *    + guardian-of-student check + release-row-exists check)
+ *
+ * Caller is responsible for permission + eligibility checks before invoking.
+ * Underscore prefix signals "internal — do not use as a server action entry point".
+ */
+export async function _renderReportCardPdfInternal(input: {
+  studentId: string;
+  termId: string;
+  schoolId: string;
+  callerUserId: string;
+}): Promise<
+  | { data: { url: string; cached: boolean } }
+  | { error: string }
+> {
+  // Cache check — schoolId for tenant isolation.
   const cache = await db.reportCardPdfCache.findFirst({
     where: {
       studentId: input.studentId,
       termId: input.termId,
-      schoolId: ctx.schoolId,
+      schoolId: input.schoolId,
     },
   });
   if (cache && isReportCardCacheFresh(cache.renderedAt, cache.invalidatedAt)) {
@@ -369,24 +392,24 @@ export async function renderReportCardPdfAction(input: {
       },
     },
     create: {
-      schoolId: ctx.schoolId,
+      schoolId: input.schoolId,
       studentId: input.studentId,
       termId: input.termId,
       fileKey: key,
       renderedAt: now,
-      renderedBy: ctx.session.user.id!,
+      renderedBy: input.callerUserId,
       invalidatedAt: null,
     },
     update: {
       fileKey: key,
       renderedAt: now,
-      renderedBy: ctx.session.user.id!,
+      renderedBy: input.callerUserId,
       invalidatedAt: null,
     },
   });
 
   await audit({
-    userId: ctx.session.user.id!,
+    userId: input.callerUserId,
     action: "CREATE",
     entity: "ReportCardPdf",
     entityId: `${input.studentId}-${input.termId}`,
