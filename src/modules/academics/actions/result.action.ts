@@ -6,6 +6,7 @@ import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { lookupGrade } from "@/modules/academics/utils/grading";
 import { invalidateReportCardCacheAction } from "@/modules/academics/actions/report-card.action";
+import { releaseReportCardsAction } from "@/modules/academics/release/actions/release.action";
 
 // ─── Compute Terminal Results ──────────────────────────────────────────
 
@@ -563,37 +564,15 @@ export async function updateTerminalResultRemarksAction(
 
 // ─── Publish Results ──────────────────────────────────────────────────
 
+/**
+ * @deprecated Use `releaseReportCardsAction` directly. This wrapper preserves
+ * the existing route + permission for backward compatibility.
+ */
 export async function publishResultsAction(
   classArmId: string,
   termId: string,
 ) {
-  const ctx = await requireSchoolContext();
-  if ("error" in ctx) return ctx;
-  const denied = assertPermission(ctx.session, PERMISSIONS.RESULTS_PUBLISH);
-  if (denied) return denied;
-
-  const results = await db.terminalResult.findMany({
-    where: { classArmId, termId },
-  });
-
-  if (results.length === 0) {
-    return { error: "No results found to publish. Compute results first." };
-  }
-
-  // In the future, this would set a "published" flag and make results visible to parents/students.
-  // For now, we log the action as an audit trail.
-
-  await audit({
-    userId: ctx.session.user.id!,
-    action: "UPDATE",
-    entity: "TerminalResult",
-    entityId: classArmId,
-    module: "academics",
-    description: `Published terminal results for ${results.length} student(s)`,
-    metadata: { classArmId, termId, count: results.length },
-  });
-
-  return { data: { published: results.length } };
+  return releaseReportCardsAction({ termId, classArmId });
 }
 
 // ─── Get Result Summary ───────────────────────────────────────────────
