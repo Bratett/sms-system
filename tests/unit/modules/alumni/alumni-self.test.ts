@@ -248,6 +248,23 @@ describe("getAlumniDirectoryAction", () => {
       }),
     );
   });
+
+  it("directory select never includes email, phone, or address", async () => {
+    prismaMock.student.findFirst.mockResolvedValue({ id: "self-id" } as never);
+    prismaMock.alumniProfile.findMany.mockResolvedValue([] as never);
+    prismaMock.alumniProfile.count.mockResolvedValue(0 as never);
+    prismaMock.student.findMany.mockResolvedValue([] as never);
+
+    await getAlumniDirectoryAction({});
+
+    const callArg = prismaMock.alumniProfile.findMany.mock.calls[0][0] as {
+      select?: Record<string, unknown>;
+    };
+    expect(callArg.select).toBeDefined();
+    expect(callArg.select).not.toHaveProperty("email");
+    expect(callArg.select).not.toHaveProperty("phone");
+    expect(callArg.select).not.toHaveProperty("address");
+  });
 });
 
 describe("getPublicAlumniProfileAction", () => {
@@ -337,5 +354,20 @@ describe("getPublicAlumniProfileAction", () => {
     expect(res.data).not.toHaveProperty("email");
     expect(res.data).not.toHaveProperty("phone");
     expect(res.data).not.toHaveProperty("address");
+  });
+
+  it("public profile select never includes email, phone, or address", async () => {
+    prismaMock.student.findFirst.mockResolvedValue({ id: "self-id" } as never);
+    prismaMock.alumniProfile.findUnique.mockResolvedValue(null as never);
+
+    await getPublicAlumniProfileAction("any-id");
+
+    const callArg = prismaMock.alumniProfile.findUnique.mock.calls[0][0] as {
+      select?: Record<string, unknown>;
+    };
+    expect(callArg.select).toBeDefined();
+    expect(callArg.select).not.toHaveProperty("email");
+    expect(callArg.select).not.toHaveProperty("phone");
+    expect(callArg.select).not.toHaveProperty("address");
   });
 });

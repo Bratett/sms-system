@@ -1,13 +1,45 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
-import { PERMISSIONS, assertPermission } from "@/lib/permissions";
+import { PERMISSIONS, assertPermission, type Permission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import {
   updateMyAlumniProfileSchema,
   type UpdateMyAlumniProfileInput,
 } from "../schemas/alumni-self.schema";
+import type { Session } from "next-auth";
+
+// ─── Private helper ──────────────────────────────────────────────────
+
+/**
+ * Verify the caller holds `permission` and is a GRADUATED student at this
+ * school. Returns `{ student }` on success or `{ error }` on failure.
+ *
+ * Mirrors the `verifyParentAccess` convention in portal/actions/parent.action.ts.
+ */
+async function assertAlumnusAccess(
+  ctx: { session: Session; schoolId: string },
+  permission: Permission,
+  select: Record<string, true>,
+): Promise<{ student: Record<string, unknown> } | { error: string }> {
+  const denied = assertPermission(ctx.session, permission);
+  if (denied) return denied;
+
+  const student = await db.student.findFirst({
+    where: { userId: ctx.session.user.id, schoolId: ctx.schoolId, status: "GRADUATED" },
+    select,
+  });
+  if (!student) {
+    console.error("alumni: status check failed", {
+      userId: ctx.session.user.id,
+      permission,
+    });
+    return { error: "Alumni access not available." };
+  }
+  return { student: student as Record<string, unknown> };
+}
 
 // ─── Get my profile ─────────────────────────────────────────────────
 
@@ -15,25 +47,24 @@ import {
 export async function getMyAlumniProfileAction() {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
-  const denied = assertPermission(ctx.session, PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN);
-  if (denied) return denied;
 
-  const userId = ctx.session.user.id;
-  const student = await db.student.findFirst({
-    where: { userId, schoolId: ctx.schoolId, status: "GRADUATED" },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      studentId: true,
-      photoUrl: true,
-      dateOfBirth: true,
-    },
+  const access = await assertAlumnusAccess(ctx, PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN, {
+    id: true,
+    firstName: true,
+    lastName: true,
+    studentId: true,
+    photoUrl: true,
+    dateOfBirth: true,
   });
-  if (!student) {
-    console.error("alumni: status check failed (getMyAlumniProfileAction)", { userId });
-    return { error: "Alumni access not available." };
-  }
+  if ("error" in access) return access;
+  const student = access.student as {
+    id: string;
+    firstName: string;
+    lastName: string;
+    studentId: string;
+    photoUrl: string | null;
+    dateOfBirth: Date;
+  };
 
   const profile = await db.alumniProfile.findUnique({
     where: { studentId: student.id },
@@ -66,30 +97,24 @@ export async function getMyAlumniProfileAction() {
 export async function updateMyAlumniProfileAction(input: UpdateMyAlumniProfileInput) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
-  const denied = assertPermission(ctx.session, PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN);
-  if (denied) return denied;
 
   const parsed = updateMyAlumniProfileSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const userId = ctx.session.user.id;
-  const student = await db.student.findFirst({
-    where: { userId, schoolId: ctx.schoolId, status: "GRADUATED" },
-    select: { id: true },
+  const access = await assertAlumnusAccess(ctx, PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN, {
+    id: true,
   });
-  if (!student) {
-    console.error("alumni: status check failed (updateMyAlumniProfileAction)", { userId });
-    return { error: "Alumni access not available." };
-  }
+  if ("error" in access) return access;
+  const student = access.student as { id: string };
 
   const previous = await db.alumniProfile.findUnique({
     where: { studentId: student.id },
   });
   if (!previous) return { error: "Alumni profile not found" };
 
-  const data: Record<string, unknown> = {};
+  const data: Prisma.AlumniProfileUpdateInput = {};
   if (parsed.data.email !== undefined) data.email = parsed.data.email;
   if (parsed.data.phone !== undefined) data.phone = parsed.data.phone;
   if (parsed.data.address !== undefined) data.address = parsed.data.address;
@@ -109,7 +134,7 @@ export async function updateMyAlumniProfileAction(input: UpdateMyAlumniProfileIn
   });
 
   await audit({
-    userId,
+    userId: ctx.session.user.id,
     schoolId: ctx.schoolId,
     action: "UPDATE",
     entity: "AlumniProfile",
@@ -135,18 +160,12 @@ export async function getAlumniDirectoryAction(filters?: {
 }) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
-  const denied = assertPermission(ctx.session, PERMISSIONS.ALUMNI_DIRECTORY_READ);
-  if (denied) return denied;
 
-  const userId = ctx.session.user.id;
-  const ownStudent = await db.student.findFirst({
-    where: { userId, schoolId: ctx.schoolId, status: "GRADUATED" },
-    select: { id: true },
+  const access = await assertAlumnusAccess(ctx, PERMISSIONS.ALUMNI_DIRECTORY_READ, {
+    id: true,
   });
-  if (!ownStudent) {
-    console.error("alumni: status check failed (getAlumniDirectoryAction)", { userId });
-    return { error: "Alumni access not available." };
-  }
+  if ("error" in access) return access;
+  const ownStudent = access.student as { id: string };
 
   const page = filters?.page ?? 1;
   const pageSize = filters?.pageSize ?? 20;
@@ -155,7 +174,6 @@ export async function getAlumniDirectoryAction(filters?: {
   const where: Record<string, unknown> = {
     schoolId: ctx.schoolId,
     isPublic: true,
-    studentId: { not: ownStudent.id },
   };
   if (filters?.graduationYear) where.graduationYear = filters.graduationYear;
   if (filters?.industry) {
@@ -163,6 +181,7 @@ export async function getAlumniDirectoryAction(filters?: {
   }
 
   if (filters?.search) {
+    // Search path: resolve matching student IDs (excluding self) and constrain via { in }
     const matchingStudents = await db.student.findMany({
       where: {
         status: "GRADUATED",
@@ -177,6 +196,9 @@ export async function getAlumniDirectoryAction(filters?: {
     where.studentId = {
       in: matchingStudents.map((s) => s.id).filter((id) => id !== ownStudent.id),
     };
+  } else {
+    // No search: exclude self via { not }
+    where.studentId = { not: ownStudent.id };
   }
 
   const [profiles, total] = await Promise.all([
@@ -231,18 +253,11 @@ export async function getAlumniDirectoryAction(filters?: {
 export async function getPublicAlumniProfileAction(studentId: string) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
-  const denied = assertPermission(ctx.session, PERMISSIONS.ALUMNI_DIRECTORY_READ);
-  if (denied) return denied;
 
-  const userId = ctx.session.user.id;
-  const ownStudent = await db.student.findFirst({
-    where: { userId, schoolId: ctx.schoolId, status: "GRADUATED" },
-    select: { id: true },
+  const access = await assertAlumnusAccess(ctx, PERMISSIONS.ALUMNI_DIRECTORY_READ, {
+    id: true,
   });
-  if (!ownStudent) {
-    console.error("alumni: status check failed (getPublicAlumniProfileAction)", { userId });
-    return { error: "Alumni access not available." };
-  }
+  if ("error" in access) return access;
 
   const profile = await db.alumniProfile.findUnique({
     where: { studentId },
