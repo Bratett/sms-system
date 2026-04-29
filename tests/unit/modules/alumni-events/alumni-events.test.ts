@@ -287,5 +287,126 @@ describe("upsertMyEventRsvpAction", () => {
     expect(res.data.response).toBe("YES");
     expect(prismaMock.alumniEventRsvp.upsert).toHaveBeenCalled();
     expect(vi.mocked(audit)).toHaveBeenCalled();
+    expect(vi.mocked(audit)).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "UPDATE" }),
+    );
+  });
+
+  it("under capacity with room sets waitlisted=false", async () => {
+    prismaMock.student.findFirst.mockResolvedValue(sampleStudent as never);
+    prismaMock.alumniProfile.findUnique.mockResolvedValue(sampleProfile as never);
+    prismaMock.alumniEvent.findFirst.mockResolvedValue({
+      ...sampleEvent,
+      capacity: 10,
+      maxGuestsPerRsvp: 5,
+    } as never);
+    prismaMock.alumniEventRsvp.findUnique.mockResolvedValue(null as never);
+    // Existing headcount = 5 (peers), new RSVP wants 3 guests → 5 + 1 + 3 = 9 ≤ 10
+    prismaMock.alumniEventRsvp.aggregate.mockResolvedValue({
+      _count: { _all: 3 },
+      _sum: { guestCount: 2 },
+    } as never);
+    prismaMock.alumniEventRsvp.upsert.mockResolvedValue({
+      id: "r-3",
+      eventId: "e-1",
+      alumniProfileId: "ap-1",
+      response: "YES",
+      guestCount: 3,
+      waitlisted: false,
+      respondedAt: new Date(),
+      updatedAt: new Date(),
+    } as never);
+
+    const res = await upsertMyEventRsvpAction({
+      eventId: "e-1",
+      response: "YES",
+      guestCount: 3,
+    });
+    if (!("data" in res)) throw new Error("expected data");
+    expect(res.data.waitlisted).toBe(false);
+    expect(prismaMock.alumniEventRsvp.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ waitlisted: false }),
+      }),
+    );
+  });
+
+  it("re-RSVP YES→YES flips to waitlisted when peers filled capacity in between", async () => {
+    prismaMock.student.findFirst.mockResolvedValue(sampleStudent as never);
+    prismaMock.alumniProfile.findUnique.mockResolvedValue(sampleProfile as never);
+    prismaMock.alumniEvent.findFirst.mockResolvedValue({
+      ...sampleEvent,
+      capacity: 5,
+    } as never);
+    // Existing self-RSVP (will be excluded from headcount)
+    prismaMock.alumniEventRsvp.findUnique.mockResolvedValue({
+      id: "r-self",
+      response: "YES",
+      guestCount: 0,
+      waitlisted: false,
+    } as never);
+    // OTHERS now occupy 5 seats (capacity full without me)
+    prismaMock.alumniEventRsvp.aggregate.mockResolvedValue({
+      _count: { _all: 5 },
+      _sum: { guestCount: 0 },
+    } as never);
+    prismaMock.alumniEventRsvp.upsert.mockResolvedValue({
+      id: "r-self",
+      response: "YES",
+      guestCount: 0,
+      waitlisted: true,
+      respondedAt: new Date(),
+      updatedAt: new Date(),
+    } as never);
+
+    const res = await upsertMyEventRsvpAction({
+      eventId: "e-1",
+      response: "YES",
+      guestCount: 0,
+    });
+    if (!("data" in res)) throw new Error("expected data");
+    expect(res.data.waitlisted).toBe(true);
+    // Verify self-exclusion was applied
+    expect(prismaMock.alumniEventRsvp.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          NOT: { alumniProfileId: "ap-1" },
+        }),
+      }),
+    );
+  });
+
+  it("YES→NO transition skips capacity recompute", async () => {
+    prismaMock.student.findFirst.mockResolvedValue(sampleStudent as never);
+    prismaMock.alumniProfile.findUnique.mockResolvedValue(sampleProfile as never);
+    prismaMock.alumniEvent.findFirst.mockResolvedValue({
+      ...sampleEvent,
+      capacity: 5,
+    } as never);
+    prismaMock.alumniEventRsvp.findUnique.mockResolvedValue({
+      id: "r-self",
+      response: "YES",
+      guestCount: 0,
+      waitlisted: false,
+    } as never);
+    prismaMock.alumniEventRsvp.upsert.mockResolvedValue({
+      id: "r-self",
+      response: "NO",
+      guestCount: 0,
+      waitlisted: false,
+      respondedAt: new Date(),
+      updatedAt: new Date(),
+    } as never);
+
+    const res = await upsertMyEventRsvpAction({
+      eventId: "e-1",
+      response: "NO",
+      guestCount: 0,
+    });
+    if (!("data" in res)) throw new Error("expected data");
+    expect(res.data.response).toBe("NO");
+    expect(res.data.waitlisted).toBe(false);
+    // Capacity recompute should NOT have been called (response is NO)
+    expect(prismaMock.alumniEventRsvp.aggregate).not.toHaveBeenCalled();
   });
 });

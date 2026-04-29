@@ -10,11 +10,11 @@ import { upsertRsvpSchema, type UpsertRsvpInput } from "../schemas/event.schema"
 // Reuse the assertAlumnusAccess helper pattern from sub-project A
 // (src/modules/alumni/actions/alumni-self.action.ts). Inlined here to avoid
 // cross-module export coupling, per plan.
-async function assertAlumnusAccess<S extends Record<string, true>>(
+async function assertAlumnusAccess(
   ctx: { session: Session; schoolId: string },
   permission: Permission,
-  select: S,
-): Promise<{ student: { [K in keyof S]: unknown } } | { error: string }> {
+  select: Record<string, true>,
+): Promise<{ student: Record<string, unknown> } | { error: string }> {
   const denied = assertPermission(ctx.session, permission);
   if (denied) return denied;
   const student = await db.student.findFirst({
@@ -32,7 +32,7 @@ async function assertAlumnusAccess<S extends Record<string, true>>(
     });
     return { error: "Alumni access not available." };
   }
-  return { student: student as unknown as { [K in keyof S]: unknown } };
+  return { student: student as Record<string, unknown> };
 }
 
 async function resolveAlumniProfileId(studentId: string): Promise<string | null> {
