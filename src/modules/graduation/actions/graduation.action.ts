@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireSchoolContext } from "@/lib/auth-context";
 import { PERMISSIONS, assertPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import { seedAlumniOnGraduation } from "@/modules/alumni/alumni-graduation-hook";
 
 // ─── Get Graduation Batches ─────────────────────────────────────────
 
@@ -205,21 +206,32 @@ export async function confirmGraduateAction(
     return { error: "Record not found." };
   }
 
-  const updated = await db.graduationRecord.update({
-    where: { id: recordId },
-    data: {
-      status: "CONFIRMED",
-      certificateNumber: data.certificateNumber || record.certificateNumber,
-      honours: data.honours || record.honours,
-    },
+  const result = await db.$transaction(async (tx) => {
+    const updated = await tx.graduationRecord.update({
+      where: { id: recordId },
+      data: {
+        status: "CONFIRMED",
+        certificateNumber: data.certificateNumber || record.certificateNumber,
+        honours: data.honours || record.honours,
+      },
+    });
+
+    // Update student status to GRADUATED
+    await tx.student.update({
+      where: { id: record.studentId },
+      data: { status: "GRADUATED" },
+    });
+
+    const seeded = await seedAlumniOnGraduation(tx, {
+      studentId: record.studentId,
+      schoolId: ctx.schoolId,
+      graduationRecord: { batch: record.batch },
+    });
+
+    return { updated, seeded };
   });
 
-  // Update student status to GRADUATED
-  await db.student.update({
-    where: { id: record.studentId },
-    data: { status: "GRADUATED" },
-  });
-
+  // Audit the graduation record confirmation
   await audit({
     userId: ctx.session.user.id,
     action: "UPDATE",
@@ -228,10 +240,26 @@ export async function confirmGraduateAction(
     module: "graduation",
     description: `Confirmed graduate record`,
     previousData: record,
-    newData: updated,
+    newData: result.updated,
   });
 
-  return { data: updated };
+  // Audit the auto-seeded alumni profile
+  await audit({
+    userId: ctx.session.user.id,
+    schoolId: ctx.schoolId,
+    action: "CREATE",
+    entity: "AlumniProfile",
+    entityId: result.seeded.profileId,
+    module: "alumni",
+    description: `Auto-seeded alumni profile on graduation confirmation`,
+    metadata: {
+      studentId: record.studentId,
+      autoSeeded: true,
+      userRoleFlipped: result.seeded.userRoleFlipped,
+    },
+  });
+
+  return { data: result.updated };
 }
 
 // ─── Complete Batch ─────────────────────────────────────────────────

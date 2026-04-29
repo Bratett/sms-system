@@ -91,6 +91,10 @@ export const PERMISSIONS = {
   REPORT_CARDS_DOWNLOAD_OWN:  "academics:report-cards:download-own",
   REPORT_CARDS_RELEASE_TRACK: "academics:report-cards:release-track",
 
+  // Alumni
+  ALUMNI_PROFILE_UPDATE_OWN: "alumni:profile:update-own",
+  ALUMNI_DIRECTORY_READ:     "alumni:directory:read",
+
   DOCUMENT_TYPES_MANAGE: "school:document-types:manage",
 
   // Classes
@@ -1354,6 +1358,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.HOUSEHOLDS_MANAGE,
     PERMISSIONS.CLASSES_READ,
     PERMISSIONS.ANNOUNCEMENTS_READ,
+  ],
+  alumni: [
+    PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN,
+    PERMISSIONS.ALUMNI_DIRECTORY_READ,
   ],
   housemaster: [
     PERMISSIONS.STUDENTS_READ,

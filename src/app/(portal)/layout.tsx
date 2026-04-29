@@ -23,7 +23,9 @@ export default async function PortalLayout({ children }: { children: React.React
       ? "student"
       : roles?.includes("teacher") || roles?.includes("Teacher")
         ? "staff"
-        : "unknown";
+        : roles?.includes("alumni")
+          ? "alumni"
+          : "unknown";
 
   return (
     <Providers>

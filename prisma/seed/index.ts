@@ -811,6 +811,10 @@ const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.CLASSES_READ,
     PERMISSIONS.ANNOUNCEMENTS_READ,
   ],
+  alumni: [
+    "alumni:profile:update-own",
+    "alumni:directory:read",
+  ],
   housemaster: [
     PERMISSIONS.STUDENTS_READ,
     PERMISSIONS.ATTENDANCE_READ,
@@ -992,6 +996,11 @@ const ROLES: RoleDef[] = [
     name: "student",
     displayName: "Student",
     description: "Views own academic results, timetable, and announcements",
+  },
+  {
+    name: "alumni",
+    displayName: "Alumni",
+    description: "Former student with access to own profile and alumni directory",
   },
 ];
 
