@@ -205,11 +205,17 @@ describe("Role-Permission Mappings", () => {
     expect(DEFAULT_ROLE_PERMISSIONS.alumni).toEqual([
       PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN,
       PERMISSIONS.ALUMNI_DIRECTORY_READ,
+      PERMISSIONS.ALUMNI_EVENTS_READ,
+      PERMISSIONS.ALUMNI_EVENTS_RSVP,
     ]);
     expect(DEFAULT_ROLE_PERMISSIONS.student).not.toContain(PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN);
     expect(DEFAULT_ROLE_PERMISSIONS.student).not.toContain(PERMISSIONS.ALUMNI_DIRECTORY_READ);
+    expect(DEFAULT_ROLE_PERMISSIONS.student).not.toContain(PERMISSIONS.ALUMNI_EVENTS_READ);
+    expect(DEFAULT_ROLE_PERMISSIONS.student).not.toContain(PERMISSIONS.ALUMNI_EVENTS_RSVP);
     expect(DEFAULT_ROLE_PERMISSIONS.parent).not.toContain(PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN);
+    expect(DEFAULT_ROLE_PERMISSIONS.parent).not.toContain(PERMISSIONS.ALUMNI_EVENTS_READ);
     expect(DEFAULT_ROLE_PERMISSIONS.class_teacher).not.toContain(PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN);
+    expect(DEFAULT_ROLE_PERMISSIONS.class_teacher).not.toContain(PERMISSIONS.ALUMNI_EVENTS_RSVP);
   });
 
   it("all seeded roles should have permission mappings", () => {

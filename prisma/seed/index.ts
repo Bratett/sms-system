@@ -814,6 +814,8 @@ const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   alumni: [
     "alumni:profile:update-own",
     "alumni:directory:read",
+    "alumni:events:read",
+    "alumni:events:rsvp",
   ],
   housemaster: [
     PERMISSIONS.STUDENTS_READ,
