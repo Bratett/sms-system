@@ -88,6 +88,9 @@ export const NOTIFICATION_EVENTS = {
   DISCIPLINE_INCIDENT: "discipline_incident",
   DISCIPLINE_RESOLVED: "discipline_resolved",
 
+  // Alumni events
+  ALUMNI_EVENT_PUBLISHED: "alumni_event_published",
+
   // Inventory
   LOW_STOCK_ALERT: "low_stock_alert",
   INVENTORY_OUT_OF_STOCK: "inventory_out_of_stock",
@@ -162,6 +165,7 @@ export const EVENT_CHANNELS: Record<NotificationEvent, ("in_app" | "sms" | "emai
   [NOTIFICATION_EVENTS.CIRCULAR_REMINDER_SENT]:            ["in_app", "email", "sms"],
   [NOTIFICATION_EVENTS.REPORT_CARD_RELEASED]:              ["in_app", "email", "sms"],
   [NOTIFICATION_EVENTS.REPORT_CARD_REMINDER_SENT]:         ["in_app", "email", "sms"],
+  [NOTIFICATION_EVENTS.ALUMNI_EVENT_PUBLISHED]: ["in_app", "email"],
   [NOTIFICATION_EVENTS.DISCIPLINE_INCIDENT]: ["in_app", "sms"],
   [NOTIFICATION_EVENTS.DISCIPLINE_RESOLVED]: ["in_app"],
   [NOTIFICATION_EVENTS.LOW_STOCK_ALERT]: ["in_app"],
