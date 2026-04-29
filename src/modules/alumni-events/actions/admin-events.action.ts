@@ -33,7 +33,7 @@ export async function createAlumniEventDraftAction(input: CreateAlumniEventInput
       startAt: parsed.data.startAt,
       endAt: parsed.data.endAt ?? null,
       location: parsed.data.location ?? null,
-      virtualLink: parsed.data.virtualLink ? parsed.data.virtualLink : null,
+      virtualLink: parsed.data.virtualLink ?? null,
       capacity: parsed.data.capacity ?? null,
       maxGuestsPerRsvp: parsed.data.maxGuestsPerRsvp,
       rsvpDeadline: parsed.data.rsvpDeadline ?? null,

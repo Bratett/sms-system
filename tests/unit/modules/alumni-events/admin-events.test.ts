@@ -80,7 +80,10 @@ describe("createAlumniEventDraftAction", () => {
       location: "Main Hall",
     });
 
-    expect("data" in res).toBe(true);
+    if (!("data" in res)) throw new Error("expected data");
+    expect(res.data.id).toBe("e-1");
+    expect(res.data.status).toBe("DRAFT");
+    expect(res.data.title).toBe("Class of 2026 Reunion");
     expect(prismaMock.alumniEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -141,6 +144,7 @@ describe("publishAlumniEventAction", () => {
     mockAuthenticatedUser({ permissions: ADMIN_PERMS_WRITE });
     prismaMock.alumniEvent.findFirst.mockReset();
     prismaMock.alumniEvent.update.mockReset();
+    vi.mocked(audit).mockClear();
     vi.mocked(notifyAlumniEventPublished).mockClear();
     vi.mocked(notifyAlumniEventPublished).mockResolvedValue({ recipientCount: 5 });
   });
@@ -206,6 +210,12 @@ describe("publishAlumniEventAction", () => {
     const res = await publishAlumniEventAction("e-1");
 
     expect("data" in res).toBe(true);  // publish still committed
+    // Audit must still run, with recipientCount: 0 reflecting the fan-out failure
+    expect(vi.mocked(audit)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ recipientCount: 0 }),
+      }),
+    );
   });
 });
 
@@ -268,13 +278,110 @@ describe("getAlumniEventListAction", () => {
     prismaMock.alumniEvent.findMany.mockResolvedValue([sampleEvent] as never);
     prismaMock.alumniEvent.count.mockResolvedValue(1 as never);
     prismaMock.alumniEventRsvp.groupBy.mockResolvedValue([
-      { eventId: "e-1", response: "YES", _count: { _all: 3 }, _sum: { guestCount: 2 } },
+      { eventId: "e-1", response: "YES", waitlisted: false, _count: { _all: 3 }, _sum: { guestCount: 2 } },
     ] as never);
 
     const res = await getAlumniEventListAction({});
     if (!("data" in res)) throw new Error("expected data");
     expect(res.data[0].yesCount).toBe(3);
     expect(res.data[0].confirmedHeadcount).toBeGreaterThan(0);
+  });
+
+  it("filters by status only", async () => {
+    prismaMock.alumniEvent.findMany.mockResolvedValue([] as never);
+    prismaMock.alumniEvent.count.mockResolvedValue(0 as never);
+
+    await getAlumniEventListAction({ status: "PUBLISHED" });
+
+    expect(prismaMock.alumniEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: "PUBLISHED" }),
+      }),
+    );
+    // No startAt filter applied
+    const call = prismaMock.alumniEvent.findMany.mock.calls[0][0] as {
+      where: Record<string, unknown>;
+    };
+    expect(call.where.startAt).toBeUndefined();
+  });
+
+  it("filters by fromDate only", async () => {
+    prismaMock.alumniEvent.findMany.mockResolvedValue([] as never);
+    prismaMock.alumniEvent.count.mockResolvedValue(0 as never);
+    const from = new Date("2027-01-01");
+
+    await getAlumniEventListAction({ fromDate: from });
+
+    expect(prismaMock.alumniEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ startAt: { gte: from } }),
+      }),
+    );
+  });
+
+  it("filters by toDate only", async () => {
+    prismaMock.alumniEvent.findMany.mockResolvedValue([] as never);
+    prismaMock.alumniEvent.count.mockResolvedValue(0 as never);
+    const to = new Date("2027-12-31");
+
+    await getAlumniEventListAction({ toDate: to });
+
+    expect(prismaMock.alumniEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ startAt: { lte: to } }),
+      }),
+    );
+  });
+
+  it("filters by both fromDate and toDate", async () => {
+    prismaMock.alumniEvent.findMany.mockResolvedValue([] as never);
+    prismaMock.alumniEvent.count.mockResolvedValue(0 as never);
+    const from = new Date("2027-01-01");
+    const to = new Date("2027-12-31");
+
+    await getAlumniEventListAction({ fromDate: from, toDate: to });
+
+    expect(prismaMock.alumniEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ startAt: { gte: from, lte: to } }),
+      }),
+    );
+  });
+
+  it("paginates correctly (page=2, pageSize=5, total=11 → totalPages=3, skip=5, take=5)", async () => {
+    prismaMock.alumniEvent.findMany.mockResolvedValue([] as never);
+    prismaMock.alumniEvent.count.mockResolvedValue(11 as never);
+
+    const res = await getAlumniEventListAction({ page: 2, pageSize: 5 });
+
+    expect(prismaMock.alumniEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 5, take: 5 }),
+    );
+    if (!("data" in res)) throw new Error("expected data");
+    expect(res.pagination.page).toBe(2);
+    expect(res.pagination.pageSize).toBe(5);
+    expect(res.pagination.total).toBe(11);
+    expect(res.pagination.totalPages).toBe(3);
+  });
+
+  it("aggregates YES/NO/MAYBE × waitlisted across groupBy rows", async () => {
+    prismaMock.alumniEvent.findMany.mockResolvedValue([sampleEvent] as never);
+    prismaMock.alumniEvent.count.mockResolvedValue(1 as never);
+    prismaMock.alumniEventRsvp.groupBy.mockResolvedValue([
+      { eventId: "e-1", response: "YES", waitlisted: false, _count: { _all: 5 }, _sum: { guestCount: 3 } },
+      { eventId: "e-1", response: "YES", waitlisted: true,  _count: { _all: 2 }, _sum: { guestCount: 1 } },
+      { eventId: "e-1", response: "NO",  waitlisted: false, _count: { _all: 4 }, _sum: { guestCount: 0 } },
+      { eventId: "e-1", response: "MAYBE", waitlisted: false, _count: { _all: 1 }, _sum: { guestCount: 0 } },
+    ] as never);
+
+    const res = await getAlumniEventListAction({});
+    if (!("data" in res)) throw new Error("expected data");
+    const row = res.data[0];
+    expect(row.yesCount).toBe(7);            // 5 + 2 (both waitlisted buckets count toward yesCount)
+    expect(row.noCount).toBe(4);
+    expect(row.maybeCount).toBe(1);
+    expect(row.confirmedHeadcount).toBe(8);  // 5 YES + 3 guests
+    expect(row.waitlistHeadcount).toBe(3);   // 2 YES waitlisted + 1 guest
   });
 });
 
