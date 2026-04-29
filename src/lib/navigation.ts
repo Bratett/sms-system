@@ -820,6 +820,12 @@ export const navigationGroups: NavGroup[] = [
             permission: PERMISSIONS.GRADUATION_READ,
           },
           {
+            title: "Alumni events",
+            href: "/graduation/alumni-events",
+            icon: "CalendarDays",
+            permission: PERMISSIONS.GRADUATION_READ,
+          },
+          {
             title: "Eligibility",
             href: "/graduation/eligibility",
             icon: "CheckSquare",
