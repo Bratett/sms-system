@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { getMyAlumniEventsAction } from "@/modules/alumni-events/actions/alumni-events.action";
 
 type Row = {
@@ -45,12 +46,19 @@ export function EventsListClient({ initialRows }: { initialRows: Row[] }) {
   const [pending, start] = useTransition();
   const [rows, setRows] = useState<Row[]>(initialRows);
   const [tab, setTab] = useState<Tab>("upcoming");
+  const requestId = useRef(0);
 
   function switchTab(newTab: Tab) {
     setTab(newTab);
+    const id = ++requestId.current;
     start(async () => {
       const res = await getMyAlumniEventsAction({ tab: newTab });
-      if ("data" in res) setRows(res.data as Row[]);
+      if (id !== requestId.current) return; // stale response
+      if ("error" in res) {
+        toast.error(res.error);
+        return;
+      }
+      setRows(res.data as Row[]);
     });
   }
 
