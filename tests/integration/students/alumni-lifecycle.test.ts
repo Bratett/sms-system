@@ -194,7 +194,7 @@ describeIfDb("Alumni lifecycle (integration)", () => {
         data: { userId: user1.id, roleId: studentRole.id },
       });
       await db.userSchool.create({
-        data: { userId: user1.id, schoolId: "default-school", isActive: true },
+        data: { userId: user1.id, schoolId: "default-school", isDefault: false },
       });
 
       const s1 = await db.student.create({

@@ -94,6 +94,8 @@ export const PERMISSIONS = {
   // Alumni
   ALUMNI_PROFILE_UPDATE_OWN: "alumni:profile:update-own",
   ALUMNI_DIRECTORY_READ:     "alumni:directory:read",
+  ALUMNI_EVENTS_READ:        "alumni:events:read",
+  ALUMNI_EVENTS_RSVP:        "alumni:events:rsvp",
 
   DOCUMENT_TYPES_MANAGE: "school:document-types:manage",
 
@@ -1362,6 +1364,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
   alumni: [
     PERMISSIONS.ALUMNI_PROFILE_UPDATE_OWN,
     PERMISSIONS.ALUMNI_DIRECTORY_READ,
+    PERMISSIONS.ALUMNI_EVENTS_READ,
+    PERMISSIONS.ALUMNI_EVENTS_RSVP,
   ],
   housemaster: [
     PERMISSIONS.STUDENTS_READ,

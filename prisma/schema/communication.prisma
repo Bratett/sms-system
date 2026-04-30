@@ -175,8 +175,70 @@ model AlumniProfile {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  eventRsvps AlumniEventRsvp[]
+
   @@index([schoolId])
   @@index([graduationYear])
+}
+
+// ─── Alumni Events (Tier 2 #7 sub-project B) ─────────────────────────
+
+model AlumniEvent {
+  id                  String              @id @default(cuid())
+  schoolId            String
+  title               String
+  description         String?
+  startAt             DateTime
+  endAt               DateTime?
+  location            String?
+  virtualLink         String?
+  capacity            Int?
+  maxGuestsPerRsvp    Int                 @default(0)
+  rsvpDeadline        DateTime?
+  status              AlumniEventStatus   @default(DRAFT)
+  publishedAt         DateTime?
+  canceledAt          DateTime?
+  createdByUserId     String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  school    School            @relation("SchoolAlumniEvents", fields: [schoolId], references: [id], onDelete: Cascade)
+  createdBy User?             @relation("CreatedAlumniEvents", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  rsvps     AlumniEventRsvp[]
+
+  @@index([schoolId, status, startAt])
+  @@index([schoolId, startAt])
+  @@index([createdByUserId])
+}
+
+model AlumniEventRsvp {
+  id              String        @id @default(cuid())
+  eventId         String
+  alumniProfileId String
+  response        RsvpResponse
+  guestCount      Int           @default(0)
+  waitlisted      Boolean       @default(false)
+  respondedAt     DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  event         AlumniEvent   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  alumniProfile AlumniProfile @relation(fields: [alumniProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, alumniProfileId])
+  @@index([eventId, response])
+  @@index([alumniProfileId])
+}
+
+enum AlumniEventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELED
+}
+
+enum RsvpResponse {
+  YES
+  NO
+  MAYBE
 }
 
 // ─── Phase 2: DB-backed notification templates + user preferences ────
