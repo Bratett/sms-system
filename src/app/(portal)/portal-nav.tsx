@@ -35,6 +35,7 @@ const staffLinks = [
 
 const alumniLinks = [
   { href: "/alumni/profile", label: "My Profile" },
+  { href: "/alumni/events", label: "Events" },
   { href: "/alumni/directory", label: "Directory" },
 ];
 
