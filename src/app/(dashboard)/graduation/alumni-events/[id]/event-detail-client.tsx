@@ -69,7 +69,9 @@ export function EventDetailClient({
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState(false);
 
-  const waitlistCount = rsvps.filter((r) => r.response === "YES" && r.waitlisted).length;
+  const waitlistHeadcount = rsvps
+    .filter((r) => r.response === "YES" && r.waitlisted)
+    .reduce((acc, r) => acc + 1 + r.guestCount, 0);
   const confirmedHeadcount = rsvps
     .filter((r) => r.response === "YES" && !r.waitlisted)
     .reduce((acc, r) => acc + 1 + r.guestCount, 0);
@@ -148,7 +150,7 @@ export function EventDetailClient({
           <div>
             <p className="text-xs text-muted-foreground">
               {confirmedHeadcount} / {event.capacity} confirmed
-              {waitlistCount > 0 ? ` · ${waitlistCount} waitlisted` : ""}
+              {waitlistHeadcount > 0 ? ` · ${waitlistHeadcount} waitlisted` : ""}
             </p>
             <div className="w-full h-2 bg-muted rounded-full mt-1">
               <div
