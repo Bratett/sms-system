@@ -70,8 +70,11 @@ export function EventDetailClient({
         return;
       }
       toast.success("RSVP saved.");
+      const persistedResponse = res.data.response as "YES" | "NO" | "MAYBE";
+      setResponse(persistedResponse);
+      setGuestCount(res.data.guestCount);
       setMyRsvp({
-        response: res.data.response as "YES" | "NO" | "MAYBE",
+        response: persistedResponse,
         guestCount: res.data.guestCount,
         waitlisted: res.data.waitlisted,
       });
