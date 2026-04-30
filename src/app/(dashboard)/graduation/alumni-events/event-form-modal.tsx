@@ -48,6 +48,11 @@ export function EventFormModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const parsedCapacity = form.capacity.trim() === "" ? null : Number.parseInt(form.capacity, 10);
+    if (parsedCapacity !== null && (Number.isNaN(parsedCapacity) || parsedCapacity < 1)) {
+      toast.error("Capacity must be a positive whole number.");
+      return;
+    }
     start(async () => {
       const payload = {
         title: form.title,
@@ -56,7 +61,7 @@ export function EventFormModal({
         endAt: form.endAt ? new Date(form.endAt) : null,
         location: form.location || null,
         virtualLink: form.virtualLink || null,
-        capacity: form.capacity ? Number(form.capacity) : null,
+        capacity: parsedCapacity,
         maxGuestsPerRsvp: form.maxGuestsPerRsvp,
         rsvpDeadline: form.rsvpDeadline ? new Date(form.rsvpDeadline) : null,
       };
@@ -98,6 +103,7 @@ export function EventFormModal({
           label="Title *"
           value={form.title}
           onChange={(v) => setForm({ ...form, title: v })}
+          required
         />
 
         <label className="block">
@@ -117,6 +123,7 @@ export function EventFormModal({
             type="datetime-local"
             value={form.startAt}
             onChange={(v) => setForm({ ...form, startAt: v })}
+            required
           />
           <Field
             label="End (optional)"
@@ -146,6 +153,7 @@ export function EventFormModal({
             value={form.capacity}
             onChange={(v) => setForm({ ...form, capacity: v })}
             placeholder="Leave blank for unlimited"
+            min={1}
           />
           <label className="block">
             <span className="text-sm font-medium">Max guests per RSVP</span>
@@ -195,12 +203,16 @@ function Field({
   onChange,
   type = "text",
   placeholder,
+  required = false,
+  min,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
   placeholder?: string;
+  required?: boolean;
+  min?: number;
 }) {
   return (
     <label className="block">
@@ -210,6 +222,8 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        required={required}
+        min={min}
         className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
       />
     </label>

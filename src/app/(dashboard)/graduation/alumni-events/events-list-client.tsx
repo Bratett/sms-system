@@ -102,6 +102,7 @@ export function EventsListClient({
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Alumni events</h1>
         <button
+          type="button"
           onClick={() => setCreatingNew(true)}
           className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm"
         >
@@ -113,6 +114,7 @@ export function EventsListClient({
         {(["all", "DRAFT", "PUBLISHED", "CANCELED"] as StatusFilter[]).map((s) => (
           <button
             key={s}
+            type="button"
             onClick={() => {
               setStatusFilter(s);
               load(1, s);
@@ -184,6 +186,7 @@ export function EventsListClient({
                   <td className="p-3 text-right space-x-2">
                     {r.status === "DRAFT" && (
                       <button
+                        type="button"
                         onClick={() => handlePublish(r.id)}
                         disabled={pending}
                         className="text-xs text-primary hover:underline"
@@ -193,6 +196,7 @@ export function EventsListClient({
                     )}
                     {r.status === "PUBLISHED" && (
                       <button
+                        type="button"
                         onClick={() => handleCancel(r.id)}
                         disabled={pending}
                         className="text-xs text-destructive hover:underline"
@@ -215,6 +219,7 @@ export function EventsListClient({
           </p>
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => load(pagination.page - 1)}
               disabled={pagination.page <= 1 || pending}
               className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
@@ -222,6 +227,7 @@ export function EventsListClient({
               Previous
             </button>
             <button
+              type="button"
               onClick={() => load(pagination.page + 1)}
               disabled={pagination.page >= pagination.totalPages || pending}
               className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
