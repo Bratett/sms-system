@@ -650,6 +650,20 @@ describe("getInventoryReportAction", () => {
   });
 });
 
+// ─── getStudentRegisterReportAction permission ─────────────────────
+
+describe("getStudentRegisterReportAction permission gate", () => {
+  beforeEach(() => {
+    mockAuthenticatedUser({ permissions: [] });
+  });
+
+  it("rejects callers without REPORTS_ENROLLMENT_READ", async () => {
+    const result = await getStudentRegisterReportAction();
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error.toLowerCase()).toContain("permission");
+  });
+});
+
 // ─── getStudentRegisterReportAction ───────────────────────────────
 
 describe("getStudentRegisterReportAction", () => {
@@ -703,5 +717,19 @@ describe("getStudentRegisterReportAction", () => {
     expect(data).toHaveProperty("genderDistribution");
     expect(data).toHaveProperty("boardingBreakdown");
     expect(data).toHaveProperty("statusBreakdown");
+  });
+});
+
+// ─── getStudentRegisterReportAction row cap ────────────────────────
+
+describe("getStudentRegisterReportAction row cap", () => {
+  beforeEach(() => { mockAuthenticatedUser(); });
+
+  it("returns an error when result set exceeds 5000 rows", async () => {
+    prismaMock.academicYear.findFirst.mockResolvedValue({ id: "ay-1", isCurrent: true } as never);
+    prismaMock.enrollment.count.mockResolvedValue(5001 as never);
+    const result = await getStudentRegisterReportAction();
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error).toMatch(/too large/i);
   });
 });

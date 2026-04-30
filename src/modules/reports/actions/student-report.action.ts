@@ -10,6 +10,8 @@ export async function getStudentRegisterReportAction(filters?: {
 }) {
   const ctx = await requireSchoolContext();
   if ("error" in ctx) return ctx;
+  const denied = assertPermission(ctx.session, PERMISSIONS.REPORTS_ENROLLMENT_READ);
+  if (denied) return denied;
 
   // Determine academic year
   let academicYearId = filters?.academicYearId;
@@ -22,6 +24,18 @@ export async function getStudentRegisterReportAction(filters?: {
 
   if (!academicYearId) {
     return { error: "No academic year found." };
+  }
+
+  const ROW_CAP = 5000;
+  const totalCount = await db.enrollment.count({
+    where: {
+      academicYearId,
+      status: "ACTIVE",
+      ...(filters?.classArmId ? { classArmId: filters.classArmId } : {}),
+    },
+  });
+  if (totalCount > ROW_CAP) {
+    return { error: `Result set too large (${totalCount} rows). Apply tighter filters.` };
   }
 
   const enrollmentWhere: Record<string, unknown> = {
