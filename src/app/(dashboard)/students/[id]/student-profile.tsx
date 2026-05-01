@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { PhotoAvatar } from "@/components/students/photo-avatar";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { updateStudentAction, enrollStudentAction } from "@/modules/student/actions/student.action";
@@ -111,14 +112,16 @@ export function StudentProfile({
   classArmOptions,
   academicYears,
   terms,
-  canViewHistory,
+  photoSrc,
+  canEditStudent,
 }: {
   student: StudentData;
   allGuardians: GuardianOption[];
   classArmOptions: ClassArmOption[];
   academicYears: AcademicYear[];
   terms: TermOption[];
-  canViewHistory: boolean;
+  photoSrc: string | null;
+  canEditStudent: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -394,11 +397,14 @@ export function StudentProfile({
         {activeTab === 0 && (
           <div className="space-y-6">
             <div className="flex items-start gap-6">
-              {/* Photo placeholder */}
-              <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center rounded-full bg-muted text-2xl font-bold text-muted-foreground">
-                {student.firstName[0]}
-                {student.lastName[0]}
-              </div>
+              <PhotoAvatar
+                studentId={student.id}
+                photoSrc={photoSrc}
+                fallbackInitials={`${student.firstName[0]}${student.lastName[0]}`}
+                canEdit={canEditStudent}
+                size="md"
+                onPhotoChanged={() => router.refresh()}
+              />
               <div className="flex-1">
                 <h3 className="text-xl font-semibold">
                   {student.firstName} {student.otherNames ? `${student.otherNames} ` : ""}

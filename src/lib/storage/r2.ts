@@ -121,6 +121,28 @@ export async function headObject(
   }
 }
 
+/**
+ * Downloads an R2 object as a Buffer.
+ * Throws if the object does not exist or the request fails.
+ *
+ * Used server-side for image processing pipelines that need the raw bytes
+ * (e.g., resize via sharp before re-uploading).
+ */
+export async function getObject(key: string): Promise<Buffer> {
+  const out = await getClient().send(
+    new GetObjectCommand({ Bucket: getBucket(), Key: key }),
+  );
+  if (!out.Body) {
+    throw new Error(`R2 getObject returned no body for key: ${key}`);
+  }
+  // SDK returns a Readable stream in Node; collect into a Buffer.
+  const chunks: Buffer[] = [];
+  for await (const chunk of out.Body as AsyncIterable<Buffer>) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 // ─── Delete ────────────────────────────────────────────────────────
 
 export async function deleteFile(key: string): Promise<void> {
