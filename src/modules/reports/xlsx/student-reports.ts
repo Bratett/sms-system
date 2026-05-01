@@ -1,4 +1,5 @@
 import { generateExport } from "@/lib/export";
+import type { CensusRow } from "@/modules/reports/actions/student-census.action";
 
 export interface RosterStudentRow {
   id: string;
@@ -38,5 +39,28 @@ export function renderRosterXlsx(input: RosterXlsxInput): Buffer {
       { key: "status", header: "Status" },
     ],
     data: input.data.students as unknown as Record<string, unknown>[],
+  });
+}
+
+export function renderCensusXlsx(input: {
+  schoolName: string;
+  generatedAt: Date;
+  generatedBy: string;
+  groupBy: string;
+  rows: CensusRow[];
+}): Buffer {
+  return generateExport({
+    filename: "student-census",
+    sheetName: `Census by ${input.groupBy}`,
+    format: "xlsx",
+    columns: [
+      { key: "groupLabel", header: input.groupBy.charAt(0).toUpperCase() + input.groupBy.slice(1) },
+      { key: "total", header: "Total" },
+      { key: "male", header: "Male" },
+      { key: "female", header: "Female" },
+      { key: "day", header: "Day" },
+      { key: "boarding", header: "Boarding" },
+    ],
+    data: input.rows as unknown as Record<string, unknown>[],
   });
 }
