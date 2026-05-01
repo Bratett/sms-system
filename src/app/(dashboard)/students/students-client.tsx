@@ -278,6 +278,12 @@ export function StudentsClient({
           >
             Analytics
           </Link>
+          <Link
+            href="/reports/students"
+            className="rounded-lg border border-border bg-background px-4 py-2 text-center text-sm font-medium transition-colors hover:bg-muted"
+          >
+            Reports
+          </Link>
         </div>
       </div>
 
