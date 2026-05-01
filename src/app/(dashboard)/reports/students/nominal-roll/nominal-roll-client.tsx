@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
-interface Row {
+export interface Row {
   row: number; studentId: string; surname: string; otherNames: string;
   gender: string; dateOfBirth: string | Date; primaryGuardianPhone: string | null;
 }
