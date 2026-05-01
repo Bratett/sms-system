@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import { renderRosterXlsx } from "@/modules/reports/xlsx/student-reports";
 import { renderCensusXlsx } from "@/modules/reports/xlsx/student-reports";
 import { renderNominalRollXlsx } from "@/modules/reports/xlsx/student-reports";
+import { renderFormRegisterXlsx } from "@/modules/reports/xlsx/student-reports";
 
 describe("renderRosterXlsx", () => {
   it("returns a Buffer with one row per student plus header", () => {
@@ -84,5 +85,22 @@ describe("renderNominalRollXlsx", () => {
     const rows = XLSX.utils.sheet_to_json<Record<string, string>>(wb.Sheets[wb.SheetNames[0]]);
     expect(rows[0]["DOB"]).toBe("2008-05-15");
     expect(rows[0]["Surname"]).toBe("Mensah");
+  });
+});
+
+describe("renderFormRegisterXlsx", () => {
+  it("emits weeks × daysPerWeek empty columns", () => {
+    const buffer = renderFormRegisterXlsx({
+      schoolName: "Demo SHS", filterSummary: "Form 2A",
+      generatedAt: new Date(), generatedBy: "Admin",
+      rows: [{ row: 1, studentId: "SCH/01", fullName: "Mensah, Adwoa", gender: "FEMALE" }],
+      weeks: 2, daysPerWeek: 5,
+    });
+    const wb = XLSX.read(buffer, { type: "buffer" });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const headers = (XLSX.utils.sheet_to_json(sheet, { header: 1 })[0] as string[]);
+    expect(headers).toContain("W1D1");
+    expect(headers).toContain("W2D5");
+    expect(headers.includes("W3D1")).toBe(false);
   });
 });

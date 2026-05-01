@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { renderPdfToBuffer } from "@/lib/pdf/generator";
 import { StudentRosterPdf } from "@/lib/pdf/templates/student-roster";
 import { StudentNominalRollPdf } from "@/lib/pdf/templates/student-nominal-roll";
+import { StudentFormRegisterPdf } from "@/lib/pdf/templates/student-form-register";
 import React from "react";
 
 describe("StudentRosterPdf", () => {
@@ -48,6 +49,22 @@ describe("StudentNominalRollPdf", () => {
           otherNames: "Adwoa", gender: "FEMALE",
           dateOfBirth: new Date("2008-05-15"), primaryGuardianPhone: "0270000000",
         }],
+      }),
+    );
+    expect(buffer.subarray(0, 4).toString()).toBe("%PDF");
+    expect(buffer.length).toBeGreaterThan(1000);
+  });
+});
+
+describe("StudentFormRegisterPdf", () => {
+  it("renders landscape buffer with grid", async () => {
+    const buffer = await renderPdfToBuffer(
+      React.createElement(StudentFormRegisterPdf, {
+        schoolName: "Demo SHS", schoolMotto: null,
+        title: "Form Master's Register", filterSummary: "Form 2A · Term 1",
+        generatedAt: new Date(), generatedBy: "Admin",
+        rows: [{ row: 1, studentId: "SCH/01", fullName: "Mensah, Adwoa", gender: "F" }],
+        weeks: 2, daysPerWeek: 5,
       }),
     );
     expect(buffer.subarray(0, 4).toString()).toBe("%PDF");

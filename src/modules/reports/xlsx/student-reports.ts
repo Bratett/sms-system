@@ -1,6 +1,7 @@
 import { generateExport } from "@/lib/export";
 import type { CensusRow } from "@/modules/reports/actions/student-census.action";
 import type { NominalRollRow } from "@/modules/reports/actions/student-nominal-roll.action";
+import type { FormRegisterRow } from "@/modules/reports/actions/student-form-register.action";
 
 export interface RosterStudentRow {
   id: string;
@@ -87,5 +88,43 @@ export function renderNominalRollXlsx(input: {
       { key: "primaryGuardianPhone", header: "Guardian Phone" },
     ],
     data: input.rows as unknown as Record<string, unknown>[],
+  });
+}
+
+export function renderFormRegisterXlsx(input: {
+  schoolName: string;
+  filterSummary: string;
+  generatedAt: Date;
+  generatedBy: string;
+  rows: FormRegisterRow[];
+  weeks: number;
+  daysPerWeek: number;
+}): Buffer {
+  // Build dynamic columns: # / ID / Name / Sex + W1D1, W1D2, ..., W{weeks}D{daysPerWeek}
+  const baseCols = [
+    { key: "row", header: "#" },
+    { key: "studentId", header: "Student ID" },
+    { key: "fullName", header: "Name" },
+    { key: "gender", header: "Sex" },
+  ];
+  const tickCols: { key: string; header: string }[] = [];
+  for (let w = 1; w <= input.weeks; w++) {
+    for (let d = 1; d <= input.daysPerWeek; d++) {
+      const k = `w${w}d${d}`;
+      tickCols.push({ key: k, header: `W${w}D${d}` });
+    }
+  }
+  // Augment data with empty tick fields so generateExport emits the columns
+  const data = input.rows.map((r) => {
+    const out: Record<string, unknown> = { ...r };
+    for (const c of tickCols) out[c.key] = "";
+    return out;
+  });
+  return generateExport({
+    filename: "form-register",
+    sheetName: "Form Register",
+    format: "xlsx",
+    columns: [...baseCols, ...tickCols],
+    data,
   });
 }
