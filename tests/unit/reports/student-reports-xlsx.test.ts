@@ -142,4 +142,18 @@ describe("renderMissingDocsXlsx", () => {
     expect(r["Expired"]).toContain("Medical");
     expect(r["Expired"]).toContain("2025-12-31");
   });
+
+  it("emits a single explanatory row when note is provided", () => {
+    const buffer = renderMissingDocsXlsx({
+      schoolName: "Demo", filterSummary: "—",
+      generatedAt: new Date(), generatedBy: "A",
+      rows: [],
+      note: "no required document types configured",
+    });
+    const wb = XLSX.read(buffer, { type: "buffer" });
+    const r = XLSX.utils.sheet_to_json<Record<string, string>>(wb.Sheets[wb.SheetNames[0]]);
+    expect(r.length).toBe(1);
+    expect(r[0]["Missing"]).toContain("no required document types configured");
+    expect(r[0]["Name"]).toBe("(no data)");
+  });
 });

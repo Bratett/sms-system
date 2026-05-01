@@ -28,6 +28,7 @@ export const GET = wrapReportRoute(async (request: NextRequest) => {
     generatedAt: new Date(),
     generatedBy: session.userName,
     rows: result.data!.rows,
+    note: result.data!.note,
   });
 
   fireReportAudit({

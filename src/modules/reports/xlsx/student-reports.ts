@@ -162,7 +162,18 @@ export function renderMissingDocsXlsx(input: {
   generatedAt: Date;
   generatedBy: string;
   rows: MissingDocsRow[];
+  note?: string;
 }): Buffer {
+  const data: MissingDocsRow[] = input.note
+    ? [{
+        studentId: "—",
+        name: "(no data)",
+        className: "—",
+        missingTypes: [input.note],
+        expiredTypes: [],
+      }]
+    : input.rows;
+
   return generateExport({
     filename: "missing-documents", sheetName: "Missing", format: "xlsx",
     columns: [
@@ -172,6 +183,6 @@ export function renderMissingDocsXlsx(input: {
       { key: "missingTypes", header: "Missing", transform: (v) => Array.isArray(v) ? v.join(", ") : "" },
       { key: "expiredTypes", header: "Expired", transform: (v) => Array.isArray(v) ? (v as Array<{ name: string; expiredOn: Date | null }>).map((e) => `${e.name} (${e.expiredOn ? e.expiredOn.toISOString().slice(0, 10) : "?"})`).join(", ") : "" },
     ],
-    data: input.rows as unknown as Record<string, unknown>[],
+    data: data as unknown as Record<string, unknown>[],
   });
 }
