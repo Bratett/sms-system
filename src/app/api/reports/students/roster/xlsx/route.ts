@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { PERMISSIONS } from "@/lib/permissions";
 import { getStudentRegisterReportAction } from "@/modules/reports/actions/student-report.action";
 import { renderRosterXlsx } from "@/modules/reports/xlsx/student-reports";
-import { auditReportDownload } from "@/modules/reports/audit-helpers";
-import { getExportContentType } from "@/lib/export";
+import {
+  authorizeReportRequest,
+  fireReportAudit,
+  isNextResponse,
+  reportFileResponse,
+  wrapReportRoute,
+} from "@/modules/reports/route-helpers";
 
-export async function GET(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const perms = session.user.permissions ?? [];
-  if (!perms.includes("*") && !perms.includes(PERMISSIONS.REPORTS_ENROLLMENT_READ)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+export const GET = wrapReportRoute(async (request: NextRequest) => {
+  const session = await authorizeReportRequest();
+  if (isNextResponse(session)) return session;
 
   const sp = request.nextUrl.searchParams;
   const academicYearId = sp.get("academicYearId") || undefined;
@@ -25,16 +23,16 @@ export async function GET(request: NextRequest) {
   }
 
   const buffer = renderRosterXlsx({
-    schoolName: session.user.schoolName ?? "School",
+    schoolName: session.schoolName,
     filterSummary: classArmId ? `Class arm filter applied` : "All class arms",
     generatedAt: new Date(),
-    generatedBy: session.user.name ?? "Unknown",
+    generatedBy: session.userName,
     data: result.data!,
   });
 
-  await auditReportDownload({
-    userId: session.user.id,
-    schoolId: session.user.schoolId!,
+  fireReportAudit({
+    userId: session.userId,
+    schoolId: session.schoolId,
     reportSlug: "STUDENT_ROSTER",
     reportName: "Class Roster",
     format: "xlsx",
@@ -42,11 +40,5 @@ export async function GET(request: NextRequest) {
     rowCount: result.data!.totalStudents,
   });
 
-  const filename = `roster-${new Date().toISOString().slice(0, 10)}.xlsx`;
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      "Content-Type": getExportContentType("xlsx"),
-      "Content-Disposition": `attachment; filename="${filename}"`,
-    },
-  });
-}
+  return reportFileResponse({ buffer, format: "xlsx", filename: "roster" });
+});

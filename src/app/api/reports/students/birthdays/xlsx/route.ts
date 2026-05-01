@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { PERMISSIONS } from "@/lib/permissions";
 import { getStudentBirthdayListAction } from "@/modules/reports/actions/student-birthday-list.action";
 import { renderBirthdayListXlsx } from "@/modules/reports/xlsx/student-reports";
-import { auditReportDownload } from "@/modules/reports/audit-helpers";
-import { getExportContentType } from "@/lib/export";
+import {
+  authorizeReportRequest,
+  fireReportAudit,
+  isNextResponse,
+  reportFileResponse,
+  wrapReportRoute,
+} from "@/modules/reports/route-helpers";
 
-export async function GET(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const perms = session.user.permissions ?? [];
-  if (!perms.includes("*") && !perms.includes(PERMISSIONS.REPORTS_ENROLLMENT_READ)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+export const GET = wrapReportRoute(async (request: NextRequest) => {
+  const session = await authorizeReportRequest();
+  if (isNextResponse(session)) return session;
 
   const sp = request.nextUrl.searchParams;
   const academicYearId = sp.get("academicYearId") || undefined;
@@ -26,24 +25,24 @@ export async function GET(request: NextRequest) {
 
   const data = result.data!;
   const buffer = renderBirthdayListXlsx({
-    schoolName: session.user.schoolName ?? "School",
+    schoolName: session.schoolName,
     filterSummary: data.mode === "month" ? `Month ${data.appliedMonth}` : `Next ${data.appliedUpcomingDays} days`,
     generatedAt: new Date(),
-    generatedBy: session.user.name ?? "Unknown",
+    generatedBy: session.userName,
     rows: data.rows,
     includeGuardianPhone,
     mode: data.mode as "month" | "upcomingDays",
   });
 
-  await auditReportDownload({
-    userId: session.user.id, schoolId: session.user.schoolId!,
-    reportSlug: "STUDENT_BIRTHDAYS", reportName: "Birthday List",
-    format: "xlsx", filters: { academicYearId, classArmId, month, upcomingDays, includeGuardianPhone },
+  fireReportAudit({
+    userId: session.userId,
+    schoolId: session.schoolId,
+    reportSlug: "STUDENT_BIRTHDAYS",
+    reportName: "Birthday List",
+    format: "xlsx",
+    filters: { academicYearId, classArmId, month, upcomingDays, includeGuardianPhone },
     rowCount: data.total,
   });
 
-  const filename = `birthdays-${new Date().toISOString().slice(0, 10)}.xlsx`;
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: { "Content-Type": getExportContentType("xlsx"), "Content-Disposition": `attachment; filename="${filename}"` },
-  });
-}
+  return reportFileResponse({ buffer, format: "xlsx", filename: "birthdays" });
+});
