@@ -31,6 +31,7 @@ export async function getStudentRegisterReportAction(filters?: {
     where: {
       academicYearId,
       status: "ACTIVE",
+      classArm: { class: { schoolId: ctx.schoolId } },
       ...(filters?.classArmId ? { classArmId: filters.classArmId } : {}),
     },
   });
@@ -41,6 +42,7 @@ export async function getStudentRegisterReportAction(filters?: {
   const enrollmentWhere: Record<string, unknown> = {
     academicYearId,
     status: "ACTIVE",
+    classArm: { class: { schoolId: ctx.schoolId } },
   };
   if (filters?.classArmId) {
     enrollmentWhere.classArmId = filters.classArmId;

@@ -49,4 +49,16 @@ describe("getStudentCensusAction", () => {
     expect(male).toEqual(expect.objectContaining({ total: 2, male: 2, female: 0, day: 1, boarding: 1 }));
     expect(female).toEqual(expect.objectContaining({ total: 1 }));
   });
+
+  it("returns empty rows when no enrollments exist", async () => {
+    prismaMock.academicYear.findFirst.mockResolvedValue({ id: "ay-1", isCurrent: true } as never);
+    prismaMock.enrollment.findMany.mockResolvedValue([] as never);
+    prismaMock.programme.findMany.mockResolvedValue([] as never);
+
+    const result = await getStudentCensusAction({ groupBy: "gender" });
+    expect(result).toHaveProperty("data");
+    const data = (result as { data: { rows: unknown[]; total: number } }).data;
+    expect(data.rows).toEqual([]);
+    expect(data.total).toBe(0);
+  });
 });

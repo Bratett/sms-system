@@ -733,3 +733,27 @@ describe("getStudentRegisterReportAction row cap", () => {
     expect((result as { error: string }).error).toMatch(/too large/i);
   });
 });
+
+// ─── getStudentRegisterReportAction tenant isolation ───────────────
+
+describe("getStudentRegisterReportAction tenant isolation", () => {
+  beforeEach(() => { mockAuthenticatedUser({ schoolId: "school-A" }); });
+
+  it("anchors enrollment query to caller's schoolId via classArm.class.schoolId", async () => {
+    prismaMock.academicYear.findFirst.mockResolvedValue({ id: "ay-1", isCurrent: true } as never);
+    prismaMock.enrollment.count.mockResolvedValue(0 as never);
+    prismaMock.enrollment.findMany.mockResolvedValue([] as never);
+
+    await getStudentRegisterReportAction({ academicYearId: "ay-from-school-B", classArmId: "ca-from-school-B" });
+
+    // Confirm the where clause actually contains the school-scoped join
+    const countCall = prismaMock.enrollment.count.mock.calls.at(-1);
+    const findCall = prismaMock.enrollment.findMany.mock.calls.at(-1);
+    expect(countCall?.[0]?.where).toMatchObject({
+      classArm: { class: { schoolId: "school-A" } },
+    });
+    expect(findCall?.[0]?.where).toMatchObject({
+      classArm: { class: { schoolId: "school-A" } },
+    });
+  });
+});
