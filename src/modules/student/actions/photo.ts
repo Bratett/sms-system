@@ -25,7 +25,12 @@ export async function resolveStudentPhotoUrl(studentId: string): Promise<string>
     select: { id: true, schoolId: true, photoUrl: true },
   });
   if (!student) return PLACEHOLDER_PHOTO_SENTINEL;
-  if (student.photoUrl) return student.photoUrl;
+  if (student.photoUrl) {
+    // photoUrl may hold either a legacy full URL or an R2 key (new uploads).
+    // Keys are signed at read time; URLs (with scheme) are returned as-is.
+    if (student.photoUrl.startsWith("http")) return student.photoUrl;
+    return await getSignedDownloadUrl(student.photoUrl);
+  }
 
   const doc = await db.studentDocument.findFirst({
     where: {
