@@ -54,11 +54,7 @@ export async function setStudentPhotoAction(input: SetPhotoInput) {
   }
 
   const stableKey = `students/${input.studentId}/photo.jpg`;
-  await uploadFile({
-    key: stableKey,
-    body: resized,
-    contentType: "image/jpeg",
-  });
+  await uploadFile(stableKey, resized, "image/jpeg");
 
   await db.student.update({
     where: { id: input.studentId },

@@ -59,9 +59,11 @@ describe("setStudentPhotoAction", () => {
     expect(result).toHaveProperty("data");
     // sharp called with the source buffer
     expect(sharpModule.default).toHaveBeenCalled();
-    // Uploaded to stable key
+    // Uploaded to stable key (positional args: key, body, contentType)
     expect(r2.uploadFile).toHaveBeenCalledWith(
-      expect.objectContaining({ key: "students/s1/photo.jpg", contentType: "image/jpeg" }),
+      "students/s1/photo.jpg",
+      expect.any(Buffer),
+      "image/jpeg",
     );
     // photoUrl updated to the stable key
     expect(prismaMock.student.update).toHaveBeenCalledWith(
