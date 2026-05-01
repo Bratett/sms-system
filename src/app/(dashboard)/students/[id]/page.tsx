@@ -7,6 +7,7 @@ import { getAcademicYearsAction } from "@/modules/school/actions/academic-year.a
 import { getTermsAction } from "@/modules/school/actions/term.action";
 import { StudentProfile } from "./student-profile";
 import { notFound } from "next/navigation";
+import { PERMISSIONS } from "@/lib/permissions";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -17,6 +18,9 @@ export default async function StudentProfilePage({ params }: Props) {
   if (!session?.user) {
     return null;
   }
+
+  const perms = session.user.permissions ?? [];
+  const canViewHistory = perms.includes("*") || perms.includes(PERMISSIONS.AUDIT_LOG_READ);
 
   const { id } = await params;
 
@@ -79,6 +83,7 @@ export default async function StudentProfilePage({ params }: Props) {
         classArmOptions={classArmOptions}
         academicYears={academicYears}
         terms={terms}
+        canViewHistory={canViewHistory}
       />
     </div>
   );

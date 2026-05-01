@@ -22,6 +22,7 @@ import { StudentAcademicSection } from "./academic-section";
 import { StudentSiblingsSection } from "./siblings-section";
 import { GuardianDedupModal } from "./guardian-dedup-modal";
 import type { DuplicateMatch } from "@/lib/guardian-matching";
+import { HistoryTab } from "./history-tab";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -110,12 +111,14 @@ export function StudentProfile({
   classArmOptions,
   academicYears,
   terms,
+  canViewHistory,
 }: {
   student: StudentData;
   allGuardians: GuardianOption[];
   classArmOptions: ClassArmOption[];
   academicYears: AcademicYear[];
   terms: TermOption[];
+  canViewHistory: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -177,6 +180,7 @@ export function StudentProfile({
     { title: "Health", index: 6 },
     { title: "Documents", index: 7 },
     ...(hasBoarding ? [{ title: "Boarding", index: 8 }] : []),
+    ...(canViewHistory ? [{ title: "History", index: 9 }] : []),
   ];
   const defaultTermId = terms.find((t) => t.isCurrent)?.id;
 
@@ -605,6 +609,11 @@ export function StudentProfile({
         {/* ─── Boarding Tab ──────────────────────────────── */}
         {activeTab === 8 && hasBoarding && (
           <StudentBoardingSection studentId={student.id} />
+        )}
+
+        {/* ─── History Tab ──────────────────────────────── */}
+        {activeTab === 9 && canViewHistory && (
+          <HistoryTab studentId={student.id} />
         )}
       </div>
 
