@@ -7,6 +7,9 @@ import { getAcademicYearsAction } from "@/modules/school/actions/academic-year.a
 import { getTermsAction } from "@/modules/school/actions/term.action";
 import { StudentProfile } from "./student-profile";
 import { notFound } from "next/navigation";
+import { PERMISSIONS } from "@/lib/permissions";
+import { resolveStudentPhotoUrl } from "@/modules/student/actions/photo";
+import { PLACEHOLDER_PHOTO_SENTINEL } from "@/lib/pdf/constants";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -17,6 +20,9 @@ export default async function StudentProfilePage({ params }: Props) {
   if (!session?.user) {
     return null;
   }
+
+  const perms = session.user.permissions ?? [];
+  const canEditStudent = perms.includes("*") || perms.includes(PERMISSIONS.STUDENTS_UPDATE);
 
   const { id } = await params;
 
@@ -34,6 +40,9 @@ export default async function StudentProfilePage({ params }: Props) {
   }
 
   const student = studentResult.data;
+
+  const resolvedPhoto = await resolveStudentPhotoUrl(student.id);
+  const photoSrc = resolvedPhoto === PLACEHOLDER_PHOTO_SENTINEL ? null : resolvedPhoto;
 
   // All guardians for linking
   const allGuardians = ("data" in guardiansResult ? guardiansResult.data ?? [] : []).map((g) => ({
@@ -79,6 +88,8 @@ export default async function StudentProfilePage({ params }: Props) {
         classArmOptions={classArmOptions}
         academicYears={academicYears}
         terms={terms}
+        photoSrc={photoSrc}
+        canEditStudent={canEditStudent}
       />
     </div>
   );
