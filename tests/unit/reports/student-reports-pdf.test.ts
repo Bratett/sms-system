@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderPdfToBuffer } from "@/lib/pdf/generator";
 import { StudentRosterPdf } from "@/lib/pdf/templates/student-roster";
+import { StudentNominalRollPdf } from "@/lib/pdf/templates/student-nominal-roll";
 import React from "react";
 
 describe("StudentRosterPdf", () => {
@@ -29,5 +30,27 @@ describe("StudentRosterPdf", () => {
     );
     expect(buffer.length).toBeGreaterThan(1000);
     expect(buffer.subarray(0, 4).toString()).toBe("%PDF");
+  });
+});
+
+describe("StudentNominalRollPdf", () => {
+  it("renders a non-empty PDF buffer with surnames uppercased", async () => {
+    const buffer = await renderPdfToBuffer(
+      React.createElement(StudentNominalRollPdf, {
+        schoolName: "Demo SHS",
+        schoolMotto: null,
+        title: "Nominal Roll",
+        filterSummary: "Form 2A",
+        generatedAt: new Date(),
+        generatedBy: "Admin",
+        rows: [{
+          row: 1, studentId: "SCH/2024/0001", surname: "Mensah",
+          otherNames: "Adwoa", gender: "FEMALE",
+          dateOfBirth: new Date("2008-05-15"), primaryGuardianPhone: "0270000000",
+        }],
+      }),
+    );
+    expect(buffer.subarray(0, 4).toString()).toBe("%PDF");
+    expect(buffer.length).toBeGreaterThan(1000);
   });
 });

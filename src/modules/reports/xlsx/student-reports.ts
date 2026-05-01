@@ -1,5 +1,6 @@
 import { generateExport } from "@/lib/export";
 import type { CensusRow } from "@/modules/reports/actions/student-census.action";
+import type { NominalRollRow } from "@/modules/reports/actions/student-nominal-roll.action";
 
 export interface RosterStudentRow {
   id: string;
@@ -60,6 +61,30 @@ export function renderCensusXlsx(input: {
       { key: "female", header: "Female" },
       { key: "day", header: "Day" },
       { key: "boarding", header: "Boarding" },
+    ],
+    data: input.rows as unknown as Record<string, unknown>[],
+  });
+}
+
+export function renderNominalRollXlsx(input: {
+  schoolName: string;
+  filterSummary: string;
+  generatedAt: Date;
+  generatedBy: string;
+  rows: NominalRollRow[];
+}): Buffer {
+  return generateExport({
+    filename: "nominal-roll",
+    sheetName: "Nominal Roll",
+    format: "xlsx",
+    columns: [
+      { key: "row", header: "#" },
+      { key: "studentId", header: "Student ID" },
+      { key: "surname", header: "Surname" },
+      { key: "otherNames", header: "Other Names" },
+      { key: "gender", header: "Sex" },
+      { key: "dateOfBirth", header: "DOB", transform: (v) => v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? "") },
+      { key: "primaryGuardianPhone", header: "Guardian Phone" },
     ],
     data: input.rows as unknown as Record<string, unknown>[],
   });

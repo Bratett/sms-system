@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import * as XLSX from "xlsx";
 import { renderRosterXlsx } from "@/modules/reports/xlsx/student-reports";
 import { renderCensusXlsx } from "@/modules/reports/xlsx/student-reports";
+import { renderNominalRollXlsx } from "@/modules/reports/xlsx/student-reports";
 
 describe("renderRosterXlsx", () => {
   it("returns a Buffer with one row per student plus header", () => {
@@ -64,5 +65,24 @@ describe("renderCensusXlsx", () => {
     const wb = XLSX.read(buffer, { type: "buffer" });
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0]]);
     expect(rows.length).toBe(2);
+  });
+});
+
+describe("renderNominalRollXlsx", () => {
+  it("emits one row per student with date formatted as ISO date", () => {
+    const buffer = renderNominalRollXlsx({
+      schoolName: "Demo SHS",
+      filterSummary: "Form 2A",
+      generatedAt: new Date(),
+      generatedBy: "Admin",
+      rows: [{
+        row: 1, studentId: "SCH/2024/0001", surname: "Mensah", otherNames: "Adwoa",
+        gender: "FEMALE", dateOfBirth: new Date("2008-05-15"), primaryGuardianPhone: "0270000000",
+      }],
+    });
+    const wb = XLSX.read(buffer, { type: "buffer" });
+    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(wb.Sheets[wb.SheetNames[0]]);
+    expect(rows[0]["DOB"]).toBe("2008-05-15");
+    expect(rows[0]["Surname"]).toBe("Mensah");
   });
 });
