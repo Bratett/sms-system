@@ -77,6 +77,11 @@ export function FormRegisterClient({ academicYears, classArms, report, error, ap
           <a href={downloadUrl("pdf")} aria-disabled={empty} className={`rounded-md border px-3 py-2 text-sm ${empty ? "pointer-events-none opacity-40" : ""}`}>Download PDF</a>
         </div>
       </div>
+      {Number(weeks) * Number(daysPerWeek) > 75 && (
+        <p className="text-sm text-amber-600">
+          Heads up: at {weeks} × {daysPerWeek} = {Number(weeks) * Number(daysPerWeek)} tick columns, the PDF grid may be cramped or clipped. Consider reducing weeks or days per week for a more legible printout.
+        </p>
+      )}
       {error && <p className="text-sm text-red-600">{error}</p>}
       {report && (
         <div className="rounded-lg border bg-card p-4">
