@@ -5,6 +5,7 @@ import { renderCensusXlsx } from "@/modules/reports/xlsx/student-reports";
 import { renderNominalRollXlsx } from "@/modules/reports/xlsx/student-reports";
 import { renderFormRegisterXlsx } from "@/modules/reports/xlsx/student-reports";
 import { renderBirthdayListXlsx } from "@/modules/reports/xlsx/student-reports";
+import { renderMissingDocsXlsx } from "@/modules/reports/xlsx/student-reports";
 
 describe("renderRosterXlsx", () => {
   it("returns a Buffer with one row per student plus header", () => {
@@ -121,5 +122,24 @@ describe("renderBirthdayListXlsx", () => {
     const headers = (XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 })[0] as string[]);
     expect(headers).toContain("Days Until");
     expect(headers.includes("Guardian Phone")).toBe(false);
+  });
+});
+
+describe("renderMissingDocsXlsx", () => {
+  it("joins missing/expired arrays into comma strings", () => {
+    const buffer = renderMissingDocsXlsx({
+      schoolName: "Demo", filterSummary: "Form 1A",
+      generatedAt: new Date(), generatedBy: "A",
+      rows: [{
+        studentId: "S1", name: "Adwoa", className: "Form 1 A",
+        missingTypes: ["Birth Certificate", "Photo"],
+        expiredTypes: [{ name: "Medical", expiredOn: new Date("2025-12-31") }],
+      }],
+    });
+    const wb = XLSX.read(buffer, { type: "buffer" });
+    const r = XLSX.utils.sheet_to_json<Record<string, string>>(wb.Sheets[wb.SheetNames[0]])[0];
+    expect(r["Missing"]).toContain("Birth Certificate, Photo");
+    expect(r["Expired"]).toContain("Medical");
+    expect(r["Expired"]).toContain("2025-12-31");
   });
 });

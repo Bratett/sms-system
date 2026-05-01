@@ -3,6 +3,7 @@ import type { CensusRow } from "@/modules/reports/actions/student-census.action"
 import type { NominalRollRow } from "@/modules/reports/actions/student-nominal-roll.action";
 import type { FormRegisterRow } from "@/modules/reports/actions/student-form-register.action";
 import type { BirthdayRow } from "@/modules/reports/actions/student-birthday-list.action";
+import type { MissingDocsRow } from "@/modules/reports/actions/student-missing-docs.action";
 
 export interface RosterStudentRow {
   id: string;
@@ -151,6 +152,26 @@ export function renderBirthdayListXlsx(input: {
   return generateExport({
     filename: "birthday-list", sheetName: "Birthdays", format: "xlsx",
     columns: cols,
+    data: input.rows as unknown as Record<string, unknown>[],
+  });
+}
+
+export function renderMissingDocsXlsx(input: {
+  schoolName: string;
+  filterSummary: string;
+  generatedAt: Date;
+  generatedBy: string;
+  rows: MissingDocsRow[];
+}): Buffer {
+  return generateExport({
+    filename: "missing-documents", sheetName: "Missing", format: "xlsx",
+    columns: [
+      { key: "studentId", header: "Student ID" },
+      { key: "name", header: "Name" },
+      { key: "className", header: "Class" },
+      { key: "missingTypes", header: "Missing", transform: (v) => Array.isArray(v) ? v.join(", ") : "" },
+      { key: "expiredTypes", header: "Expired", transform: (v) => Array.isArray(v) ? (v as Array<{ name: string; expiredOn: Date | null }>).map((e) => `${e.name} (${e.expiredOn ? e.expiredOn.toISOString().slice(0, 10) : "?"})`).join(", ") : "" },
+    ],
     data: input.rows as unknown as Record<string, unknown>[],
   });
 }
