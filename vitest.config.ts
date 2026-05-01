@@ -15,6 +15,7 @@ export default defineConfig({
       "tests/integration/accounting/**",
       "tests/integration/admissions/**",
       "tests/integration/students/**",
+      "tests/integration/reports/**",
       "node_modules/**",
     ],
     setupFiles: ["tests/unit/setup.ts"],
