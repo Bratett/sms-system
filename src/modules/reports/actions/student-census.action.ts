@@ -34,6 +34,12 @@ export async function getStudentCensusAction(filters: {
   }
   if (!academicYearId) return { error: "No academic year found." };
 
+  // Spec §5.7 exempts census from the 5000-row cap: the output is aggregated
+  // (one row per group), not per-student. The in-memory pass below computes
+  // 4 cross-counters per group (male/female × day/boarding) in a single
+  // sweep — equivalent SQL `groupBy` would require multiple roundtrips.
+  // For schools with > 50k active enrollments, consider an SQL-side
+  // CTE-based aggregation; until then, in-memory is simpler and correct.
   const enrollments = await db.enrollment.findMany({
     where: { academicYearId, status: "ACTIVE", classArm: { class: { schoolId: ctx.schoolId } } },
     select: {
