@@ -2,6 +2,7 @@ import { generateExport } from "@/lib/export";
 import type { CensusRow } from "@/modules/reports/actions/student-census.action";
 import type { NominalRollRow } from "@/modules/reports/actions/student-nominal-roll.action";
 import type { FormRegisterRow } from "@/modules/reports/actions/student-form-register.action";
+import type { BirthdayRow } from "@/modules/reports/actions/student-birthday-list.action";
 
 export interface RosterStudentRow {
   id: string;
@@ -126,5 +127,30 @@ export function renderFormRegisterXlsx(input: {
     format: "xlsx",
     columns: [...baseCols, ...tickCols],
     data,
+  });
+}
+
+export function renderBirthdayListXlsx(input: {
+  schoolName: string;
+  filterSummary: string;
+  generatedAt: Date;
+  generatedBy: string;
+  rows: BirthdayRow[];
+  includeGuardianPhone: boolean;
+  mode: "month" | "upcomingDays";
+}): Buffer {
+  const cols = [
+    { key: "studentId", header: "Student ID" },
+    { key: "name", header: "Name" },
+    { key: "className", header: "Class" },
+    { key: "dateOfBirth", header: "DOB", transform: (v: unknown) => v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? "") },
+    { key: "ageTurning", header: "Age Turning" },
+  ];
+  if (input.mode === "upcomingDays") cols.push({ key: "daysUntil", header: "Days Until" });
+  if (input.includeGuardianPhone) cols.push({ key: "primaryGuardianPhone", header: "Guardian Phone" });
+  return generateExport({
+    filename: "birthday-list", sheetName: "Birthdays", format: "xlsx",
+    columns: cols,
+    data: input.rows as unknown as Record<string, unknown>[],
   });
 }

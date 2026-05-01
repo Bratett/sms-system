@@ -4,6 +4,7 @@ import { renderRosterXlsx } from "@/modules/reports/xlsx/student-reports";
 import { renderCensusXlsx } from "@/modules/reports/xlsx/student-reports";
 import { renderNominalRollXlsx } from "@/modules/reports/xlsx/student-reports";
 import { renderFormRegisterXlsx } from "@/modules/reports/xlsx/student-reports";
+import { renderBirthdayListXlsx } from "@/modules/reports/xlsx/student-reports";
 
 describe("renderRosterXlsx", () => {
   it("returns a Buffer with one row per student plus header", () => {
@@ -102,5 +103,23 @@ describe("renderFormRegisterXlsx", () => {
     expect(headers).toContain("W1D1");
     expect(headers).toContain("W2D5");
     expect(headers.includes("W3D1")).toBe(false);
+  });
+});
+
+describe("renderBirthdayListXlsx", () => {
+  it("includes Days Until only in upcomingDays mode", () => {
+    const buffer = renderBirthdayListXlsx({
+      schoolName: "Demo", filterSummary: "Next 30 days",
+      generatedAt: new Date(), generatedBy: "A",
+      rows: [{
+        studentId: "S1", name: "Adwoa", className: "Form 1 A",
+        dateOfBirth: new Date("2008-05-10"), ageTurning: 18, daysUntil: 10,
+      }],
+      includeGuardianPhone: false, mode: "upcomingDays",
+    });
+    const wb = XLSX.read(buffer, { type: "buffer" });
+    const headers = (XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 })[0] as string[]);
+    expect(headers).toContain("Days Until");
+    expect(headers.includes("Guardian Phone")).toBe(false);
   });
 });
