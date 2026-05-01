@@ -118,10 +118,7 @@ export async function getStudentBirthdayListAction(filters: {
 
   rows.sort((a, b) => {
     if (filters.upcomingDays != null) return (a.daysUntil ?? 9999) - (b.daysUntil ?? 9999);
-    // Day of year ascending
-    const ad = (a.dateOfBirth.getMonth() * 31) + a.dateOfBirth.getDate();
-    const bd = (b.dateOfBirth.getMonth() * 31) + b.dateOfBirth.getDate();
-    return ad - bd;
+    return dayOfYearForBirthday(a.dateOfBirth) - dayOfYearForBirthday(b.dateOfBirth);
   });
 
   return { data: { rows, total: rows.length, mode: filters.upcomingDays != null ? "upcomingDays" : "month", appliedMonth: month, appliedUpcomingDays: filters.upcomingDays } };
@@ -131,4 +128,13 @@ function startOfDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
+}
+
+// Cumulative days at the start of each month in a non-leap year.
+// dayOfYearForBirthday returns a 1-based day-of-year using UTC fields so the
+// result is timezone-independent.  Feb 29 maps to slot 60, between Feb 28
+// (59) and Mar 1 (60) — ties in ordering are acceptable.
+const cumDays = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+function dayOfYearForBirthday(d: Date): number {
+  return cumDays[d.getUTCMonth()] + d.getUTCDate();
 }
