@@ -21,8 +21,8 @@ export interface StudentHistoryRow {
   entityId: string | null;
   module: string;
   description: string;
-  userName: string | null;
-  userUsername: string | null;
+  userName: string;
+  userUsername: string;
   previousData: unknown;
   newData: unknown;
 }
@@ -40,13 +40,18 @@ export async function getStudentHistoryAction(filters: StudentHistoryFilters) {
   });
   if (!student) return { error: "Student not found" };
 
-  // Fetch related-entity ID lists (school-scoped) in parallel
+  // TODO(spec §10): once we backfill `metadata.studentId` onto audit writes for
+  // medical/document/enrollment/guardian/house actions, this cross-reference block
+  // collapses to a single `metadata.path: ["studentId"], equals: filters.studentId`
+  // query. The take: 10_000 cap below is a safety bound for unusually long-tenured
+  // students; if exceeded, history will be incomplete but the query stays well-formed.
+  const RELATED_LOOKUP_CAP = 10000;
   const [medicalIds, documentIds, enrollmentIds, guardianLinkIds, houseAssignmentIds] = await Promise.all([
-    db.medicalRecord.findMany({ where: { studentId: filters.studentId, schoolId: ctx.schoolId }, select: { id: true } }),
-    db.studentDocument.findMany({ where: { studentId: filters.studentId, schoolId: ctx.schoolId }, select: { id: true } }),
-    db.enrollment.findMany({ where: { studentId: filters.studentId, schoolId: ctx.schoolId }, select: { id: true } }),
-    db.studentGuardian.findMany({ where: { studentId: filters.studentId, schoolId: ctx.schoolId }, select: { id: true } }),
-    db.studentHouse.findMany({ where: { studentId: filters.studentId, schoolId: ctx.schoolId }, select: { id: true } }),
+    db.medicalRecord.findMany({ where: { studentId: filters.studentId, schoolId: ctx.schoolId }, select: { id: true }, take: RELATED_LOOKUP_CAP }),
+    db.studentDocument.findMany({ where: { studentId: filters.studentId, schoolId: ctx.schoolId }, select: { id: true }, take: RELATED_LOOKUP_CAP }),
+    db.enrollment.findMany({ where: { studentId: filters.studentId, schoolId: ctx.schoolId }, select: { id: true }, take: RELATED_LOOKUP_CAP }),
+    db.studentGuardian.findMany({ where: { studentId: filters.studentId, schoolId: ctx.schoolId }, select: { id: true }, take: RELATED_LOOKUP_CAP }),
+    db.studentHouse.findMany({ where: { studentId: filters.studentId, schoolId: ctx.schoolId }, select: { id: true }, take: RELATED_LOOKUP_CAP }),
   ]);
 
   const relatedIds = [
@@ -100,8 +105,8 @@ export async function getStudentHistoryAction(filters: StudentHistoryFilters) {
     entityId: log.entityId,
     module: log.module,
     description: log.description,
-    userName: log.user ? `${log.user.firstName} ${log.user.lastName}` : null,
-    userUsername: log.user?.username ?? null,
+    userName: `${log.user.firstName} ${log.user.lastName}`,
+    userUsername: log.user.username,
     previousData: log.previousData,
     newData: log.newData,
   }));
