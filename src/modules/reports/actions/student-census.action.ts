@@ -38,7 +38,7 @@ export async function getStudentCensusAction(filters: {
     where: { academicYearId, status: "ACTIVE", classArm: { class: { schoolId: ctx.schoolId } } },
     select: {
       student: { select: { gender: true, boardingStatus: true, region: true, religion: true } },
-      classArm: { select: { class: { select: { name: true, programmeId: true } } } },
+      classArm: { select: { class: { select: { id: true, name: true, programmeId: true } } } },
     },
   });
 
@@ -54,7 +54,7 @@ export async function getStudentCensusAction(filters: {
     let key: string;
     let label: string;
     switch (filters.groupBy) {
-      case "class": key = e.classArm.class.name; label = key; break;
+      case "class": key = e.classArm.class.id; label = e.classArm.class.name; break;
       case "programme": key = e.classArm.class.programmeId ?? "UNASSIGNED"; label = progName.get(key) ?? "Unassigned"; break;
       case "region": key = s.region ?? "UNKNOWN"; label = key; break;
       case "gender": key = s.gender; label = key; break;
