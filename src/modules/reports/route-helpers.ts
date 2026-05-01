@@ -4,6 +4,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { auditReportDownload, type ReportDownloadFormat } from "@/modules/reports/audit-helpers";
 import { getExportContentType } from "@/lib/export";
 import { logger } from "@/lib/logger";
+import { slugify } from "@/lib/utils";
 
 const log = logger.child({ module: "report-route-helpers" });
 
@@ -11,6 +12,7 @@ export interface AuthorizedReportSession {
   userId: string;
   schoolId: string;
   schoolName: string;
+  schoolSlug: string;
   userName: string;
   permissions: string[];
 }
@@ -37,6 +39,7 @@ export async function authorizeReportRequest(): Promise<AuthorizedReportSession 
     userId: session.user.id,
     schoolId: session.user.schoolId,
     schoolName: session.user.schoolName ?? "School",
+    schoolSlug: slugify(session.user.schoolName ?? "school"),
     userName: session.user.name ?? "Unknown",
     permissions: perms,
   };
@@ -54,19 +57,22 @@ export interface ReportFileResponseInput {
   format: ReportDownloadFormat;
   /** Filename stem without extension; ISO date and extension are appended. */
   filename: string;
+  /** Optional school slug to prefix to the filename (multi-tenant safety). */
+  schoolSlug?: string;
 }
 
 /**
  * Builds a NextResponse for a binary report download with consistent
  * Content-Type and Content-Disposition headers.
  */
-export function reportFileResponse({ buffer, format, filename }: ReportFileResponseInput): NextResponse {
+export function reportFileResponse({ buffer, format, filename, schoolSlug }: ReportFileResponseInput): NextResponse {
   const date = new Date().toISOString().slice(0, 10);
   const contentType = format === "pdf" ? "application/pdf" : getExportContentType("xlsx");
+  const fullName = schoolSlug ? `${schoolSlug}-${filename}-${date}` : `${filename}-${date}`;
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": contentType,
-      "Content-Disposition": `attachment; filename="${filename}-${date}.${format}"`,
+      "Content-Disposition": `attachment; filename="${fullName}.${format}"`,
     },
   });
 }

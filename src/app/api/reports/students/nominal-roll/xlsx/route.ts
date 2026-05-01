@@ -38,5 +38,5 @@ export const GET = wrapReportRoute(async (request: NextRequest) => {
     rowCount: result.data!.total,
   });
 
-  return reportFileResponse({ buffer, format: "xlsx", filename: "nominal-roll" });
+  return reportFileResponse({ buffer, format: "xlsx", filename: "nominal-roll", schoolSlug: session.schoolSlug });
 });

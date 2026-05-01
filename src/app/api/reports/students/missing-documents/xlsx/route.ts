@@ -41,5 +41,5 @@ export const GET = wrapReportRoute(async (request: NextRequest) => {
     rowCount: result.data!.total,
   });
 
-  return reportFileResponse({ buffer, format: "xlsx", filename: "missing-documents" });
+  return reportFileResponse({ buffer, format: "xlsx", filename: "missing-documents", schoolSlug: session.schoolSlug });
 });

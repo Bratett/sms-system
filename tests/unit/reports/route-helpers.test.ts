@@ -39,6 +39,8 @@ describe("authorizeReportRequest", () => {
       expect(result.userId).toBe("test-user-id");
       expect(result.schoolId).toBe("default-school");
       expect(result.permissions).toContain("*");
+      expect(result.schoolSlug).toBeTruthy();
+      expect(typeof result.schoolSlug).toBe("string");
     }
   });
 });
@@ -64,6 +66,16 @@ describe("reportFileResponse", () => {
     });
     expect(res.headers.get("Content-Type")).toBe("application/pdf");
     expect(res.headers.get("Content-Disposition")).toMatch(/\.pdf"$/);
+  });
+
+  it("prepends school slug to the filename when provided", () => {
+    const res = reportFileResponse({
+      buffer: Buffer.from("xx"),
+      format: "xlsx",
+      filename: "roster",
+      schoolSlug: "demo-shs",
+    });
+    expect(res.headers.get("Content-Disposition")).toMatch(/filename="demo-shs-roster-\d{4}-\d{2}-\d{2}\.xlsx"/);
   });
 });
 

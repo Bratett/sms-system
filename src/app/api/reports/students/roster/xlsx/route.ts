@@ -40,5 +40,5 @@ export const GET = wrapReportRoute(async (request: NextRequest) => {
     rowCount: result.data!.totalStudents,
   });
 
-  return reportFileResponse({ buffer, format: "xlsx", filename: "roster" });
+  return reportFileResponse({ buffer, format: "xlsx", filename: "roster", schoolSlug: session.schoolSlug });
 });

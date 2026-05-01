@@ -50,5 +50,5 @@ export const GET = wrapReportRoute(async (request: NextRequest) => {
     rowCount: result.data!.total,
   });
 
-  return reportFileResponse({ buffer, format: "pdf", filename: "nominal-roll" });
+  return reportFileResponse({ buffer, format: "pdf", filename: "nominal-roll", schoolSlug: session.schoolSlug });
 });

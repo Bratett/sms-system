@@ -42,5 +42,5 @@ export const GET = wrapReportRoute(async (request: NextRequest) => {
     rowCount: result.data!.total,
   });
 
-  return reportFileResponse({ buffer, format: "xlsx", filename: "form-register" });
+  return reportFileResponse({ buffer, format: "xlsx", filename: "form-register", schoolSlug: session.schoolSlug });
 });
