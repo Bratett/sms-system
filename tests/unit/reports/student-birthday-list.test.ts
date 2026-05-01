@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { prismaMock, mockAuthenticatedUser } from "../setup";
 import { getStudentBirthdayListAction } from "@/modules/reports/actions/student-birthday-list.action";
 
@@ -41,17 +41,23 @@ describe("getStudentBirthdayListAction", () => {
   });
 
   it("treats Feb 29 students as Feb 28 in non-leap years for upcomingDays window", async () => {
-    // Setup: clock is March 1 of a non-leap year; upcomingDays = 365
-    prismaMock.enrollment.count.mockResolvedValue(1 as never);
-    prismaMock.enrollment.findMany.mockResolvedValue([
-      { student: { id: "s1", studentId: "S1", firstName: "Leap", lastName: "Year", otherNames: null, dateOfBirth: new Date("2008-02-29"), guardians: [] }, classArm: { class: { name: "Form 1" }, name: "A" } },
-    ] as never);
+    // Pin clock to a non-leap year (2025), well before Feb 28 so the adjusted
+    // birthday falls within an upcomingDays=365 window
+    vi.setSystemTime(new Date("2025-01-01T00:00:00Z"));
+    try {
+      prismaMock.enrollment.count.mockResolvedValue(1 as never);
+      prismaMock.enrollment.findMany.mockResolvedValue([
+        { student: { id: "s1", studentId: "S1", firstName: "Leap", lastName: "Year", otherNames: null, dateOfBirth: new Date("2008-02-29"), guardians: [] }, classArm: { class: { name: "Form 1" }, name: "A" } },
+      ] as never);
 
-    const result = await getStudentBirthdayListAction({ upcomingDays: 365 });
-    expect(result).toHaveProperty("data");
-    const rows = (result as { data: { rows: Array<Record<string, unknown>> } }).data.rows;
-    expect(rows.length).toBe(1);
-    expect(rows[0].dateOfBirth).toBeDefined();
+      const result = await getStudentBirthdayListAction({ upcomingDays: 365 });
+      expect(result).toHaveProperty("data");
+      const rows = (result as { data: { rows: Array<Record<string, unknown>> } }).data.rows;
+      expect(rows.length).toBe(1);
+      expect(rows[0].dateOfBirth).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("sorts month-mode rows by true day-of-year ascending across month boundaries", async () => {
